@@ -46,6 +46,7 @@ export class AntigravityServer {
     private authToken: string;
     private state: State;
     private useAuth: boolean;
+    private consecutiveSnapshotFails = 0;
 
     constructor(port: number, extensionPath: string, workspaceRoot?: string, useHttps = true) {
         this.port = port;
@@ -178,7 +179,16 @@ export class AntigravityServer {
     }
 
     private async updateSnapshot(): Promise<boolean> {
-        if (this.state.cdpConnections.length === 0) return false;
+        if (this.state.cdpConnections.length === 0) {
+            // Auto-reconnect if no CDP connections
+            this.consecutiveSnapshotFails++;
+            if (this.consecutiveSnapshotFails >= 5) {
+                this.consecutiveSnapshotFails = 0;
+                console.log('🔄 Auto-reconnecting CDP after consecutive failures...');
+                try { await this.initCDP(); } catch { }
+            }
+            return false;
+        }
 
         // Only capture from active target (first/only connection)
         const cdp = this.state.activeTargetId
@@ -188,6 +198,7 @@ export class AntigravityServer {
         try {
             const snapshot = await captureSnapshot(cdp);
             if (snapshot && !snapshot.error) {
+                this.consecutiveSnapshotFails = 0; // Reset on success
                 const hash = this.hashString(snapshot.html);
                 if (hash !== this.state.lastSnapshotHash) {
                     this.state.lastSnapshot = snapshot;
@@ -199,10 +210,20 @@ export class AntigravityServer {
                 return false;
             } else if (snapshot && snapshot.error) {
                 console.error(`⚠️ Capture Error (${cdp.title}):`, snapshot.error);
+                this.consecutiveSnapshotFails++;
             }
         } catch (err) {
             console.error('Snapshot error:', (err as Error).message);
+            this.consecutiveSnapshotFails++;
         }
+
+        // Auto-reconnect after 5 consecutive failures
+        if (this.consecutiveSnapshotFails >= 5) {
+            this.consecutiveSnapshotFails = 0;
+            console.log('🔄 Auto-reconnecting CDP after consecutive snapshot errors...');
+            try { await this.initCDP(); } catch { }
+        }
+
         return false;
     }
 
@@ -272,6 +293,21 @@ export class AntigravityServer {
                     this.broadcastSnapshot(this.state.lastSnapshot);
                 }
                 res.json({ success: true, activeTargetId: this.state.activeTargetId, activePort: this.state.activePort });
+            } catch (e) {
+                res.status(500).json({ error: (e as Error).message });
+            }
+        });
+
+        router.post('/reconnect', async (_req, res) => {
+            try {
+                this.consecutiveSnapshotFails = 0;
+                await this.initCDP();
+                res.json({
+                    success: true,
+                    activeTargetId: this.state.activeTargetId,
+                    activePort: this.state.activePort,
+                    connections: this.state.cdpConnections.length
+                });
             } catch (e) {
                 res.status(500).json({ error: (e as Error).message });
             }
