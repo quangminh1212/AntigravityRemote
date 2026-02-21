@@ -20,10 +20,8 @@ const CAPTURE_SCRIPT = `(() => {
         
         let cleanHtml;
         if (cascade) {
-            const clone = cascade.cloneNode(true);
-            const input = clone.querySelector('[contenteditable="true"]')?.closest('div[id^="cascade"] > div');
-            if (input) input.remove();
-            cleanHtml = clone.outerHTML;
+            // Keep the full cascade UI including input area and controls
+            cleanHtml = cascade.outerHTML;
         } else {
             cleanHtml = document.body.outerHTML;
         }
