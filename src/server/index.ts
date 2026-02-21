@@ -21,6 +21,25 @@ const TOKEN_FILENAME = '.token';
 const CERT_FILENAME = 'cert.pem';
 const KEY_FILENAME = 'key.pem';
 
+// =============== SERVER LOGGER ===============
+const LOG_FILE = path.join(process.cwd(), 'server.log');
+type LogLevel = 'DEBUG' | 'INFO' | 'WARN' | 'ERROR';
+const serverLog = (level: LogLevel, category: string, message: string, data?: unknown) => {
+    const ts = new Date().toISOString();
+    const prefix = `[${ts}][${level}][${category}]`;
+    const dataStr = data ? ' ' + (typeof data === 'object' ? JSON.stringify(data) : String(data)) : '';
+    const line = `${prefix} ${message}${dataStr}`;
+
+    // Console output with level-appropriate method
+    if (level === 'ERROR') console.error(line);
+    else if (level === 'WARN') console.warn(line);
+    else console.log(line);
+
+    // Append to log file (non-blocking)
+    fs.appendFile(LOG_FILE, line + '\n', () => { });
+};
+// ============================================
+
 interface State {
     cdpConnections: CDPConnection[];
     lastSnapshot: Snapshot | null;
@@ -78,6 +97,7 @@ export class AntigravityServer {
 
         this.configureMiddleware();
         this.configureRoutes();
+        serverLog('INFO', 'SERVER', `Server instance created`, { port, useHttps, publicDir: this.publicDir });
     }
 
     public get localUrl() { return this._localUrl; }
@@ -171,6 +191,7 @@ export class AntigravityServer {
                 this.state.cdpConnections.push(conn);
                 this.state.activePort = candidate.port;
                 this.state.activeTargetId = candidate.id;
+                serverLog('INFO', 'CDP', `Connected to: ${candidate.title}`, { id: candidate.id, port: candidate.port });
                 break;
             } catch { }
         }
@@ -184,7 +205,7 @@ export class AntigravityServer {
             this.consecutiveSnapshotFails++;
             if (this.consecutiveSnapshotFails >= 5) {
                 this.consecutiveSnapshotFails = 0;
-                console.log('🔄 Auto-reconnecting CDP after consecutive failures...');
+                serverLog('WARN', 'CDP', `Auto-reconnecting after ${this.consecutiveSnapshotFails} consecutive failures`);
                 try { await this.initCDP(); } catch { }
             }
             return false;
@@ -209,18 +230,18 @@ export class AntigravityServer {
                 }
                 return false;
             } else if (snapshot && snapshot.error) {
-                console.error(`⚠️ Capture Error (${cdp.title}):`, snapshot.error);
+                serverLog('WARN', 'SNAPSHOT', `Capture error (${cdp.title}): ${snapshot.error}`);
                 this.consecutiveSnapshotFails++;
             }
         } catch (err) {
-            console.error('Snapshot error:', (err as Error).message);
+            serverLog('ERROR', 'SNAPSHOT', `Snapshot exception: ${(err as Error).message}`);
             this.consecutiveSnapshotFails++;
         }
 
         // Auto-reconnect after 5 consecutive failures
         if (this.consecutiveSnapshotFails >= 5) {
             this.consecutiveSnapshotFails = 0;
-            console.log('🔄 Auto-reconnecting CDP after consecutive snapshot errors...');
+            serverLog('WARN', 'CDP', 'Auto-reconnecting after consecutive snapshot errors');
             try { await this.initCDP(); } catch { }
         }
 
@@ -300,6 +321,7 @@ export class AntigravityServer {
 
         router.post('/reconnect', async (_req, res) => {
             try {
+                serverLog('INFO', 'API', 'POST /reconnect - manual CDP reconnection requested');
                 this.consecutiveSnapshotFails = 0;
                 await this.initCDP();
                 res.json({
@@ -316,6 +338,7 @@ export class AntigravityServer {
         router.post('/send', async (req, res) => {
             const { message } = req.body as { message?: string };
             if (!message) return res.status(400).json({ error: 'Message required' });
+            serverLog('INFO', 'API', `POST /send - message: "${message.slice(0, 50)}${message.length > 50 ? '...' : ''}"`);
             const cdp = this.state.activeTargetId
                 ? this.state.cdpConnections.find(c => c.id === this.state.activeTargetId)
                 : this.state.cdpConnections[0];
@@ -323,7 +346,11 @@ export class AntigravityServer {
             const activeCdp = cdp;
             try {
                 const result = await injectMessage(activeCdp, message);
-                if (result.ok) return res.json({ success: true, method: result.method, target: activeCdp.title });
+                if (result.ok) {
+                    serverLog('INFO', 'API', `Message injected via ${result.method} to ${activeCdp.title}`);
+                    return res.json({ success: true, method: result.method, target: activeCdp.title });
+                }
+                serverLog('WARN', 'API', `Message injection failed: ${result.reason}`);
                 res.status(500).json({ success: false, reason: result.reason });
             } catch (e) {
                 res.status(500).json({ error: (e as Error).message });
@@ -353,6 +380,7 @@ export class AntigravityServer {
         router.post('/upload', async (req, res) => {
             const { name, content, targetSelector } = req.body as { name: string, content: string, targetSelector?: string };
             if (!name || !content) return res.status(400).json({ error: 'Name and content required' });
+            serverLog('INFO', 'API', `POST /upload - file: ${name}, selector: ${targetSelector || 'auto'}`);
 
             const cdp = this.state.activeTargetId
                 ? this.state.cdpConnections.find(c => c.id === this.state.activeTargetId)
@@ -374,8 +402,10 @@ export class AntigravityServer {
 
                 const injectionResult = await injectFile(activeCdp, targetPath, targetSelector);
                 if (injectionResult.ok) {
+                    serverLog('INFO', 'API', `File injected successfully: ${safeName}`);
                     res.json({ success: true, path: targetPath, injected: true });
                 } else {
+                    serverLog('WARN', 'API', `File saved but injection failed: ${injectionResult.reason || 'unknown'}`);
                     res.json({ success: true, path: targetPath, injected: false, reason: injectionResult.reason || 'injection_failed' });
                 }
             } catch (e) {
@@ -528,10 +558,12 @@ export class AntigravityServer {
                         const token = url.searchParams.get('token');
                         const headerToken = (req.headers.authorization || '').replace('Bearer ', '');
                         if (token !== this.authToken && headerToken !== this.authToken) {
+                            serverLog('WARN', 'WS', 'Unauthorized WebSocket connection attempt');
                             ws.close(1008, 'Unauthorized');
                             return;
                         }
                     }
+                    serverLog('INFO', 'WS', `Client connected from ${req.socket.remoteAddress}`);
                     if (this.state.lastSnapshot) {
                         ws.send(JSON.stringify({ type: 'snapshot', data: this.state.lastSnapshot, timestamp: new Date().toISOString() }));
                     }
@@ -572,13 +604,16 @@ export class AntigravityServer {
                     this._localUrl = `${protocol}://${localIp}:${this.port}/${authQuery}`;
                     this._secureUrl = this.useHttps ? this._localUrl : '';
 
+                    serverLog('INFO', 'SERVER', `Server listening on ${this._localUrl}`);
+
                     try {
                         await this.initCDP();
                     } catch (err) {
-                        console.log('⚠️ Initial CDP connection failed, will keep polling...');
+                        serverLog('WARN', 'CDP', `Initial CDP connection failed, will keep polling: ${(err as Error).message}`);
                     }
 
                     this.state.pollInterval = setInterval(() => this.updateSnapshot(), POLL_INTERVAL);
+                    serverLog('INFO', 'SERVER', `Snapshot polling started (interval: ${POLL_INTERVAL}ms)`);
 
                     resolve({
                         localUrl: this._localUrl,
@@ -593,9 +628,11 @@ export class AntigravityServer {
     }
 
     public stop() {
+        serverLog('INFO', 'SERVER', 'Shutting down server...');
         if (this.state.pollInterval) clearInterval(this.state.pollInterval);
         this.wss?.close();
         this.server?.close();
         this.state.cdpConnections.forEach(c => c.ws.close());
+        serverLog('INFO', 'SERVER', 'Server stopped');
     }
 }
