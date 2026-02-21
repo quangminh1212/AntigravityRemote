@@ -3,12 +3,12 @@
 
 <head>
     <meta charset="UTF-8">
-    <meta name="viewport"
-        content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
     <meta name="apple-mobile-web-app-capable" content="yes">
     <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+    <link rel="apple-touch-icon" href="icon-192.png">
     <link rel="manifest" href="manifest.json">
-    <meta name="theme-color" content="#1a1a1a">
+    <meta name="theme-color" content="#1a1a1a" media="(prefers-color-scheme: dark)">
     <title>Antigravity Link</title>
     <style>
         :root {
@@ -48,21 +48,20 @@
             flex: 1;
             overflow-y: auto;
             position: relative;
-            -webkit-overflow-scrolling: touch;
             padding-bottom: 20px;
         }
 
 
         .chat-content {
             padding: 16px 16px 0;
-            min-height: auto;
+            min-height: 0;
         }
 
         /* --- Unified Bottom Dock --- */
         .bottom-dock {
             background: var(--bg-dock);
-            backdrop-filter: blur(20px);
             -webkit-backdrop-filter: blur(20px);
+            backdrop-filter: blur(20px);
             border-top: 1px solid var(--border);
             display: flex;
             flex-direction: column;
@@ -227,6 +226,7 @@
             right: 0;
             bottom: 0;
             background: rgba(0, 0, 0, 0.8);
+            -webkit-backdrop-filter: blur(10px);
             backdrop-filter: blur(10px);
             display: none;
             justify-content: center;
@@ -273,6 +273,7 @@
             left: 0;
             right: 0;
             background: var(--bg-dock);
+            -webkit-backdrop-filter: blur(20px);
             backdrop-filter: blur(20px);
             border-top-left-radius: 24px;
             border-top-right-radius: 24px;
@@ -364,8 +365,8 @@
             padding: 8px 12px;
             border-radius: 20px;
             background: hsla(0, 0%, 0%, 0.5);
-            backdrop-filter: blur(10px);
             -webkit-backdrop-filter: blur(10px);
+            backdrop-filter: blur(10px);
             border: 1px solid var(--border);
             display: flex;
             align-items: center;
@@ -384,8 +385,8 @@
             height: 40px;
             border-radius: 50%;
             background: hsla(0, 0%, 100%, 0.1);
-            backdrop-filter: blur(10px);
             -webkit-backdrop-filter: blur(10px);
+            backdrop-filter: blur(10px);
             border: 1px solid var(--border);
             color: var(--text-main);
             font-size: 18px;
@@ -445,8 +446,8 @@
 
         .toast {
             background: hsla(240, 10%, 20%, 0.95);
-            backdrop-filter: blur(12px);
             -webkit-backdrop-filter: blur(12px);
+            backdrop-filter: blur(12px);
             border: 1px solid var(--border);
             border-radius: 12px;
             padding: 12px 16px;
@@ -538,6 +539,77 @@
         .mic-recording {
             animation: micPulse 1.5s ease-in-out infinite;
         }
+
+        /* Status Dot */
+        .status-dot {
+            width: 8px;
+            height: 8px;
+            border-radius: 50%;
+            background: #aaa;
+        }
+
+        /* File Input Hidden */
+        .file-input-hidden {
+            display: none;
+        }
+
+        /* Instances Modal Header */
+        .instances-header {
+            display: flex;
+            justify-content: space-between;
+            margin-bottom: 16px;
+        }
+
+        .instances-header h3 {
+            margin: 0;
+        }
+
+        .instances-close {
+            cursor: pointer;
+            opacity: 0.5;
+        }
+
+        /* Instances List */
+        .instances-list {
+            display: flex;
+            flex-direction: column;
+            gap: 10px;
+            max-height: 40vh;
+            overflow-y: auto;
+        }
+
+        /* Sheet Overlay */
+        .sheet-overlay {
+            background: rgba(0, 0, 0, 0.5);
+        }
+
+        /* Sheet Close Button */
+        .sheet-close {
+            background: transparent;
+            border: none;
+            color: #fff;
+            font-size: 24px;
+        }
+
+        /* Debug Log Panel */
+        .debug-log {
+            position: fixed;
+            top: 60px;
+            left: 16px;
+            right: 16px;
+            max-height: 200px;
+            background: rgba(0, 0, 0, 0.9);
+            border-radius: 12px;
+            border: 1px solid #444;
+            color: #0f0;
+            font-family: monospace;
+            font-size: 10px;
+            padding: 8px;
+            overflow-y: auto;
+            z-index: 9000;
+            display: none;
+            pointer-events: none;
+        }
     </style>
 </head>
 
@@ -553,7 +625,7 @@
 
     <!-- Top Navigation -->
     <div id="connectivityBadge">
-        <div id="statusDot" style="width:8px; height:8px; border-radius:50%; background:#aaa;"></div>
+        <div id="statusDot" class="status-dot"></div>
         <span id="statusText">CONNECTING</span>
     </div>
     <button class="fab-top-right" id="instancesBtn">🖥️</button>
@@ -595,10 +667,10 @@
                 </button>
             </div>
             <div class="input-bubble">
-                <input type="file" id="fileInput" style="display:none">
+                <input type="file" id="fileInput" class="file-input-hidden">
                 <textarea id="messageInput" placeholder="Message Antigravity..." rows="1"></textarea>
             </div>
-            <button id="sendBtn">
+            <button id="sendBtn" title="Send Message">
                 <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3" stroke-linecap="round"
                     stroke-linejoin="round">
                     <line x1="22" y1="2" x2="11" y2="13"></line>
@@ -619,23 +691,21 @@
 
     <div class="modal-overlay" id="instancesModal">
         <div class="login-box">
-            <div style="display:flex; justify-content:space-between; margin-bottom:16px;">
-                <h3 style="margin:0;">🖥️ Active Instances</h3>
-                <span id="closeInstancesBtn" style="cursor:pointer; opacity:0.5;">✕</span>
+            <div class="instances-header">
+                <h3>🖥️ Active Instances</h3>
+                <span id="closeInstancesBtn" class="instances-close">✕</span>
             </div>
-            <div id="instancesList"
-                style="display:flex; flex-direction:column; gap:10px; max-height:40vh; overflow-y:auto;">
+            <div id="instancesList" class="instances-list">
                 <!-- Injected -->
             </div>
         </div>
     </div>
 
-    <div id="sheetOverlay" class="modal-overlay" style="background:rgba(0,0,0,0.5)"></div>
+    <div id="sheetOverlay" class="modal-overlay sheet-overlay"></div>
     <div id="optionsSheet" class="bottom-sheet">
         <div class="sheet-header">
             <h3 id="sheetTitle" class="sheet-title">Options</h3>
-            <button id="sheetClose" class="sheet-close"
-                style="background:transparent; border:none; color:#fff; font-size:24px;">&times;</button>
+            <button id="sheetClose" class="sheet-close">&times;</button>
         </div>
         <div id="sheetList" class="sheet-list">
             <!-- Options injected -->
@@ -649,8 +719,7 @@
     <div class="pull-indicator" id="pullIndicator">↻ Release to refresh</div>
 
     <!-- Debug Log (Hidden) -->
-    <div id="debugLog"
-        style="position:fixed; top:60px; left:16px; right:16px; max-height:200px; background:rgba(0,0,0,0.9); border-radius:12px; border:1px solid #444; color:#0f0; font-family:monospace; font-size:10px; padding:8px; overflow-y:auto; z-index:9000; display:none; pointer-events:none;">
+    <div id="debugLog" class="debug-log">
     </div>
 
     <script>
@@ -674,6 +743,92 @@
             toastContainer.appendChild(toast);
             setTimeout(() => toast.remove(), 3200);
         }
+
+        // =============== DEBUG LOGGING SYSTEM ===============
+        const debugLog = document.getElementById('debugLog');
+        const LOG_LEVELS = { DEBUG: 0, INFO: 1, WARN: 2, ERROR: 3 };
+        const LOG_COLORS = { DEBUG: '#888', INFO: '#0f0', WARN: '#fbbf24', ERROR: '#f87171' };
+        let logHistory = [];
+        const MAX_LOG_ENTRIES = 200;
+        let currentLogLevel = LOG_LEVELS.DEBUG;
+
+        function agLog(level, category, message, data) {
+            const now = new Date();
+            const ts = now.toISOString().slice(11, 23); // HH:MM:SS.mmm
+            const levelName = Object.keys(LOG_LEVELS).find(k => LOG_LEVELS[k] === level) || 'INFO';
+
+            if (level < currentLogLevel) return;
+
+            const entry = { ts, level: levelName, category, message, data };
+            logHistory.push(entry);
+            if (logHistory.length > MAX_LOG_ENTRIES) logHistory.shift();
+
+            // Console output
+            const prefix = `[${ts}][${levelName}][${category}]`;
+            if (level >= LOG_LEVELS.ERROR) {
+                console.error(prefix, message, data || '');
+            } else if (level >= LOG_LEVELS.WARN) {
+                console.warn(prefix, message, data || '');
+            } else {
+                console.log(prefix, message, data || '');
+            }
+
+            // Visual debug panel update (if visible)
+            if (debugLog && debugLog.style.display !== 'none') {
+                const line = document.createElement('div');
+                line.style.color = LOG_COLORS[levelName] || '#0f0';
+                line.textContent = `${ts} [${levelName}] ${category}: ${message}`;
+                if (data) line.textContent += ' ' + (typeof data === 'object' ? JSON.stringify(data) : data);
+                debugLog.appendChild(line);
+                debugLog.scrollTop = debugLog.scrollHeight;
+                // Keep panel slim
+                while (debugLog.children.length > 50) debugLog.removeChild(debugLog.firstChild);
+            }
+        }
+
+        // Shortcut helpers
+        const log = {
+            debug: (cat, msg, d) => agLog(LOG_LEVELS.DEBUG, cat, msg, d),
+            info: (cat, msg, d) => agLog(LOG_LEVELS.INFO, cat, msg, d),
+            warn: (cat, msg, d) => agLog(LOG_LEVELS.WARN, cat, msg, d),
+            error: (cat, msg, d) => agLog(LOG_LEVELS.ERROR, cat, msg, d)
+        };
+
+        // Toggle debug panel with triple-tap on status bar
+        let debugTapCount = 0;
+        let debugTapTimer = null;
+        document.getElementById('connectivityBadge').addEventListener('click', () => {
+            debugTapCount++;
+            clearTimeout(debugTapTimer);
+            debugTapTimer = setTimeout(() => {
+                if (debugTapCount >= 3) {
+                    debugLog.style.display = debugLog.style.display === 'none' ? 'block' : 'none';
+                    debugLog.style.pointerEvents = debugLog.style.display === 'block' ? 'auto' : 'none';
+                    log.info('UI', `Debug panel ${debugLog.style.display === 'none' ? 'hidden' : 'visible'}`);
+                }
+                debugTapCount = 0;
+            }, 500);
+        });
+
+        // Export logs for debugging
+        window.agDumpLogs = () => {
+            const blob = new Blob([JSON.stringify(logHistory, null, 2)], { type: 'application/json' });
+            const url = URL.createObjectURL(blob);
+            const a = document.createElement('a');
+            a.href = url; a.download = `antigravity-link-debug-${Date.now()}.json`;
+            a.click(); URL.revokeObjectURL(url);
+            log.info('DEBUG', 'Logs exported');
+        };
+
+        // Get all logs as string (for console access)
+        window.agGetLogs = () => logHistory
+            .map(e => `${e.ts} [${e.level}] ${e.category}: ${e.message}${e.data ? ' ' + JSON.stringify(e.data) : ''}`)
+            .join('\n');
+
+        log.info('INIT', `Antigravity Link UI loaded at ${new Date().toISOString()}`);
+        log.info('INIT', `UserAgent: ${navigator.userAgent.slice(0, 80)}`);
+        log.info('INIT', `Screen: ${screen.width}x${screen.height}, DPR: ${devicePixelRatio}`);
+        // ============ END DEBUG LOGGING SYSTEM ============
 
         // Auth elements
         const loginModal = document.getElementById('loginModal');
@@ -895,21 +1050,15 @@
         const connectivityBadge = document.getElementById('connectivityBadge');
         const statusDot = document.getElementById('statusDot');
         const statusText = document.getElementById('statusText');
-        const debugLog = document.getElementById('debugLog');
 
+        // Legacy logToScreen → redirect to new log system
         function logToScreen(msg, color = '#aaa') {
-            console.log(`[LOG] ${msg}`);
-            const line = document.createElement('div');
-            line.style.color = color;
-            line.textContent = `[${new Date().toLocaleTimeString()}] ${msg}`;
-            debugLog.insertBefore(line, debugLog.firstChild);
+            const level = color === '#f87171' ? 'error' : color === '#fbbf24' ? 'warn' : color === '#4ade80' ? 'info' : 'debug';
+            log[level]('NET', msg);
         }
 
-        connectivityBadge.addEventListener('click', () => {
-            debugLog.style.display = debugLog.style.display === 'none' ? 'block' : 'none';
-        });
-
         function updateConnectionUI(mode) {
+            log.info('UI', `Connection state → ${mode.toUpperCase()}`);
             statusText.textContent = mode.toUpperCase();
             if (mode === 'ws') {
                 statusDot.style.background = '#4ade80'; // Green
@@ -1051,6 +1200,7 @@
 
             const message = messageInput.value.trim();
             if (!message) return;
+            log.info('MSG', `Sending message (${message.length} chars): "${message.slice(0, 40)}${message.length > 40 ? '...' : ''}"`);
 
             sendBtn.disabled = true;
             const originalSendHTML = sendBtn.innerHTML;
@@ -1074,13 +1224,14 @@
                 }
 
                 if (res.ok) {
+                    log.info('MSG', 'Message sent successfully');
                     showToast('Message sent', 'success');
                 } else {
                     showToast('Failed to send message', 'error');
                 }
 
             } catch (e) {
-                console.error(e);
+                log.error('MSG', `Send failed: ${e.message}`);
                 if (e.message !== 'Unauthorized') showToast('Network error', 'error');
             } finally {
                 // Always clear textarea after send attempt
@@ -1126,6 +1277,7 @@
         fileInput.addEventListener('change', async () => {
             const file = fileInput.files[0];
             if (!file) return;
+            log.info('UPLOAD', `File selected: ${file.name} (${(file.size / 1024 / 1024).toFixed(1)}MB, type: ${file.type})`);
 
             // Preflight size check (50MB hard limit to match server)
             const MAX_SIZE_MB = 50;
@@ -1180,7 +1332,7 @@
                 };
                 reader.readAsDataURL(file);
             } catch (err) {
-                console.error('Upload error:', err);
+                log.error('UPLOAD', `Upload exception: ${err.message}`);
                 showToast('Upload error', 'error');
             } finally {
                 uploadBtn.innerHTML = originalIcon;
