@@ -399,6 +399,145 @@
         .fab-top-right:active {
             transform: scale(0.9);
         }
+
+        /* Loading & Spinner */
+        .loading {
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            justify-content: center;
+            padding: 40px;
+            gap: 12px;
+            color: var(--text-dim);
+            font-size: 14px;
+        }
+
+        .spinner {
+            width: 28px;
+            height: 28px;
+            border: 3px solid var(--border);
+            border-top-color: var(--accent);
+            border-radius: 50%;
+            animation: spin 0.8s linear infinite;
+        }
+
+        @keyframes spin {
+            to {
+                transform: rotate(360deg);
+            }
+        }
+
+        /* Toast Notification */
+        .toast-container {
+            position: fixed;
+            top: 60px;
+            left: 50%;
+            transform: translateX(-50%);
+            z-index: 10000;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            gap: 8px;
+            pointer-events: none;
+            width: 90%;
+            max-width: 380px;
+        }
+
+        .toast {
+            background: hsla(240, 10%, 20%, 0.95);
+            backdrop-filter: blur(12px);
+            -webkit-backdrop-filter: blur(12px);
+            border: 1px solid var(--border);
+            border-radius: 12px;
+            padding: 12px 16px;
+            color: var(--text-main);
+            font-size: 13px;
+            pointer-events: auto;
+            animation: toastIn 0.3s ease-out, toastOut 0.3s ease-in 2.7s forwards;
+            display: flex;
+            align-items: center;
+            gap: 8px;
+            box-shadow: 0 8px 24px rgba(0, 0, 0, 0.4);
+            width: 100%;
+        }
+
+        .toast.success {
+            border-left: 3px solid #4ade80;
+        }
+
+        .toast.error {
+            border-left: 3px solid #f87171;
+        }
+
+        .toast.info {
+            border-left: 3px solid #3b82f6;
+        }
+
+        .toast.warning {
+            border-left: 3px solid #fbbf24;
+        }
+
+        @keyframes toastIn {
+            from {
+                opacity: 0;
+                transform: translateY(-10px);
+            }
+
+            to {
+                opacity: 1;
+                transform: translateY(0);
+            }
+        }
+
+        @keyframes toastOut {
+            from {
+                opacity: 1;
+                transform: translateY(0);
+            }
+
+            to {
+                opacity: 0;
+                transform: translateY(-10px);
+            }
+        }
+
+        /* Pull to Refresh */
+        .pull-indicator {
+            position: absolute;
+            top: 0;
+            left: 50%;
+            transform: translateX(-50%) translateY(-100%);
+            transition: transform 0.2s ease;
+            z-index: 50;
+            padding: 8px 16px;
+            border-radius: 0 0 12px 12px;
+            background: var(--bg-dock);
+            border: 1px solid var(--border);
+            border-top: none;
+            font-size: 12px;
+            color: var(--text-dim);
+        }
+
+        .pull-indicator.visible {
+            transform: translateX(-50%) translateY(0);
+        }
+
+        /* Mic Recording Pulse */
+        @keyframes micPulse {
+
+            0%,
+            100% {
+                box-shadow: 0 0 0 0 rgba(239, 68, 68, 0.4);
+            }
+
+            50% {
+                box-shadow: 0 0 0 8px rgba(239, 68, 68, 0);
+            }
+        }
+
+        .mic-recording {
+            animation: micPulse 1.5s ease-in-out infinite;
+        }
     </style>
 </head>
 
@@ -503,6 +642,12 @@
         </div>
     </div>
 
+    <!-- Toast Container -->
+    <div class="toast-container" id="toastContainer"></div>
+
+    <!-- Pull to Refresh Indicator -->
+    <div class="pull-indicator" id="pullIndicator">↻ Release to refresh</div>
+
     <!-- Debug Log (Hidden) -->
     <div id="debugLog"
         style="position:fixed; top:60px; left:16px; right:16px; max-height:200px; background:rgba(0,0,0,0.9); border-radius:12px; border:1px solid #444; color:#0f0; font-family:monospace; font-size:10px; padding:8px; overflow-y:auto; z-index:9000; display:none; pointer-events:none;">
@@ -518,6 +663,17 @@
         const micBtn = document.getElementById('micBtn');
         const scrollToBottomBtn = document.getElementById('scrollToBottom');
         let uploadTargetSelector = localStorage.getItem('ag_upload_target') || '';
+
+        // Toast notification system
+        const toastContainer = document.getElementById('toastContainer');
+        function showToast(message, type = 'info') {
+            const toast = document.createElement('div');
+            toast.className = `toast ${type}`;
+            const icons = { success: '✅', error: '❌', info: 'ℹ️', warning: '⚠️' };
+            toast.textContent = `${icons[type] || ''} ${message}`;
+            toastContainer.appendChild(toast);
+            setTimeout(() => toast.remove(), 3200);
+        }
 
         // Auth elements
         const loginModal = document.getElementById('loginModal');
@@ -897,7 +1053,8 @@
             if (!message) return;
 
             sendBtn.disabled = true;
-            sendBtn.textContent = '...';
+            const originalSendHTML = sendBtn.innerHTML;
+            sendBtn.innerHTML = '<span style="font-size:12px;">...</span>';
 
             try {
                 const res = await fetch('/send', {
@@ -916,13 +1073,21 @@
                     throw new Error('Unauthorized');
                 }
 
+                if (res.ok) {
+                    showToast('Message sent', 'success');
+                } else {
+                    showToast('Failed to send message', 'error');
+                }
+
             } catch (e) {
                 console.error(e);
+                if (e.message !== 'Unauthorized') showToast('Network error', 'error');
             } finally {
                 // Always clear textarea after send attempt
                 messageInput.value = '';
                 autoResizeInput(); // Reset to min-height
                 sendBtn.disabled = false;
+                sendBtn.innerHTML = originalSendHTML;
             }
         }
 
@@ -965,7 +1130,7 @@
             // Preflight size check (50MB hard limit to match server)
             const MAX_SIZE_MB = 50;
             if (file.size > MAX_SIZE_MB * 1024 * 1024) {
-                alert(`File is too large (${(file.size / 1024 / 1024).toFixed(1)}MB). Max limit is ${MAX_SIZE_MB}MB.`);
+                showToast(`File too large (${(file.size / 1024 / 1024).toFixed(1)}MB). Max ${MAX_SIZE_MB}MB.`, 'error');
                 fileInput.value = '';
                 return;
             }
@@ -999,31 +1164,24 @@
                         const result = await response.json();
                         logToScreen(`Upload success: ${file.name}`, '#4ade80');
                         if (result.injected) {
-                            alert(`Uploaded and injected: ${result.path}`);
+                            showToast(`Uploaded: ${file.name}`, 'success');
                         } else {
-                            const reason = result.reason || 'could_not_locate_file_input';
-                            const msg = `File saved but not injected (${reason}). If you know the file input selector, enter it to retry next time.`;
-                            alert(msg);
-                            const userSelector = prompt('Optional CSS selector for the file input (e.g., input[type="file"])', uploadTargetSelector);
-                            if (userSelector) {
-                                uploadTargetSelector = userSelector.trim();
-                                localStorage.setItem('ag_upload_target', uploadTargetSelector);
-                            }
+                            showToast(`File saved, injection pending`, 'warning');
                         }
                     } else {
                         const error = await response.json().catch(() => ({ error: response.statusText }));
-                        const msg = response.status === 413 ? 'File too large for server.' : error.error;
+                        const msg = response.status === 413 ? 'File too large (max 50MB)' : error.error;
                         logToScreen(`Upload failed: ${msg}`, '#f87171');
-                        alert(`Upload failed: ${msg}`);
+                        showToast(`Upload failed: ${msg}`, 'error');
                     }
                 };
                 reader.onerror = () => {
-                    alert('Error reading file');
+                    showToast('Error reading file', 'error');
                 };
                 reader.readAsDataURL(file);
             } catch (err) {
                 console.error('Upload error:', err);
-                alert('Upload error');
+                showToast('Upload error', 'error');
             } finally {
                 uploadBtn.innerHTML = originalIcon;
                 uploadBtn.disabled = false;
@@ -1031,90 +1189,7 @@
             }
         });
 
-        // Voice Input Logic
-        const SpeechRecognition = window.SpeechRecognition || window.webkitSpeechRecognition;
-        if (SpeechRecognition) {
-            const recognition = new SpeechRecognition();
-            recognition.continuous = true; // Continuous listening
-            recognition.interimResults = true; // Real-time feedback
-            recognition.lang = 'en-US';
-
-            let isListening = false;
-            let baseText = '';
-
-            micBtn.addEventListener('click', () => {
-                if (isListening) {
-                    recognition.stop();
-                    return;
-                }
-
-                try {
-                    // Capture current text
-                    baseText = messageInput.value;
-                    if (baseText && !baseText.endsWith(' ') && !baseText.endsWith('\n')) baseText += ' ';
-
-                    recognition.start();
-                    isListening = true;
-                    micBtn.innerHTML = '🔴';
-                    micBtn.classList.add('listening');
-                    micBtn.style.color = '#ff4444';
-                    micBtn.style.background = '#3a3a3a';
-                    micBtn.style.boxShadow = '0 0 0 3px rgba(255, 68, 68, 0.3)';
-                } catch (e) {
-                    console.error(e);
-                }
-            });
-
-            recognition.onresult = (event) => {
-                // event.results contains the accumulator for this session
-                let sessionTranscript = '';
-                for (let i = 0; i < event.results.length; ++i) {
-                    sessionTranscript += event.results[i][0].transcript;
-                }
-
-                // Smooth real-time update
-                messageInput.value = baseText + sessionTranscript;
-
-                // Auto-resize logic so the textarea grows as we speak
-                messageInput.style.height = 'auto'; // Reset to calculate scrollHeight
-                messageInput.style.height = Math.min(messageInput.scrollHeight, 120) + 'px';
-                messageInput.scrollTop = messageInput.scrollHeight;
-                return;
-
-                // Append any new final results
-                if (currentFinal) {
-                    const current = messageInput.value;
-                    messageInput.value = (current + (current && !current.endsWith(' ') ? ' ' : '') + currentFinal).trim();
-                }
-
-                // Note: We don't display interim directly in value to avoid cursor jumping, 
-                // but enabling it makes the engine faster. 
-                // A more advanced UI would overlay interim text, but standard append is safer.
-
-                messageInput.dispatchEvent(new Event('input'));
-                messageInput.scrollTop = messageInput.scrollHeight;
-            };
-
-            recognition.onend = () => {
-                isListening = false;
-                micBtn.innerHTML = '🎙️';
-                micBtn.classList.remove('listening');
-                micBtn.style.color = '#fff';
-                micBtn.style.background = '#3a3a3a';
-                micBtn.style.boxShadow = 'none';
-            };
-
-            recognition.onerror = (event) => {
-                console.error('Speech recognition error', event.error);
-                micBtn.innerHTML = '⚠️';
-                setTimeout(() => {
-                    if (!micBtn.classList.contains('listening')) micBtn.innerHTML = '🎙️';
-                }, 2000);
-            };
-        } else {
-            micBtn.style.display = 'none';
-            console.log('Web Speech API not supported');
-        }
+        // Voice Input Logic (unified - single implementation)
 
         // Instance Handling
         const instancesBtn = document.getElementById('instancesBtn');
@@ -1256,10 +1331,6 @@
             }
         }
 
-        messageInput.addEventListener('input', () => {
-            messageInput.style.height = '44px';
-        });
-
         // --- Microphone / Speech to Text Logic ---
         let recognition = null;
         let isRecording = false;
@@ -1267,38 +1338,36 @@
         if ('webkitSpeechRecognition' in window || 'SpeechRecognition' in window) {
             const SpeechRecognition = window.SpeechRecognition || window.webkitSpeechRecognition;
             recognition = new SpeechRecognition();
-            recognition.continuous = false;
+            recognition.continuous = true;
             recognition.interimResults = true;
-            recognition.lang = 'en-US';
+            recognition.lang = navigator.language || 'en-US';
+
+            let baseText = '';
 
             recognition.onstart = () => {
                 isRecording = true;
-                micBtn.style.background = '#ef4444'; // Red when recording
+                baseText = messageInput.value;
+                if (baseText && !baseText.endsWith(' ') && !baseText.endsWith('\n')) baseText += ' ';
+                micBtn.style.background = '#ef4444';
                 micBtn.style.color = '#fff';
+                micBtn.classList.add('mic-recording');
                 logToScreen('Recording...', '#ef4444');
+                showToast('Listening...', 'info');
             };
 
             recognition.onresult = (event) => {
-                let interimTranscript = '';
-                let finalTranscript = '';
-
-                for (let i = event.resultIndex; i < event.results.length; ++i) {
-                    if (event.results[i].isFinal) {
-                        finalTranscript += event.results[i][0].transcript;
-                    } else {
-                        interimTranscript += event.results[i][0].transcript;
-                    }
+                let sessionTranscript = '';
+                for (let i = 0; i < event.results.length; ++i) {
+                    sessionTranscript += event.results[i][0].transcript;
                 }
-
-                if (finalTranscript) {
-                    messageInput.value += (messageInput.value ? ' ' : '') + finalTranscript;
-                    autoResizeInput();
-                }
+                messageInput.value = baseText + sessionTranscript;
+                autoResizeInput();
             };
 
             recognition.onerror = (event) => {
                 console.error('Speech recognition error:', event.error);
                 logToScreen(`Mic Error: ${event.error}`, '#f87171');
+                if (event.error !== 'aborted') showToast(`Mic: ${event.error}`, 'error');
                 stopRecording();
             };
 
@@ -1314,7 +1383,8 @@
             isRecording = false;
             micBtn.style.background = '';
             micBtn.style.color = '';
-            if (recognition) recognition.stop();
+            micBtn.classList.remove('mic-recording');
+            try { if (recognition) recognition.stop(); } catch (e) { }
         }
 
         micBtn.addEventListener('click', () => {
@@ -1740,6 +1810,61 @@
                 }
             }
         }
+
+        // Pull-to-Refresh for chatContent
+        const pullIndicator = document.getElementById('pullIndicator');
+        let pullStartY = 0;
+        let isPulling = false;
+        const pullContainer = chatContent.closest('.chat-container') || chatContent;
+
+        pullContainer.addEventListener('touchstart', (e) => {
+            if (chatContent.scrollTop <= 0) {
+                pullStartY = e.touches[0].clientY;
+                isPulling = true;
+            }
+        }, { passive: true });
+
+        pullContainer.addEventListener('touchmove', (e) => {
+            if (!isPulling) return;
+            const diff = e.touches[0].clientY - pullStartY;
+            if (diff > 60 && chatContent.scrollTop <= 0) {
+                pullIndicator.classList.add('visible');
+            } else {
+                pullIndicator.classList.remove('visible');
+            }
+        }, { passive: true });
+
+        pullContainer.addEventListener('touchend', () => {
+            if (pullIndicator.classList.contains('visible')) {
+                pullIndicator.classList.remove('visible');
+                // Request fresh snapshot
+                if (ws && ws.readyState === WebSocket.OPEN) {
+                    ws.send(JSON.stringify({ type: 'request_snapshot' }));
+                    showToast('Refreshing...', 'info');
+                } else {
+                    // Try HTTP fallback
+                    fetch('/snapshot', { headers: { 'Authorization': `Bearer ${authToken}` } })
+                        .then(r => r.json())
+                        .then(data => {
+                            if (data && data.html) {
+                                renderSnapshot(data);
+                                showToast('Refreshed', 'success');
+                            }
+                        })
+                        .catch(() => showToast('Refresh failed', 'error'));
+                }
+            }
+            isPulling = false;
+        });
+
+        // Periodic WS reconnect attempt when in HTTP polling mode
+        setInterval(() => {
+            if (!ws || ws.readyState !== WebSocket.OPEN) {
+                if (authToken && !document.hidden) {
+                    connectWebSocket();
+                }
+            }
+        }, 30000); // Try every 30s
 
         // Initial Start
         if (authToken) {
