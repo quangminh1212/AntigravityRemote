@@ -21,8 +21,8 @@ describe('AntigravityServer', () => {
         const urls = await server.start();
         expect(urls.localUrl).to.contain('http://');
         expect(urls.localUrl).to.contain(':' + testPort);
-        expect(urls.secureUrl).to.contain('https://');
-        expect(urls.secureUrl).to.contain(':' + testPort);
+        // When useHttps=false, secureUrl is empty
+        expect(urls.secureUrl).to.equal('');
 
         expect(server.localUrl).to.equal(urls.localUrl);
         expect(server.secureUrl).to.equal(urls.secureUrl);
