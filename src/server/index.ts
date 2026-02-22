@@ -14,7 +14,9 @@ import { securityMiddleware } from '../middleware/security';
 
 // Config defaults (aligned with root server)
 const MAX_UPLOAD_SIZE_MB = 50;
-const POLL_INTERVAL = 3000;
+const POLL_FAST = 300;      // Near-realtime when content is changing
+const POLL_SLOW = 1500;     // Idle mode when nothing changes
+const POLL_FAST_DURATION = 5000; // Stay fast for 5s after last change
 const HTTP_TIMEOUT = 2000;
 
 const TOKEN_FILENAME = '.token';
@@ -66,6 +68,7 @@ export class AntigravityServer {
     private state: State;
     private useAuth: boolean;
     private consecutiveSnapshotFails = 0;
+    private lastChangeTime = 0;
 
     constructor(port: number, extensionPath: string, workspaceRoot?: string, useHttps = true) {
         this.port = port;
@@ -230,6 +233,7 @@ export class AntigravityServer {
                     this.state.lastSnapshotHash = hash;
                     if (this.state.activePort) this.state.snapshotCache.set(this.state.activePort, snapshot);
                     this.broadcastSnapshot(snapshot);
+                    this.lastChangeTime = Date.now();
                     return true;
                 }
                 return false;
@@ -616,8 +620,15 @@ export class AntigravityServer {
                         serverLog('WARN', 'CDP', `Initial CDP connection failed, will keep polling: ${(err as Error).message}`);
                     }
 
-                    this.state.pollInterval = setInterval(() => this.updateSnapshot(), POLL_INTERVAL);
-                    serverLog('INFO', 'SERVER', `Snapshot polling started (interval: ${POLL_INTERVAL}ms)`);
+                    // Adaptive polling: fast when content changes, slow when idle
+                    const adaptivePoll = async () => {
+                        await this.updateSnapshot();
+                        const timeSinceChange = Date.now() - this.lastChangeTime;
+                        const interval = timeSinceChange < POLL_FAST_DURATION ? POLL_FAST : POLL_SLOW;
+                        this.state.pollInterval = setTimeout(() => adaptivePoll(), interval);
+                    };
+                    adaptivePoll();
+                    serverLog('INFO', 'SERVER', `Adaptive snapshot polling started (fast: ${POLL_FAST}ms, slow: ${POLL_SLOW}ms)`);
 
                     resolve({
                         localUrl: this._localUrl,
@@ -633,7 +644,7 @@ export class AntigravityServer {
 
     public stop() {
         serverLog('INFO', 'SERVER', 'Shutting down server...');
-        if (this.state.pollInterval) clearInterval(this.state.pollInterval);
+        if (this.state.pollInterval) clearTimeout(this.state.pollInterval);
         this.wss?.close();
         this.server?.close();
         this.state.cdpConnections.forEach(c => c.ws.close());
