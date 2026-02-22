@@ -435,7 +435,21 @@ async function connectCDP(targetId) {
                         }
                         r.chat = fn(chatEl);
                         r.editor = fn(document.querySelector('.part.editor'));
-                        r.explorer = fn(document.querySelector('.part.sidebar'));
+                        // Explorer: activity bar + sidebar combined
+                        const actBar = document.querySelector('.part.activitybar');
+                        const sidebarEl = document.querySelector('.part.sidebar');
+                        if (actBar && sidebarEl) {
+                            const ab = actBar.getBoundingClientRect();
+                            const sb = sidebarEl.getBoundingClientRect();
+                            const minX = Math.min(ab.x, sb.x);
+                            const minY = Math.min(ab.y, sb.y);
+                            const maxR = Math.max(ab.x + ab.width, sb.x + sb.width);
+                            const maxB = Math.max(ab.y + ab.height, sb.y + sb.height);
+                            const w = maxR - minX; const h = maxB - minY;
+                            r.explorer = w > 10 ? {ok:true, x:Math.round(minX), y:Math.round(minY), w:Math.round(w), h:Math.round(h)} : {ok:false};
+                        } else {
+                            r.explorer = fn(sidebarEl || actBar);
+                        }
                         return JSON.stringify(r);
                     })()`
                 });
