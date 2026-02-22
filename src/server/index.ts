@@ -6,7 +6,7 @@ import path from 'path';
 import os from 'os';
 import selfsigned from 'selfsigned';
 import { WebSocketServer, WebSocket } from 'ws';
-import { discoverInstances, connectCDP } from '../services/cdp';
+import { discoverInstances, connectCDP, refreshContexts } from '../services/cdp';
 import { injectFile, injectMessage, captureSnapshot, captureSnapshotDebug, clickElement } from '../services/antigravity';
 import { CDPConnection, Snapshot } from '../types';
 import { authMiddleware } from '../middleware/auth';

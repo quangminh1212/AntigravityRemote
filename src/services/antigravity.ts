@@ -1,5 +1,6 @@
 import { CDPConnection, Snapshot, InjectResult, ClickResult } from '../types';
 import { convertVsCodeIcons } from '../utils';
+import { refreshContexts } from './cdp';
 import util from 'util';
 
 // Scripts
@@ -195,6 +196,11 @@ function formatException(details: any): string {
 }
 
 async function captureSnapshotInternal(cdp: CDPConnection): Promise<SnapshotDebugResult> {
+    // Refresh contexts to get fresh, valid execution contexts (eliminates stale context errors)
+    try {
+        await refreshContexts(cdp);
+    } catch { }
+
     const errors: string[] = [];
     const contexts: SnapshotDebugContext[] = [];
     const candidates: { snapshot: Snapshot; htmlLen: number; ctxId: number }[] = [];
