@@ -211,7 +211,7 @@ function getWebviewContent(info, qrDataUrl) {
 </head>
 <body>
     <div class="card">
-        <div class="logo">⚡</div>
+        <div class="logo"><svg viewBox="0 0 24 24" width="36" height="36" fill="#cccccc"><path d="M11 21h-1l1-7H7.5c-.88 0-.33-.75-.31-.78C8.48 10.94 10.42 7.54 13.01 3h1l-1 7h3.51c.4 0 .62.19.4.66C12.97 17.55 11 21 11 21z"/></svg></div>
         <h1>AntigravityHub</h1>
         <div class="subtitle">Remote Chat Viewer</div>
         
@@ -219,7 +219,7 @@ function getWebviewContent(info, qrDataUrl) {
             <img src="${qrDataUrl}" alt="QR Code" />
         </div>
         
-        <div class="instruction">📱 Scan QR code with your phone</div>
+        <div class="instruction">Scan QR code with your phone</div>
         
         <div class="url-box" id="urlBox" title="Click to copy">${info.url}</div>
         
@@ -234,7 +234,7 @@ function getWebviewContent(info, qrDataUrl) {
         </div>
     </div>
     
-    <div class="copied" id="copiedToast">✅ URL copied!</div>
+    <div class="copied" id="copiedToast">URL copied!</div>
     
     <script>
         const vscode = acquireVsCodeApi();
