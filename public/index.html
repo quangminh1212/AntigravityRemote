@@ -1801,8 +1801,8 @@
                     #chatContent#chatContent code:not(pre code),
                     #chatContent pre.inline,
                     #chatContent pre.inline code {
-                        background: rgba(255,255,255,0.13) !important;
-                        background-color: rgba(255,255,255,0.13) !important;
+                        background: rgba(255,255,255,0.06) !important;
+                        background-color: rgba(255,255,255,0.06) !important;
                         padding: 2px 5px !important;
                         border-radius: 4px !important;
                         font-size: 0.85em !important;
@@ -2160,7 +2160,7 @@
             // All Antigravity native controls are now visible & clickable via CDP forwarding
 
             // 5.5 Force inline code: dark highlight, NO border
-            const inlineStyle = 'background: rgba(255,255,255,0.13) !important; background-color: rgba(255,255,255,0.13) !important; padding: 2px 5px !important; border: none !important; border-width: 0 !important; border-color: transparent !important; border-style: none !important; border-radius: 4px !important; outline: none !important; box-shadow: none !important; color: #e0e0e0 !important; font-size: 0.85em !important; display: inline !important; margin: 0 !important;';
+            const inlineStyle = 'background: rgba(255,255,255,0.06) !important; background-color: rgba(255,255,255,0.06) !important; padding: 2px 5px !important; border: none !important; border-width: 0 !important; border-color: transparent !important; border-style: none !important; border-radius: 4px !important; outline: none !important; box-shadow: none !important; color: #e0e0e0 !important; font-size: 0.85em !important; display: inline !important; margin: 0 !important;';
             // Pattern 1: code NOT inside pre (standard inline code)
             chatContent.querySelectorAll('code').forEach(c => {
                 const pre = c.closest('pre');
