@@ -3,267 +3,164 @@
 
 <head>
     <meta charset="UTF-8">
-    <meta name="viewport"
-        content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover">
-    <meta name="apple-mobile-web-app-capable" content="yes">
-    <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
-    <meta name="theme-color" content="#0a0a0f">
-    <meta name="description" content="AntigravityHub - Remote Chat Viewer for Antigravity AI">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
     <title>AntigravityHub</title>
-    <link rel="preconnect" href="https://fonts.googleapis.com">
-    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
     <style>
-        *,
-        *::before,
-        *::after {
+        * {
             margin: 0;
             padding: 0;
             box-sizing: border-box;
         }
 
-        :root {
-            --bg: #0a0a0f;
-            --surface: #12121a;
-            --surface-2: #1a1a26;
-            --border: #2a2a3a;
-            --text: #e4e4ec;
-            --text-dim: #8888a0;
-            --accent: #6c5ce7;
-            --accent-glow: rgba(108, 92, 231, 0.3);
-            --success: #00d68f;
-            --danger: #ff4757;
-            --warning: #ffa502;
-            --radius: 12px;
-            --safe-bottom: env(safe-area-inset-bottom, 0px);
-        }
-
-        html,
         body {
-            height: 100%;
-            width: 100%;
-            background: var(--bg);
-            color: var(--text);
-            font-family: 'Inter', -apple-system, BlinkMacSystemFont, sans-serif;
+            background: #0a0a0f;
+            color: #e0e0e0;
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
             overflow: hidden;
-            -webkit-tap-highlight-color: transparent;
+            height: 100dvh;
+            width: 100vw;
+            display: flex;
+            flex-direction: column;
+            touch-action: none;
             -webkit-user-select: none;
             user-select: none;
         }
 
-        /* ===== LAYOUT ===== */
-        #app {
-            display: flex;
-            flex-direction: column;
-            height: 100dvh;
-            width: 100%;
-        }
-
-        /* ===== HEADER ===== */
-        #header {
+        /* Toolbar */
+        .toolbar {
             display: flex;
             align-items: center;
             justify-content: space-between;
-            padding: 10px 16px;
-            background: var(--surface);
-            border-bottom: 1px solid var(--border);
-            min-height: 52px;
+            height: 44px;
+            padding: 0 12px;
+            background: #111118;
+            border-bottom: 1px solid rgba(255, 255, 255, 0.08);
             flex-shrink: 0;
             z-index: 10;
         }
 
-        #header .logo {
+        .toolbar-left {
             display: flex;
             align-items: center;
-            gap: 10px;
+            gap: 8px;
         }
 
-        #header .logo-icon {
-            width: 28px;
-            height: 28px;
-            background: linear-gradient(135deg, var(--accent), #a29bfe);
+        .toolbar-left .logo {
+            font-size: 18px;
+        }
+
+        .toolbar-left .title {
+            font-size: 14px;
+            font-weight: 600;
+            color: #fff;
+        }
+
+        .status-dot {
+            width: 8px;
+            height: 8px;
+            border-radius: 50%;
+            background: #666;
+            transition: background 0.3s;
+        }
+
+        .status-dot.online {
+            background: #4ade80;
+            box-shadow: 0 0 6px #4ade80;
+        }
+
+        .status-dot.offline {
+            background: #ef4444;
+        }
+
+        .status-label {
+            font-size: 11px;
+            color: #888;
+        }
+
+        .toolbar-right {
+            display: flex;
+            align-items: center;
+            gap: 4px;
+        }
+
+        .icon-btn {
+            width: 36px;
+            height: 36px;
+            border: none;
+            background: transparent;
+            color: #aaa;
+            cursor: pointer;
             border-radius: 8px;
             display: flex;
             align-items: center;
             justify-content: center;
-            font-size: 14px;
-            box-shadow: 0 2px 8px var(--accent-glow);
+            font-size: 16px;
+            transition: background 0.2s, color 0.2s;
         }
 
-        #header .logo-text {
-            font-weight: 700;
-            font-size: 15px;
-            letter-spacing: -0.3px;
+        .icon-btn:hover {
+            background: rgba(255, 255, 255, 0.1);
+            color: #fff;
         }
 
-        #status {
-            display: flex;
-            align-items: center;
-            gap: 6px;
-            font-size: 12px;
-            color: var(--text-dim);
+        .icon-btn:active {
+            background: rgba(255, 255, 255, 0.15);
         }
 
-        #status .dot {
-            width: 8px;
-            height: 8px;
-            border-radius: 50%;
-            background: var(--danger);
-            transition: background 0.3s ease;
-        }
-
-        #status.connected .dot {
-            background: var(--success);
-            box-shadow: 0 0 6px rgba(0, 214, 143, 0.5);
-        }
-
-        #reconnect-btn {
-            background: none;
-            border: none;
-            color: var(--accent);
-            font-size: 12px;
-            cursor: pointer;
-            padding: 4px 8px;
-            border-radius: 6px;
-            transition: background 0.2s;
-        }
-
-        #reconnect-btn:active {
-            background: rgba(108, 92, 231, 0.15);
-        }
-
-        /* ===== CHAT VIEWPORT ===== */
-        #viewport {
+        /* Canvas container */
+        .canvas-container {
             flex: 1;
-            overflow: hidden;
-            position: relative;
-            background: var(--bg);
-        }
-
-        #chat-frame {
-            width: 100%;
-            height: 100%;
-            overflow-y: auto;
-            overflow-x: hidden;
-            -webkit-overflow-scrolling: touch;
-            scroll-behavior: smooth;
-        }
-
-        #chat-content {
-            padding: 0;
-            min-height: 100%;
-        }
-
-        /* Injected snapshot styles */
-        #chat-content * {
-            max-width: 100% !important;
-            box-sizing: border-box !important;
-        }
-
-        #chat-content img {
-            max-width: 100% !important;
-            height: auto !important;
-        }
-
-        #chat-content pre,
-        #chat-content code {
-            white-space: pre-wrap !important;
-            word-break: break-word !important;
-            overflow-x: auto !important;
-        }
-
-        /* ===== INPUT BAR ===== */
-        #input-bar {
-            display: flex;
-            align-items: flex-end;
-            gap: 8px;
-            padding: 10px 12px calc(10px + var(--safe-bottom));
-            background: var(--surface);
-            border-top: 1px solid var(--border);
-            flex-shrink: 0;
-            z-index: 10;
-        }
-
-        #msg-input {
-            flex: 1;
-            background: var(--surface-2);
-            border: 1px solid var(--border);
-            border-radius: 20px;
-            padding: 10px 16px;
-            color: var(--text);
-            font-size: 15px;
-            font-family: inherit;
-            resize: none;
-            max-height: 120px;
-            min-height: 42px;
-            outline: none;
-            transition: border-color 0.2s;
-            line-height: 1.4;
-        }
-
-        #msg-input:focus {
-            border-color: var(--accent);
-            box-shadow: 0 0 0 3px var(--accent-glow);
-        }
-
-        #msg-input::placeholder {
-            color: var(--text-dim);
-        }
-
-        #send-btn {
-            width: 42px;
-            height: 42px;
-            border-radius: 50%;
-            background: linear-gradient(135deg, var(--accent), #a29bfe);
-            border: none;
             display: flex;
             align-items: center;
             justify-content: center;
-            cursor: pointer;
-            flex-shrink: 0;
-            transition: transform 0.15s, opacity 0.2s;
-            box-shadow: 0 2px 8px var(--accent-glow);
+            background: #0d0d14;
+            overflow: hidden;
+            position: relative;
         }
 
-        #send-btn:active {
-            transform: scale(0.9);
+        canvas#remote-canvas {
+            transform-origin: center center;
+            cursor: default;
+            image-rendering: auto;
         }
 
-        #send-btn:disabled {
-            opacity: 0.4;
+        /* Hidden textarea for keyboard input (same as ZaloRemote) */
+        .hidden-input {
+            position: fixed;
+            left: -9999px;
+            top: -9999px;
+            width: 1px;
+            height: 1px;
+            opacity: 0;
+            font-size: 16px;
         }
 
-        #send-btn svg {
-            width: 20px;
-            height: 20px;
-            fill: white;
-        }
-
-        /* ===== LOADING / CONNECTING ===== */
-        #loading-overlay {
+        /* Loading overlay */
+        .loading-overlay {
             position: absolute;
             inset: 0;
             display: flex;
             flex-direction: column;
             align-items: center;
             justify-content: center;
-            background: var(--bg);
-            z-index: 20;
-            gap: 20px;
-            transition: opacity 0.4s ease;
+            gap: 16px;
+            background: #0a0a0f;
+            z-index: 5;
+            transition: opacity 0.3s;
         }
 
-        #loading-overlay.hidden {
+        .loading-overlay.hidden {
             opacity: 0;
             pointer-events: none;
         }
 
         .spinner {
-            width: 48px;
-            height: 48px;
-            border: 3px solid var(--border);
-            border-top-color: var(--accent);
+            width: 40px;
+            height: 40px;
+            border: 3px solid rgba(255, 255, 255, 0.1);
+            border-top-color: #7c3aed;
             border-radius: 50%;
-            animation: spin 1s linear infinite;
+            animation: spin 0.8s linear infinite;
         }
 
         @keyframes spin {
@@ -273,399 +170,392 @@
         }
 
         .loading-text {
-            color: var(--text-dim);
+            color: #aaa;
             font-size: 14px;
             text-align: center;
-            line-height: 1.6;
         }
 
-        .loading-text strong {
-            color: var(--text);
+        .loading-subtext {
+            color: #666;
+            font-size: 12px;
+            margin-top: -8px;
         }
 
-        /* ===== TOAST ===== */
-        #toast {
+        /* Toast */
+        .toast {
             position: fixed;
-            bottom: 80px;
+            bottom: 60px;
             left: 50%;
             transform: translateX(-50%) translateY(20px);
-            background: var(--surface-2);
-            border: 1px solid var(--border);
-            color: var(--text);
+            background: rgba(30, 30, 50, 0.95);
+            color: #fff;
             padding: 10px 20px;
             border-radius: 10px;
             font-size: 13px;
-            z-index: 100;
             opacity: 0;
             transition: all 0.3s ease;
+            z-index: 100;
             pointer-events: none;
             -webkit-backdrop-filter: blur(10px);
             backdrop-filter: blur(10px);
         }
 
-        #toast.show {
+        .toast.show {
             opacity: 1;
             transform: translateX(-50%) translateY(0);
         }
 
-        /* ===== SCROLL TO BOTTOM FAB ===== */
-        #scroll-bottom {
-            position: absolute;
-            bottom: 8px;
-            right: 12px;
-            width: 36px;
-            height: 36px;
-            border-radius: 50%;
-            background: var(--surface-2);
-            border: 1px solid var(--border);
-            display: flex;
-            align-items: center;
-            justify-content: center;
-            cursor: pointer;
-            z-index: 5;
-            opacity: 0;
-            transform: translateY(10px);
-            transition: all 0.2s ease;
-            color: var(--text-dim);
-            font-size: 18px;
-            box-shadow: 0 2px 8px rgba(0, 0, 0, 0.3);
-        }
-
-        #scroll-bottom.show {
-            opacity: 1;
-            transform: translateY(0);
-        }
-
-        /* ===== UTILITIES ===== */
-        .sr-only {
-            position: absolute;
-            width: 1px;
-            height: 1px;
-            overflow: hidden;
-            clip: rect(0, 0, 0, 0);
+        /* Fullscreen */
+        .canvas-container:fullscreen {
+            background: #000;
         }
     </style>
 </head>
 
 <body>
-    <div id="app">
-        <!-- Header -->
-        <header id="header">
-            <div class="logo">
-                <div class="logo-icon">⚡</div>
-                <span class="logo-text">AntigravityHub</span>
-            </div>
-            <div id="status">
-                <span class="dot"></span>
-                <span id="status-text">Connecting...</span>
-                <button id="reconnect-btn" title="Reconnect">↻</button>
-            </div>
-        </header>
-
-        <!-- Chat Viewport -->
-        <div id="viewport">
-            <div id="chat-frame">
-                <div id="chat-content"></div>
-            </div>
-
-            <button id="scroll-bottom" title="Scroll to bottom">↓</button>
-
-            <!-- Loading Overlay -->
-            <div id="loading-overlay">
-                <div class="spinner"></div>
-                <div class="loading-text">
-                    <strong>Connecting to Antigravity...</strong><br>
-                    Make sure Antigravity is running on your PC
-                </div>
-            </div>
+    <!-- Toolbar -->
+    <div class="toolbar">
+        <div class="toolbar-left">
+            <span class="logo">⚡</span>
+            <span class="title">AntigravityHub</span>
+            <div class="status-dot" id="statusDot"></div>
+            <span class="status-label" id="statusLabel">Connecting...</span>
         </div>
-
-        <!-- Input Bar -->
-        <div id="input-bar">
-            <textarea id="msg-input" placeholder="Type a message..." rows="1" autocomplete="off"
-                autocorrect="off"></textarea>
-            <button id="send-btn" disabled title="Send">
-                <svg viewBox="0 0 24 24">
-                    <path d="M2.01 21L23 12 2.01 3 2 10l15 2-15 2z" />
-                </svg>
-            </button>
+        <div class="toolbar-right">
+            <button class="icon-btn" id="btnRefresh" title="Refresh frame">🔄</button>
+            <button class="icon-btn" id="btnFit" title="Fit to screen">📐</button>
+            <button class="icon-btn" id="btnFullscreen" title="Fullscreen">⛶</button>
+            <button class="icon-btn" id="btnKeyboard" title="Toggle keyboard">⌨️</button>
         </div>
     </div>
 
-    <div id="toast"></div>
+    <!-- Canvas (pixel-perfect remote view) -->
+    <div class="canvas-container" id="canvasContainer">
+        <canvas id="remote-canvas"></canvas>
+
+        <div class="loading-overlay" id="loadingOverlay">
+            <div class="spinner"></div>
+            <div class="loading-text">Connecting to Antigravity...</div>
+            <div class="loading-subtext">Make sure Antigravity is running on your PC</div>
+        </div>
+    </div>
+
+    <!-- Hidden textarea for keyboard input (like ZaloRemote) -->
+    <textarea id="hiddenInput" class="hidden-input" autocomplete="off" autocorrect="off" spellcheck="false"></textarea>
+
+    <!-- Toast -->
+    <div class="toast" id="toast"></div>
 
     <script>
         (() => {
-            'use strict';
-
-            // ===== ELEMENTS =====
-            const chatContent = document.getElementById('chat-content');
-            const chatFrame = document.getElementById('chat-frame');
-            const msgInput = document.getElementById('msg-input');
-            const sendBtn = document.getElementById('send-btn');
-            const statusEl = document.getElementById('status');
-            const statusText = document.getElementById('status-text');
-            const reconnectBtn = document.getElementById('reconnect-btn');
-            const loadingOverlay = document.getElementById('loading-overlay');
-            const scrollBottomBtn = document.getElementById('scroll-bottom');
+            // ========== ELEMENTS ==========
+            const canvas = document.getElementById('remote-canvas');
+            const ctx = canvas.getContext('2d');
+            const container = document.getElementById('canvasContainer');
+            const hiddenInput = document.getElementById('hiddenInput');
+            const loadingOverlay = document.getElementById('loadingOverlay');
+            const statusDot = document.getElementById('statusDot');
+            const statusLabel = document.getElementById('statusLabel');
             const toastEl = document.getElementById('toast');
 
-            // ===== STATE =====
+            // ========== STATE ==========
             let ws = null;
-            let connected = false;
-            let hasSnapshot = false;
-            let autoScroll = true;
+            let scale = 1;
+            let hasFrame = false;
+            let viewportW = 1280;
+            let viewportH = 800;
+            let isComposing = false;
             let reconnectTimer = null;
-            const token = new URLSearchParams(window.location.search).get('token') || '';
 
-            // ===== TOAST =====
-            function toast(msg, duration = 2500) {
+            // ========== TOAST ==========
+            let toastTimeout = null;
+            function showToast(msg) {
                 toastEl.textContent = msg;
                 toastEl.classList.add('show');
-                setTimeout(() => toastEl.classList.remove('show'), duration);
+                clearTimeout(toastTimeout);
+                toastTimeout = setTimeout(() => toastEl.classList.remove('show'), 2000);
             }
 
-            // ===== STATUS =====
-            function setStatus(isConnected, text) {
-                connected = isConnected;
-                statusEl.className = isConnected ? 'connected' : '';
-                statusText.textContent = text || (isConnected ? 'Connected' : 'Disconnected');
-                sendBtn.disabled = !isConnected;
+            // ========== STATUS ==========
+            function setStatus(connected) {
+                statusDot.className = 'status-dot ' + (connected ? 'online' : 'offline');
+                statusLabel.textContent = connected ? 'Connected' : 'Disconnected';
             }
 
-            // ===== WEBSOCKET =====
-            function connectWebSocket() {
-                if (ws && ws.readyState <= 1) return;
-
-                const protocol = location.protocol === 'https:' ? 'wss:' : 'ws:';
-                const wsUrl = `${protocol}//${location.host}/?token=${token}`;
-
-                try {
-                    ws = new WebSocket(wsUrl);
-                } catch (e) {
-                    scheduleReconnect();
-                    return;
+            // ========== SCALE ==========
+            function recalcScale() {
+                const cw = container.clientWidth;
+                const ch = container.clientHeight;
+                if (cw > 0 && ch > 0 && viewportW > 0 && viewportH > 0) {
+                    scale = Math.min(cw / viewportW, ch / viewportH);
+                    canvas.style.transform = `scale(${scale})`;
                 }
+            }
+
+            const resizeObserver = new ResizeObserver(() => recalcScale());
+            resizeObserver.observe(container);
+
+            // ========== DRAW FRAME ==========
+            function drawFrame(base64Data) {
+                const img = new Image();
+                img.onload = () => {
+                    if (canvas.width !== img.width || canvas.height !== img.height) {
+                        canvas.width = img.width;
+                        canvas.height = img.height;
+                        viewportW = img.width;
+                        viewportH = img.height;
+                        recalcScale();
+                    }
+                    requestAnimationFrame(() => ctx.drawImage(img, 0, 0));
+
+                    if (!hasFrame) {
+                        hasFrame = true;
+                        loadingOverlay.classList.add('hidden');
+                    }
+                };
+                img.src = 'data:image/jpeg;base64,' + base64Data;
+            }
+
+            // ========== COORDINATE CONVERSION ==========
+            function getServerCoords(clientX, clientY) {
+                const rect = canvas.getBoundingClientRect();
+                const x = (clientX - rect.left) / scale;
+                const y = (clientY - rect.top) / scale;
+                return {
+                    x: Math.round(Math.max(0, Math.min(x, viewportW))),
+                    y: Math.round(Math.max(0, Math.min(y, viewportH)))
+                };
+            }
+
+            // ========== WEBSOCKET ==========
+            function send(msg) {
+                if (ws && ws.readyState === WebSocket.OPEN) {
+                    ws.send(JSON.stringify(msg));
+                }
+            }
+
+            function connectWS() {
+                const params = new URLSearchParams(window.location.search);
+                const token = params.get('token') || '';
+                const proto = location.protocol === 'https:' ? 'wss' : 'ws';
+                const wsUrl = `${proto}://${location.host}/?token=${token}`;
+
+                ws = new WebSocket(wsUrl);
 
                 ws.onopen = () => {
-                    setStatus(true, 'Connected');
-                    toast('✅ Connected to Antigravity');
-                    clearTimeout(reconnectTimer);
+                    setStatus(true);
+                    showToast('✅ Connected');
                 };
 
                 ws.onmessage = (event) => {
                     try {
                         const msg = JSON.parse(event.data);
-                        if (msg.type === 'snapshot' && msg.data) {
-                            renderSnapshot(msg.data);
+                        switch (msg.type) {
+                            case 'frame':
+                                drawFrame(msg.data);
+                                break;
+                            case 'viewport':
+                                viewportW = msg.width || 1280;
+                                viewportH = msg.height || 800;
+                                recalcScale();
+                                break;
                         }
                     } catch (e) { }
                 };
 
                 ws.onclose = () => {
-                    setStatus(false, 'Disconnected');
-                    scheduleReconnect();
+                    setStatus(false);
+                    if (!reconnectTimer) {
+                        reconnectTimer = setTimeout(() => {
+                            reconnectTimer = null;
+                            connectWS();
+                        }, 3000);
+                    }
                 };
 
-                ws.onerror = () => {
-                    setStatus(false, 'Connection error');
-                };
+                ws.onerror = () => { };
             }
 
-            function scheduleReconnect() {
-                clearTimeout(reconnectTimer);
-                reconnectTimer = setTimeout(connectWebSocket, 3000);
-            }
-
-            // ===== RENDER SNAPSHOT =====
-            function renderSnapshot(snapshot) {
-                if (!snapshot.html) return;
-
-                // First snapshot - hide loading
-                if (!hasSnapshot) {
-                    hasSnapshot = true;
-                    loadingOverlay.classList.add('hidden');
-                }
-
-                // Remember scroll position
-                const wasAtBottom = chatFrame.scrollHeight - chatFrame.scrollTop - chatFrame.clientHeight < 100;
-
-                // Build HTML with original styles
-                let styleBlock = '';
-                if (snapshot.cssVars) {
-                    styleBlock += `<style>:root, :host, html, body { ${snapshot.cssVars} }</style>`;
-                }
-                if (snapshot.css) {
-                    styleBlock += `<style>${snapshot.css}</style>`;
-                }
-                if (snapshot.backgroundColor) {
-                    styleBlock += `<style>
-                    #chat-content {
-                        background: ${snapshot.backgroundColor};
-                        color: ${snapshot.color || '#fff'};
-                        font-size: ${snapshot.fontSize || '14px'};
-                        font-family: ${snapshot.fontFamily || 'inherit'};
-                    }
-                </style>`;
-                }
-
-                // Mobile responsive overrides
-                styleBlock += `<style>
-                /* Mobile overrides */
-                body, html { overflow: visible !important; height: auto !important; }
-                #chat-content * { max-width: 100% !important; }
-                #chat-content img { max-width: 100% !important; height: auto !important; object-fit: contain !important; }
-                #chat-content pre { overflow-x: auto !important; max-width: 100% !important; }
-                #chat-content pre code { white-space: pre-wrap !important; word-break: break-all !important; }
-                /* Hide desktop-only elements */
-                .titlebar, [id*="titlebar"], .menubar, [id*="menubar"] { display: none !important; }
-                /* Fix fixed positioning */
-                #chat-content [style*="position: fixed"], #chat-content [style*="position:fixed"] {
-                    position: relative !important;
-                }
-            </style>`;
-
-                chatContent.innerHTML = styleBlock + snapshot.html;
-
-                // Auto-scroll to bottom
-                if (wasAtBottom || autoScroll) {
-                    requestAnimationFrame(() => {
-                        chatFrame.scrollTop = chatFrame.scrollHeight;
-                    });
-                }
-            }
-
-            // ===== SCROLL DETECTION =====
-            chatFrame.addEventListener('scroll', () => {
-                const distFromBottom = chatFrame.scrollHeight - chatFrame.scrollTop - chatFrame.clientHeight;
-                autoScroll = distFromBottom < 100;
-                scrollBottomBtn.classList.toggle('show', distFromBottom > 300);
-            }, { passive: true });
-
-            scrollBottomBtn.addEventListener('click', () => {
-                chatFrame.scrollTop = chatFrame.scrollHeight;
-                autoScroll = true;
-                scrollBottomBtn.classList.remove('show');
+            // ========== MOUSE/TOUCH INPUT ==========
+            // Click
+            canvas.addEventListener('click', (e) => {
+                e.preventDefault();
+                const coords = getServerCoords(e.clientX, e.clientY);
+                send({ type: 'click', ...coords, button: 'left' });
+                focusInput();
             });
 
-            // ===== TOUCH SCROLL → FORWARD =====
-            let touchStartY = 0;
-            let lastScrollForward = 0;
+            // Double click
+            canvas.addEventListener('dblclick', (e) => {
+                e.preventDefault();
+                const coords = getServerCoords(e.clientX, e.clientY);
+                send({ type: 'dblclick', ...coords });
+                focusInput();
+            });
 
-            chatFrame.addEventListener('touchstart', (e) => {
-                touchStartY = e.touches[0].clientY;
-            }, { passive: true });
+            // Right click
+            canvas.addEventListener('contextmenu', (e) => {
+                e.preventDefault();
+                const coords = getServerCoords(e.clientX, e.clientY);
+                send({ type: 'click', ...coords, button: 'right' });
+            });
 
-            chatFrame.addEventListener('touchend', (e) => {
-                const dy = touchStartY - e.changedTouches[0].clientY;
-                // Only forward significant scrolls, throttled
-                if (Math.abs(dy) > 30 && Date.now() - lastScrollForward > 200) {
-                    lastScrollForward = Date.now();
-                    if (ws && ws.readyState === WebSocket.OPEN) {
-                        ws.send(JSON.stringify({ type: 'scroll', deltaY: dy * 2 }));
-                    }
+            // Scroll (throttled)
+            let lastWheelTime = 0;
+            canvas.addEventListener('wheel', (e) => {
+                e.preventDefault();
+                const now = Date.now();
+                if (now - lastWheelTime < 80) return;
+                lastWheelTime = now;
+                const coords = getServerCoords(e.clientX, e.clientY);
+                send({ type: 'scroll', ...coords, deltaX: e.deltaX, deltaY: e.deltaY });
+            }, { passive: false });
+
+            // Touch → click (for mobile)
+            let touchStartPos = null;
+            let touchStartTime = 0;
+            canvas.addEventListener('touchstart', (e) => {
+                e.preventDefault();
+                const touch = e.touches[0];
+                touchStartPos = { x: touch.clientX, y: touch.clientY };
+                touchStartTime = Date.now();
+            }, { passive: false });
+
+            canvas.addEventListener('touchend', (e) => {
+                e.preventDefault();
+                if (!touchStartPos) return;
+                const touch = e.changedTouches[0];
+                const dx = Math.abs(touch.clientX - touchStartPos.x);
+                const dy = Math.abs(touch.clientY - touchStartPos.y);
+                const dt = Date.now() - touchStartTime;
+                // Tap (not swipe)
+                if (dx < 15 && dy < 15 && dt < 500) {
+                    const coords = getServerCoords(touch.clientX, touch.clientY);
+                    send({ type: 'click', ...coords, button: 'left' });
+                    focusInput();
                 }
-            }, { passive: true });
+                touchStartPos = null;
+            }, { passive: false });
 
-            // ===== CLICK FORWARDING =====
-            chatContent.addEventListener('click', (e) => {
-                const el = e.target;
-                if (!el || !connected) return;
+            // Touch scroll (2-finger or swipe)
+            let lastTouchY = null;
+            canvas.addEventListener('touchmove', (e) => {
+                e.preventDefault();
+                if (e.touches.length >= 2) {
+                    // 2-finger scroll
+                    const touch = e.touches[0];
+                    const coords = getServerCoords(touch.clientX, touch.clientY);
+                    if (lastTouchY !== null) {
+                        const deltaY = (lastTouchY - touch.clientY) * 2;
+                        send({ type: 'scroll', ...coords, deltaX: 0, deltaY });
+                    }
+                    lastTouchY = touch.clientY;
+                }
+            }, { passive: false });
 
-                // Get closest interactive element
-                const interactive = el.closest('button, a, [role="button"], [onclick], input, select');
-                if (interactive) {
+            canvas.addEventListener('touchend', () => { lastTouchY = null; });
+            canvas.addEventListener('touchcancel', () => { lastTouchY = null; });
+
+            // ========== KEYBOARD INPUT (same pattern as ZaloRemote) ==========
+            function focusInput() {
+                hiddenInput.focus();
+            }
+
+            // Map special keys
+            const keyMap = {
+                'Enter': 'Enter', 'Backspace': 'Backspace', 'Delete': 'Delete',
+                'Tab': 'Tab', 'Escape': 'Escape', ' ': 'Space',
+                'ArrowUp': 'ArrowUp', 'ArrowDown': 'ArrowDown',
+                'ArrowLeft': 'ArrowLeft', 'ArrowRight': 'ArrowRight',
+                'Home': 'Home', 'End': 'End',
+            };
+
+            const modifierOnlyKeys = ['Control', 'Shift', 'Alt', 'Meta', 'AltGraph', 'CapsLock', 'NumLock', 'ScrollLock'];
+
+            hiddenInput.addEventListener('keydown', (e) => {
+                if (e.isComposing || isComposing) return;
+                if (modifierOnlyKeys.includes(e.key)) return;
+
+                // Let Ctrl+V fall through to paste handler
+                if ((e.ctrlKey || e.metaKey) && e.key.toLowerCase() === 'v') return;
+
+                const modifiers = [];
+                if (e.ctrlKey || e.metaKey) modifiers.push('Control');
+                if (e.altKey) modifiers.push('Alt');
+                if (e.shiftKey && e.key.length > 1) modifiers.push('Shift');
+
+                const mapped = keyMap[e.key];
+
+                if (modifiers.length > 0) {
                     e.preventDefault();
-                    const text = (interactive.textContent || '').trim().slice(0, 50);
-                    const tag = interactive.tagName;
-
-                    fetch(`/click?token=${token}`, {
-                        method: 'POST',
-                        headers: { 'Content-Type': 'application/json' },
-                        body: JSON.stringify({ text, tag })
-                    }).catch(() => { });
-
-                    // Visual feedback
-                    interactive.style.opacity = '0.5';
-                    setTimeout(() => interactive.style.opacity = '', 200);
-                }
-            });
-
-            // ===== SEND MESSAGE =====
-            async function sendMessage() {
-                const msg = msgInput.value.trim();
-                if (!msg || !connected) return;
-
-                sendBtn.disabled = true;
-                try {
-                    const res = await fetch(`/send?token=${token}`, {
-                        method: 'POST',
-                        headers: { 'Content-Type': 'application/json' },
-                        body: JSON.stringify({ message: msg })
-                    });
-                    const data = await res.json();
-                    if (data.success) {
-                        msgInput.value = '';
-                        msgInput.style.height = 'auto';
-                        autoScroll = true;
-                        toast('✅ Message sent');
-                    } else {
-                        toast('❌ ' + (data.error || 'Send failed'));
-                    }
-                } catch (e) {
-                    toast('❌ Network error');
-                }
-                sendBtn.disabled = !connected;
-            }
-
-            sendBtn.addEventListener('click', sendMessage);
-
-            // Enter to send (Shift+Enter for newline)
-            msgInput.addEventListener('keydown', (e) => {
-                if (e.key === 'Enter' && !e.shiftKey) {
+                    const baseKey = mapped || (e.key.length === 1 ? e.key.toLowerCase() : e.key);
+                    const combo = [...modifiers, baseKey].join('+');
+                    send({ type: 'keydown', key: combo });
+                } else if (mapped) {
                     e.preventDefault();
-                    sendMessage();
+                    send({ type: 'keydown', key: mapped });
                 }
             });
 
-            // Auto-resize textarea
-            msgInput.addEventListener('input', () => {
-                msgInput.style.height = 'auto';
-                msgInput.style.height = Math.min(msgInput.scrollHeight, 120) + 'px';
-                sendBtn.disabled = !connected || !msgInput.value.trim();
+            // IME composition (Vietnamese input)
+            hiddenInput.addEventListener('compositionstart', () => { isComposing = true; });
+            hiddenInput.addEventListener('compositionend', (e) => {
+                isComposing = false;
+                if (e.data) send({ type: 'type', text: e.data });
+                hiddenInput.value = '';
             });
 
-            // ===== RECONNECT BUTTON =====
-            reconnectBtn.addEventListener('click', async () => {
-                toast('🔄 Reconnecting...');
-                try {
-                    await fetch(`/connect?token=${token}`, {
-                        method: 'POST',
-                        headers: { 'Content-Type': 'application/json' },
-                        body: JSON.stringify({})
-                    });
-                    // Reconnect WebSocket too
-                    if (ws) ws.close();
-                    setTimeout(connectWebSocket, 500);
-                } catch (e) {
-                    toast('❌ Reconnect failed');
+            // Regular character input
+            hiddenInput.addEventListener('input', (e) => {
+                if (isComposing) return;
+                const text = hiddenInput.value;
+                if (text) {
+                    send({ type: 'type', text });
+                    hiddenInput.value = '';
                 }
             });
 
-            // ===== INIT =====
-            connectWebSocket();
+            // Paste handler
+            hiddenInput.addEventListener('paste', (e) => {
+                e.preventDefault();
+                const text = e.clipboardData?.getData('text/plain');
+                if (text) send({ type: 'type', text });
+            });
 
-            // ===== KEEP ALIVE =====
-            setInterval(() => {
-                if (ws && ws.readyState === WebSocket.OPEN) {
-                    ws.send(JSON.stringify({ type: 'ping' }));
+            // Re-focus on blur
+            hiddenInput.addEventListener('blur', () => {
+                setTimeout(focusInput, 100);
+            });
+
+            // ========== TOOLBAR ACTIONS ==========
+            document.getElementById('btnRefresh').addEventListener('click', () => {
+                send({ type: 'request_frame' });
+                showToast('🔄 Refreshing...');
+            });
+
+            document.getElementById('btnFit').addEventListener('click', () => {
+                send({ type: 'resize', width: window.innerWidth, height: window.innerHeight - 44 });
+                showToast('📐 Fit to screen');
+            });
+
+            document.getElementById('btnFullscreen').addEventListener('click', () => {
+                if (!document.fullscreenElement) {
+                    container.requestFullscreen().catch(() => { });
+                } else {
+                    document.exitFullscreen();
                 }
-            }, 30000);
+            });
 
-            // ===== PREVENT ZOOM =====
-            document.addEventListener('gesturestart', e => e.preventDefault());
-            document.addEventListener('gesturechange', e => e.preventDefault());
+            document.getElementById('btnKeyboard').addEventListener('click', () => {
+                hiddenInput.focus();
+                showToast('⌨️ Keyboard activated');
+            });
 
+            // ========== KEEPALIVE ==========
+            setInterval(() => send({ type: 'ping' }), 30000);
+
+            // ========== INIT ==========
+            connectWS();
         })();
     </script>
 </body>
