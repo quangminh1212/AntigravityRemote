@@ -2204,6 +2204,25 @@
                 // Clone + move input bar to body
                 const fixedBar = inputBar.cloneNode(true);
                 fixedBar.id = 'fixedInputBar';
+
+                // Apply Antigravity-native styling directly via JS to ensure it sticks
+                fixedBar.style.cssText = `
+                    position: fixed !important;
+                    bottom: 8px !important;
+                    left: 8px !important;
+                    right: 8px !important;
+                    width: calc(100% - 16px) !important;
+                    max-width: calc(100% - 16px) !important;
+                    z-index: 100 !important;
+                    background: #252528 !important;
+                    border: 1px solid rgba(255,255,255,0.15) !important;
+                    border-radius: 12px !important;
+                    padding: 6px !important;
+                    padding-bottom: 10px !important;
+                    box-sizing: border-box !important;
+                    transform: none !important;
+                `;
+
                 document.body.appendChild(fixedBar);
 
                 // Hide original to avoid duplicate
