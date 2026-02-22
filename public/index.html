@@ -80,7 +80,7 @@
             overflow-y: auto;
             overflow-x: hidden;
             position: relative;
-            padding-bottom: 8px;
+            padding-bottom: 0;
             background: #1e1e1e;
             -webkit-overflow-scrolling: touch;
             overscroll-behavior-y: contain;
@@ -667,7 +667,7 @@
             pointer-events: none;
         }
 
-        /* Compose Overlay - slides up when user taps "Ask anything" */
+        /* Simple Compose Overlay - slides up when user taps input area in snapshot */
         .compose-overlay {
             position: fixed;
             bottom: 0;
@@ -675,7 +675,7 @@
             right: 0;
             z-index: 2000;
             transform: translateY(100%);
-            transition: transform 0.3s cubic-bezier(0.16, 1, 0.3, 1);
+            transition: transform 0.25s cubic-bezier(0.16, 1, 0.3, 1), bottom 0.15s ease-out;
             pointer-events: none;
         }
 
@@ -685,11 +685,9 @@
         }
 
         .compose-box {
-            background: hsla(240, 10%, 12%, 0.95);
-            -webkit-backdrop-filter: blur(20px);
-            backdrop-filter: blur(20px);
-            border-top: 1px solid hsla(0, 0%, 100%, 0.1);
-            padding: 12px 12px calc(12px + env(safe-area-inset-bottom, 8px));
+            background: #1e1e1e;
+            border-top: 1px solid rgba(255, 255, 255, 0.1);
+            padding: 10px 12px calc(10px + env(safe-area-inset-bottom, 0px));
             display: flex;
             gap: 8px;
             align-items: flex-end;
@@ -697,11 +695,11 @@
 
         .compose-box textarea {
             flex: 1;
-            background: hsla(0, 0%, 100%, 0.08);
-            border: 1px solid hsla(0, 0%, 100%, 0.15);
-            border-radius: 20px;
+            background: #2d2d2d;
+            border: 1px solid rgba(255, 255, 255, 0.12);
+            border-radius: 8px;
             color: #e0e0e0;
-            padding: 10px 16px;
+            padding: 10px 14px;
             font-size: 15px;
             font-family: inherit;
             resize: none;
@@ -711,7 +709,11 @@
         }
 
         .compose-box textarea:focus {
-            border-color: #3b82f6;
+            border-color: rgba(59, 130, 246, 0.5);
+        }
+
+        .compose-box textarea::placeholder {
+            color: #666;
         }
 
         .compose-actions {
@@ -723,27 +725,34 @@
         .compose-action-btn {
             background: none;
             border: none;
-            color: #999;
+            color: #888;
             padding: 8px;
             cursor: pointer;
             border-radius: 50%;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            min-width: 36px;
+            min-height: 36px;
+            -webkit-tap-highlight-color: transparent;
         }
 
         .compose-action-btn:active {
-            background: hsla(0, 0%, 100%, 0.1);
+            background: rgba(255, 255, 255, 0.08);
         }
 
         .compose-send-btn {
             background: #3b82f6;
             border: none;
             color: white;
-            width: 40px;
-            height: 40px;
+            width: 36px;
+            height: 36px;
             border-radius: 50%;
             display: flex;
             align-items: center;
             justify-content: center;
             cursor: pointer;
+            -webkit-tap-highlight-color: transparent;
         }
 
         .compose-send-btn:active {
@@ -1080,18 +1089,11 @@
     <!-- Floating Scroll FAB (moved outside hidden dock) -->
     <button class="fab scroll-fab-float" id="scrollToBottomFloat">↓</button>
 
-    <!-- Floating Compose Overlay - appears when user taps the "Ask anything" area -->
+    <!-- Simple Compose Overlay - appears when tapping input in snapshot -->
     <div id="composeOverlay" class="compose-overlay">
         <div class="compose-box">
             <textarea id="composeInput" placeholder="Message Antigravity..." rows="1"></textarea>
             <div class="compose-actions">
-                <button id="composeUploadBtn" class="compose-action-btn" title="Upload File">
-                    <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"
-                        stroke-linecap="round" stroke-linejoin="round">
-                        <path
-                            d="m21.44 11.05-9.19 9.19a6 6 0 0 1-8.49-8.49l8.57-8.57A4 4 0 1 1 18 8.84l-8.59 8.51a2 2 0 0 1-2.83-2.83l8.49-8.48" />
-                    </svg>
-                </button>
                 <button id="composeMicBtn" class="compose-action-btn" title="Voice Input">
                     <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"
                         stroke-linecap="round" stroke-linejoin="round">
@@ -1101,10 +1103,9 @@
                     </svg>
                 </button>
                 <button id="composeSendBtn" class="compose-send-btn" title="Send">
-                    <svg viewBox="0 0 24 24" width="20" height="20" fill="none" stroke="currentColor" stroke-width="3"
+                    <svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="3"
                         stroke-linecap="round" stroke-linejoin="round">
-                        <line x1="22" y1="2" x2="11" y2="13"></line>
-                        <polygon points="22 2 15 22 11 13 2 9 22 2"></polygon>
+                        <path d="M5 12h14M12 5l7 7-7 7" />
                     </svg>
                 </button>
             </div>
@@ -2477,16 +2478,15 @@
             }
         });
 
-        // --- Compose Overlay Logic ---
+        // --- Simple Compose Overlay Logic ---
         const composeOverlay = document.getElementById('composeOverlay');
         const composeInput = document.getElementById('composeInput');
         const composeSendBtn = document.getElementById('composeSendBtn');
-        const composeUploadBtn = document.getElementById('composeUploadBtn');
         const composeMicBtn = document.getElementById('composeMicBtn');
 
         function openCompose() {
             composeOverlay.classList.add('show');
-            setTimeout(() => composeInput.focus(), 300);
+            setTimeout(() => composeInput.focus(), 250);
         }
 
         function closeCompose() {
@@ -2494,7 +2494,7 @@
             composeInput.blur();
         }
 
-        // Close compose when clicking outside
+        // Close when clicking backdrop area
         composeOverlay.addEventListener('click', (e) => {
             if (e.target === composeOverlay) closeCompose();
         });
@@ -2526,6 +2526,7 @@
                     composeInput.style.height = 'auto';
                     closeCompose();
                     showToast('Sent!', 'success');
+                    chatContainer.scrollTop = chatContainer.scrollHeight;
                 } else {
                     showToast('Send failed', 'error');
                 }
@@ -2543,15 +2544,25 @@
             }
         });
 
-        // Compose upload → trigger file input
-        composeUploadBtn.addEventListener('click', () => {
-            fileInput.click();
-        });
-
         // Compose mic → use existing mic logic
         composeMicBtn.addEventListener('click', () => {
             micBtn.click();
         });
+
+        // Mobile keyboard: push compose overlay up
+        if (window.visualViewport) {
+            const vv = window.visualViewport;
+            function handleViewportResize() {
+                const keyboardHeight = window.innerHeight - vv.height;
+                if (keyboardHeight > 100 && composeOverlay.classList.contains('show')) {
+                    composeOverlay.style.bottom = keyboardHeight + 'px';
+                } else {
+                    composeOverlay.style.bottom = '0';
+                }
+            }
+            vv.addEventListener('resize', handleViewportResize);
+            vv.addEventListener('scroll', handleViewportResize);
+        }
 
         // Floating scroll FAB
         const scrollFab = document.getElementById('scrollToBottomFloat');
