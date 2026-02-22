@@ -25,11 +25,19 @@ if not exist "node_modules" (
     echo.
 )
 
+:: Read token from .token file
+set /p TOKEN=<.token
+
 :: Run dev server (esbuild watch + auto-reload + server restart)
 echo [*] Starting dev server with hot-reload...
 echo     - Edit public/index.html = browser auto-reloads
 echo     - Edit src/*.ts = auto-rebuild + server restart
-echo     - Open http://localhost:3000/?token=pwaphqy5pwdvbhcs8qdkr
 echo.
+echo  [URL] http://localhost:3000/?token=%TOKEN%
+echo.
+
+:: Auto-open browser after a short delay (server needs ~2s to start)
+start "" cmd /c "timeout /t 3 /nobreak >nul & start http://localhost:3000/?token=%TOKEN%"
+
 call npm run dev
 pause
