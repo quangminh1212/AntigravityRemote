@@ -838,11 +838,11 @@
 
         /* Tables: horizontal scroll wrapper */
         #chatContent table {
-            display: block !important;
+            display: table !important;
             max-width: calc(100vw - 20px) !important;
             overflow-x: auto !important;
-            -webkit-overflow-scrolling: touch;
             font-size: 13px !important;
+            border-collapse: collapse !important;
         }
 
         #chatContent th,
@@ -1800,18 +1800,10 @@
                     /* Tables - scrollable on narrow screens */
                     #chatContent table {
                         border-collapse: collapse;
-                        width: max-content;
-                        min-width: 100%;
+                        width: 100%;
                         margin: 0.5em 0;
                         font-size: 0.82em;
-                        display: block;
-                        overflow-x: auto;
-                        -webkit-overflow-scrolling: touch;
-                    }
-                    #chatContent thead, #chatContent tbody, #chatContent tr {
-                        display: table;
-                        width: 100%;
-                        table-layout: fixed;
+                        table-layout: auto;
                     }
                     #chatContent th, #chatContent td {
                         border: 1px solid #333;
