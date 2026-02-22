@@ -1944,14 +1944,16 @@
                         max-height: none !important;
                     }
 
-                    /* Sticky chat thread header */
-                    #chatContent [data-thread-header] {
+                    /* Fixed chat thread header (cloned from Antigravity) */
+                    #fixedThreadHeader {
                         position: sticky !important;
                         top: 0 !important;
                         z-index: 50 !important;
                         background-color: #1e1e1e !important;
                         border-bottom: 1px solid #333 !important;
                         padding: 4px 8px !important;
+                        display: flex !important;
+                        align-items: center !important;
                     }
 
                     /* Native input/compose area - fixed at bottom of body */
@@ -2132,38 +2134,51 @@
 
             // All Antigravity native controls are now visible & clickable via CDP forwarding
 
-            // 6. Find and sticky-fix the Antigravity chat thread header
+            // 6. Find Antigravity's chat thread header and clone it as a fixed bar
             // The chat header contains: thread title text + action buttons (new chat, history, close)
-            // It's typically the first flex row div inside the chat area with buttons
+            // Sticky doesn't work due to nested overflow parents, so we clone it out
             const chatHeaderCandidates = chatContent.querySelectorAll('div');
             let threadHeader = null;
             for (const el of chatHeaderCandidates) {
                 const cls = el.className || '';
                 const h = el.offsetHeight;
                 const buttons = el.querySelectorAll('button');
-                const directText = el.childNodes.length > 0 ?
-                    Array.from(el.childNodes).filter(n => n.nodeType === 3).map(n => n.textContent.trim()).join('') : '';
 
-                // Header pattern: flex row, 30-60px tall, has 2+ buttons, near top of content
+                // Header pattern: flex row, 25-70px tall, has 2+ buttons
                 if (cls.includes('flex') && h >= 25 && h <= 70 && buttons.length >= 2) {
-                    // Check it has text content (thread title) but not too much (not a message)
                     const text = el.innerText.trim();
                     if (text.length > 2 && text.length < 100) {
+                        // EXCLUDE chat messages: no links, code blocks, paragraphs, images inside
+                        if (el.querySelector('a, pre, code, p, img, video, canvas')) continue;
+                        // All buttons should be icon-only (≤3 chars text each)
+                        const allButtonsAreIcons = Array.from(buttons).every(b => b.innerText.trim().length <= 3);
+                        if (!allButtonsAreIcons) continue;
                         threadHeader = el;
                         break;
                     }
                 }
             }
 
+            // Clone header and fix it at top of chat area
+            const existingFixed = document.getElementById('fixedThreadHeader');
             if (threadHeader) {
-                threadHeader.setAttribute('data-thread-header', 'true');
-                threadHeader.style.position = 'sticky';
-                threadHeader.style.top = '0';
-                threadHeader.style.zIndex = '50';
-                threadHeader.style.backgroundColor = '#1e1e1e';
-                threadHeader.style.borderBottom = '1px solid #333';
-                threadHeader.style.padding = '4px 8px';
-                threadHeader.style.margin = '0';
+                const headerText = threadHeader.innerText.trim();
+                // Only update if header changed or doesn't exist yet
+                if (!existingFixed || existingFixed.getAttribute('data-text') !== headerText) {
+                    if (existingFixed) existingFixed.remove();
+                    const fixedHeader = document.createElement('div');
+                    fixedHeader.id = 'fixedThreadHeader';
+                    fixedHeader.setAttribute('data-text', headerText);
+                    fixedHeader.innerHTML = threadHeader.innerHTML;
+                    fixedHeader.className = threadHeader.className;
+                    chatContainer.insertBefore(fixedHeader, chatContainer.firstChild);
+                }
+                // Hide original header inside chatContent to avoid duplicate
+                threadHeader.style.visibility = 'hidden';
+                threadHeader.style.height = '0';
+                threadHeader.style.overflow = 'hidden';
+            } else if (existingFixed) {
+                // No header found this snapshot, keep existing one
             }
 
             if (!initialScrollDone) {
