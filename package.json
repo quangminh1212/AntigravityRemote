@@ -67,29 +67,21 @@
         "bundle": "node ./esbuild.js",
         "dev:watch": "node ./esbuild.js --watch",
         "dev": "node ./esbuild.js && node ./dev-server.js",
-        "package": "vsce package",
-        "test": "mocha -r ts-node/register src/test/injectFile.test.ts src/test/injectMessage.test.ts"
+        "package": "vsce package"
     },
     "devDependencies": {
-        "@types/chai": "^5.2.3",
         "@types/express": "^4.17.21",
-        "@types/mocha": "^10.0.10",
         "@types/node": "^20.12.7",
         "@types/qrcode": "^1.5.5",
         "@types/selfsigned": "^2.0.4",
         "@types/vscode": "^1.90.0",
         "@types/ws": "^8.5.10",
-        "chai": "^6.2.2",
         "esbuild": "^0.27.3",
-        "mocha": "^11.3.0",
-        "ts-node": "^10.9.2",
         "typescript": "^5.4.5",
         "vsce": "^1.94.0"
     },
     "dependencies": {
-        "@types/multer": "^1.4.11",
         "express": "^4.19.2",
-        "multer": "^1.4.5-lts.1",
         "qrcode": "^1.5.3",
         "selfsigned": "^2.4.1",
         "ws": "^8.16.0"

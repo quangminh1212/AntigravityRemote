@@ -3,7 +3,6 @@
 .vscode/**
 node_modules/**
 src/**
-test/**
 out/**
 !out/extension.js
 !out/extension.js.map

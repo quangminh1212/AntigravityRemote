@@ -736,34 +736,3 @@ async function tryDirectInputInjection(
         return { ok: false, reason: 'input_not_invokable' };
     }
 }
-
-export async function probeVSCode(cdp: CDPConnection): Promise<any> {
-    const PROBE_SCRIPT = `(async () => {
-        const results = {
-            vscode: typeof vscode !== 'undefined',
-            ipcKeys: []
-        };
-
-        if (typeof vscode !== 'undefined' && vscode.ipcRenderer) {
-            results.ipcKeys = Object.keys(vscode.ipcRenderer);
-        }
-
-        return results;
-    })()`;
-
-    const allProbes: any[] = [];
-    for (const ctx of cdp.contexts) {
-        try {
-            const result = await cdp.call("Runtime.evaluate", {
-                expression: PROBE_SCRIPT,
-                returnByValue: true,
-                awaitPromise: true,
-                contextId: ctx.id
-            });
-            allProbes.push({ contextId: ctx.id, data: result.result?.value });
-        } catch (e) {
-            allProbes.push({ contextId: ctx.id, error: (e as Error).message });
-        }
-    }
-    return { target: cdp.title, probes: allProbes };
-}

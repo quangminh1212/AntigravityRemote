@@ -32,15 +32,6 @@ export interface CDPInfo {
     title: string;
 }
 
-export interface CDPResult {
-    id: number;
-    result?: {
-        value?: any;
-    };
-    error?: {
-        message: string;
-    };
-}
 
 export interface InjectResult {
     ok: boolean;

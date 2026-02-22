@@ -2,7 +2,6 @@ import http from 'http';
 import { WebSocket } from 'ws';
 import {
     CDPConnection,
-    CDPResult,
     CDPContext,
     CDPInfo,
     CDPTarget
