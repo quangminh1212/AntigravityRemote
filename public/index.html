@@ -2027,7 +2027,7 @@
                         align-items: center !important;
                     }
 
-                    /* Native input/compose area - fixed at bottom of body */
+                    /* Native input/compose area - fixed at bottom of body (visual styling from Antigravity Tailwind classes) */
                     #fixedInputBar {
                         position: fixed !important;
                         bottom: 8px !important;
@@ -2035,14 +2035,9 @@
                         right: 8px !important;
                         transform: none !important;
                         z-index: 100 !important;
-                        background: #252528 !important;
                         width: calc(100% - 16px) !important;
                         max-width: calc(100% - 16px) !important;
-                        padding: 6px !important;
-                        padding-bottom: 10px !important;
                         box-sizing: border-box !important;
-                        border: 1px solid rgba(255,255,255,0.15) !important;
-                        border-radius: 12px !important;
                     }
                     /* Solid cover behind and below input bar to hide any content underneath */
                     #fixedInputBar::before {
@@ -2205,23 +2200,16 @@
                 const fixedBar = inputBar.cloneNode(true);
                 fixedBar.id = 'fixedInputBar';
 
-                // Apply Antigravity-native styling directly via JS to ensure it sticks
-                fixedBar.style.cssText = `
-                    position: fixed !important;
-                    bottom: 8px !important;
-                    left: 8px !important;
-                    right: 8px !important;
-                    width: calc(100% - 16px) !important;
-                    max-width: calc(100% - 16px) !important;
-                    z-index: 100 !important;
-                    background: #252528 !important;
-                    border: 1px solid rgba(255,255,255,0.15) !important;
-                    border-radius: 12px !important;
-                    padding: 6px !important;
-                    padding-bottom: 10px !important;
-                    box-sizing: border-box !important;
-                    transform: none !important;
-                `;
+                // Apply ONLY positioning via JS - keep Antigravity's native Tailwind classes for visual styling
+                fixedBar.style.position = 'fixed';
+                fixedBar.style.bottom = '8px';
+                fixedBar.style.left = '8px';
+                fixedBar.style.right = '8px';
+                fixedBar.style.width = 'calc(100% - 16px)';
+                fixedBar.style.maxWidth = 'calc(100% - 16px)';
+                fixedBar.style.zIndex = '100';
+                fixedBar.style.boxSizing = 'border-box';
+                fixedBar.style.transform = 'none';
 
                 document.body.appendChild(fixedBar);
 
