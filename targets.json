@@ -1,0 +1,57 @@
+[
+  {
+    "description": "",
+    "devtoolsFrontendUrl": "https://chrome-devtools-frontend.appspot.com/serve_rev/@caff226ed96db00961b7046a5dc9f8db004e7fbb/inspector.html?ws=127.0.0.1:9000/devtools/page/1E48D8C77A918D27CE39B08081EB571E",
+    "id": "1E48D8C77A918D27CE39B08081EB571E",
+    "title": "Launchpad",
+    "type": "page",
+    "url": "vscode-file://vscode-app/c:/Users/GHC/AppData/Local/Programs/Antigravity/resources/app/out/vs/code/electron-browser/workbench/workbench-jetski-agent.html",
+    "webSocketDebuggerUrl": "ws://127.0.0.1:9000/devtools/page/1E48D8C77A918D27CE39B08081EB571E"
+  },
+  {
+    "description": "",
+    "devtoolsFrontendUrl": "https://chrome-devtools-frontend.appspot.com/serve_rev/@caff226ed96db00961b7046a5dc9f8db004e7fbb/inspector.html?ws=127.0.0.1:9000/devtools/page/87944E1C8694E2FD0C9BAF4C37197053",
+    "id": "87944E1C8694E2FD0C9BAF4C37197053",
+    "title": "AntigravityHub - Antigravity - browserAllowlist.txt",
+    "type": "page",
+    "url": "vscode-file://vscode-app/c:/Users/GHC/AppData/Local/Programs/Antigravity/resources/app/out/vs/code/electron-browser/workbench/workbench.html",
+    "webSocketDebuggerUrl": "ws://127.0.0.1:9000/devtools/page/87944E1C8694E2FD0C9BAF4C37197053"
+  },
+  {
+    "description": "",
+    "devtoolsFrontendUrl": "https://chrome-devtools-frontend.appspot.com/serve_rev/@caff226ed96db00961b7046a5dc9f8db004e7fbb/inspector.html?ws=127.0.0.1:9000/devtools/page/CE334E2C00EF19FEA329978A340B2E3D",
+    "id": "CE334E2C00EF19FEA329978A340B2E3D",
+    "parentId": "87944E1C8694E2FD0C9BAF4C37197053",
+    "title": "vscode-webview://0scghuuk2v4u3irchf43llva63ebgr0trq0k1pb1a637p1csra9a/index.html?id=75659e7f-4441-4c08-9261-0bd77a08ccbe&amp;parentId=1&amp;origin=4c479dc5-afbc-4cb1-932c-78d2202fd1aa&amp;swVersion=4&amp;extensionId=n2ns.antigravity-panel&amp;platform=electron&amp;vscode-resource-base-authority=vscode-resource.vscode-cdn.net&amp;parentOrigin=vscode-file%3A%2F%2Fvscode-app",
+    "type": "iframe",
+    "url": "vscode-webview://0scghuuk2v4u3irchf43llva63ebgr0trq0k1pb1a637p1csra9a/index.html?id=75659e7f-4441-4c08-9261-0bd77a08ccbe&parentId=1&origin=4c479dc5-afbc-4cb1-932c-78d2202fd1aa&swVersion=4&extensionId=n2ns.antigravity-panel&platform=electron&vscode-resource-base-authority=vscode-resource.vscode-cdn.net&parentOrigin=vscode-file%3A%2F%2Fvscode-app",
+    "webSocketDebuggerUrl": "ws://127.0.0.1:9000/devtools/page/CE334E2C00EF19FEA329978A340B2E3D"
+  },
+  {
+    "description": "",
+    "devtoolsFrontendUrl": "https://chrome-devtools-frontend.appspot.com/serve_rev/@caff226ed96db00961b7046a5dc9f8db004e7fbb/worker_app.html?ws=127.0.0.1:9000/devtools/page/B1A0CB9FDB4FB646181C918D08BF0DE1",
+    "id": "B1A0CB9FDB4FB646181C918D08BF0DE1",
+    "title": "Service Worker vscode-webview://0scghuuk2v4u3irchf43llva63ebgr0trq0k1pb1a637p1csra9a/service-worker.js?v=4&amp;vscode-resource-base-authority=vscode-resource.vscode-cdn.net&amp;remoteAuthority=",
+    "type": "service_worker",
+    "url": "vscode-webview://0scghuuk2v4u3irchf43llva63ebgr0trq0k1pb1a637p1csra9a/service-worker.js?v=4&vscode-resource-base-authority=vscode-resource.vscode-cdn.net&remoteAuthority=",
+    "webSocketDebuggerUrl": "ws://127.0.0.1:9000/devtools/page/B1A0CB9FDB4FB646181C918D08BF0DE1"
+  },
+  {
+    "description": "",
+    "devtoolsFrontendUrl": "https://chrome-devtools-frontend.appspot.com/serve_rev/@caff226ed96db00961b7046a5dc9f8db004e7fbb/inspector.html?ws=127.0.0.1:9000/devtools/page/9E57CD6A014FFE272069F135F047C32B",
+    "id": "9E57CD6A014FFE272069F135F047C32B",
+    "title": "",
+    "type": "worker",
+    "url": "",
+    "webSocketDebuggerUrl": "ws://127.0.0.1:9000/devtools/page/9E57CD6A014FFE272069F135F047C32B"
+  },
+  {
+    "description": "",
+    "devtoolsFrontendUrl": "https://chrome-devtools-frontend.appspot.com/serve_rev/@caff226ed96db00961b7046a5dc9f8db004e7fbb/inspector.html?ws=127.0.0.1:9000/devtools/page/5EAB9D47B542A5F46599D78219188368",
+    "id": "5EAB9D47B542A5F46599D78219188368",
+    "title": "",
+    "type": "worker",
+    "url": "",
+    "webSocketDebuggerUrl": "ws://127.0.0.1:9000/devtools/page/5EAB9D47B542A5F46599D78219188368"
+  }
+]
