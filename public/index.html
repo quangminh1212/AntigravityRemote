@@ -3,9 +3,12 @@
 
 <head>
     <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
+    <meta name="viewport"
+        content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover">
     <meta name="apple-mobile-web-app-capable" content="yes">
     <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+    <meta name="theme-color" content="#1e1e1e">
+    <meta name="mobile-web-app-capable" content="yes">
     <link rel="apple-touch-icon" href="icon-192.png">
     <link rel="manifest" href="manifest.json">
     <title>Antigravity Hub</title>
@@ -56,34 +59,40 @@
         html {
             overflow: hidden;
             height: 100%;
+            height: 100dvh;
         }
-
 
         body {
             font-family: -apple-system, system-ui, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
             background: #1e1e1e;
             color: #e0e0e0;
             height: 100%;
+            height: 100dvh;
             display: flex;
             flex-direction: column;
             overflow: hidden;
+            padding-top: env(safe-area-inset-top, 0);
         }
 
         /* --- Chat Area --- */
         .chat-container {
             flex: 1;
             overflow-y: auto;
+            overflow-x: hidden;
             position: relative;
-            padding-bottom: 20px;
+            padding-bottom: 8px;
             background: #1e1e1e;
+            -webkit-overflow-scrolling: touch;
+            overscroll-behavior-y: contain;
         }
 
-
         .chat-content {
-            padding: 16px 16px 0;
+            padding: 8px 10px 0;
             min-height: 0;
             background: #1e1e1e;
             color: #e0e0e0;
+            word-break: break-word;
+            overflow-wrap: break-word;
         }
 
         /* --- Unified Bottom Dock --- */
@@ -405,42 +414,43 @@
 
         #connectivityBadge {
             position: fixed;
-            top: 16px;
-            left: 16px;
+            top: calc(env(safe-area-inset-top, 0px) + 8px);
+            left: calc(env(safe-area-inset-left, 0px) + 8px);
             z-index: 9999;
-            padding: 8px 12px;
-            border-radius: 20px;
-            background: hsla(0, 0%, 0%, 0.5);
+            padding: 6px 10px;
+            border-radius: 16px;
+            background: hsla(0, 0%, 0%, 0.6);
             -webkit-backdrop-filter: blur(10px);
             backdrop-filter: blur(10px);
             border: 1px solid var(--border);
             display: flex;
             align-items: center;
-            gap: 8px;
-            font-size: 11px;
+            gap: 6px;
+            font-size: 10px;
             font-weight: bold;
             box-shadow: 0 4px 12px rgba(0, 0, 0, 0.3);
         }
 
         .fab-top-right {
             position: fixed;
-            top: 16px;
-            right: 16px;
+            top: calc(env(safe-area-inset-top, 0px) + 8px);
+            right: calc(env(safe-area-inset-right, 0px) + 8px);
             z-index: 9999;
-            width: 40px;
-            height: 40px;
+            width: 36px;
+            height: 36px;
             border-radius: 50%;
             background: hsla(0, 0%, 100%, 0.1);
             -webkit-backdrop-filter: blur(10px);
             backdrop-filter: blur(10px);
             border: 1px solid var(--border);
             color: var(--text-main);
-            font-size: 18px;
+            font-size: 16px;
             display: flex;
             align-items: center;
             justify-content: center;
             cursor: pointer;
             box-shadow: 0 4px 12px rgba(0, 0, 0, 0.3);
+            -webkit-tap-highlight-color: transparent;
         }
 
         .fab-top-right:active {
@@ -738,6 +748,293 @@
 
         .compose-send-btn:active {
             background: #2563eb;
+        }
+
+        /* ===== MOBILE-FIRST RESPONSIVE ===== */
+        /* Base: optimized for phones (320px - 480px) */
+
+        /* Ensure chat snapshot content is mobile-friendly */
+        #chatContent {
+            font-size: 15px !important;
+            line-height: 1.65 !important;
+            overflow-x: hidden !important;
+            word-break: break-word !important;
+            overflow-wrap: break-word !important;
+            color: #d4d4d4 !important;
+            letter-spacing: 0.01em !important;
+        }
+
+        /* Code blocks: horizontal scroll on mobile */
+        #chatContent pre {
+            max-width: calc(100vw - 20px) !important;
+            overflow-x: auto !important;
+            -webkit-overflow-scrolling: touch;
+            font-size: 13px !important;
+            line-height: 1.5 !important;
+            padding: 10px 14px !important;
+            margin: 8px 0 !important;
+            border-radius: 8px !important;
+        }
+
+        /* Inline code */
+        #chatContent :not(pre)>code {
+            font-size: 0.88em !important;
+            padding: 2px 6px !important;
+            word-break: break-all !important;
+        }
+
+        /* Tables: horizontal scroll wrapper */
+        #chatContent table {
+            display: block !important;
+            max-width: calc(100vw - 20px) !important;
+            overflow-x: auto !important;
+            -webkit-overflow-scrolling: touch;
+            font-size: 13px !important;
+        }
+
+        #chatContent th,
+        #chatContent td {
+            padding: 6px 10px !important;
+            white-space: nowrap;
+        }
+
+        /* Images fit screen */
+        #chatContent img {
+            max-width: 100% !important;
+            height: auto !important;
+            border-radius: 6px;
+        }
+
+        /* Headings: readable on mobile */
+        #chatContent h1 {
+            font-size: 1.4em !important;
+            margin: 0.6em 0 0.4em !important;
+            color: #e8e8e8 !important;
+        }
+
+        #chatContent h2 {
+            font-size: 1.25em !important;
+            margin: 0.55em 0 0.35em !important;
+            color: #e8e8e8 !important;
+        }
+
+        #chatContent h3 {
+            font-size: 1.15em !important;
+            margin: 0.5em 0 0.3em !important;
+            color: #e0e0e0 !important;
+        }
+
+        /* Lists: tighter on mobile */
+        #chatContent ul,
+        #chatContent ol {
+            padding-left: 1.2em !important;
+            margin: 0.3em 0 !important;
+        }
+
+        #chatContent li {
+            margin: 2px 0 !important;
+        }
+
+        /* Paragraphs */
+        #chatContent p {
+            margin: 0.4em 0 !important;
+        }
+
+        /* Blockquotes */
+        #chatContent blockquote {
+            padding-left: 0.75em !important;
+            margin: 0.4em 0 !important;
+            font-size: 14px !important;
+        }
+
+        /* Buttons and interactive: minimum 44px touch target */
+        #chatContent button,
+        #chatContent [role="button"],
+        #chatContent a {
+            min-height: 32px;
+            min-width: 32px;
+        }
+
+        /* Hide elements that don't work outside Antigravity */
+        #chatContent [class*="monaco-editor"],
+        #chatContent [class*="quick-input"] {
+            display: none !important;
+        }
+
+        /* React app container: ensure it fills width */
+        #chatContent .react-app-container,
+        #chatContent #react-app,
+        #chatContent #chat {
+            width: 100% !important;
+            max-width: 100% !important;
+            overflow-x: hidden !important;
+        }
+
+        /* Scroll FAB position for mobile */
+        .scroll-fab-float {
+            bottom: 16px !important;
+            right: 12px !important;
+        }
+
+        /* FAB scroll button */
+        .fab {
+            width: 40px;
+            height: 40px;
+            bottom: 120px;
+            right: 12px;
+        }
+
+        /* Small phones (iPhone SE, 320px) */
+        @media (max-width: 374px) {
+            .chat-content {
+                padding: 6px 8px 0 !important;
+            }
+
+            #chatContent {
+                font-size: 14px !important;
+                line-height: 1.6 !important;
+            }
+
+            #chatContent pre {
+                font-size: 12px !important;
+                padding: 8px 10px !important;
+            }
+
+            #connectivityBadge {
+                padding: 4px 8px;
+                font-size: 9px;
+            }
+
+            .fab-top-right {
+                width: 32px;
+                height: 32px;
+                font-size: 14px;
+            }
+
+            .compose-box textarea {
+                font-size: 15px;
+                padding: 8px 12px;
+            }
+
+            .toast-container {
+                width: 95%;
+            }
+        }
+
+        /* Standard phones (375px - 430px: iPhone, most Android) */
+        @media (min-width: 375px) and (max-width: 430px) {
+            .chat-content {
+                padding: 8px 12px 0;
+            }
+
+            #chatContent {
+                font-size: 15px !important;
+                line-height: 1.65 !important;
+            }
+        }
+
+        /* Large phones / small tablets (431px - 768px) */
+        @media (min-width: 431px) and (max-width: 768px) {
+            .chat-content {
+                padding: 12px 16px 0;
+            }
+
+            #chatContent {
+                font-size: 15px !important;
+                line-height: 1.65 !important;
+            }
+
+            #chatContent pre {
+                font-size: 13px !important;
+            }
+        }
+
+        /* Tablets and desktop (769px+) */
+        @media (min-width: 769px) {
+            .chat-content {
+                padding: 16px 24px 0;
+                max-width: 900px;
+                margin: 0 auto;
+            }
+
+            #chatContent {
+                font-size: 15px !important;
+                line-height: 1.6 !important;
+            }
+
+            #chatContent pre {
+                font-size: 13.5px !important;
+            }
+
+            #connectivityBadge {
+                top: 16px;
+                left: 16px;
+                padding: 8px 12px;
+                font-size: 11px;
+            }
+
+            .fab-top-right {
+                top: 16px;
+                right: 16px;
+                width: 40px;
+                height: 40px;
+            }
+        }
+
+        /* Landscape mode on phones */
+        @media (max-height: 500px) and (orientation: landscape) {
+            #connectivityBadge {
+                top: 4px;
+                left: 4px;
+                padding: 4px 8px;
+                font-size: 9px;
+            }
+
+            .fab-top-right {
+                top: 4px;
+                right: 4px;
+                width: 32px;
+                height: 32px;
+            }
+
+            .chat-content {
+                padding: 4px 8px 0;
+            }
+
+            .compose-box {
+                padding: 8px !important;
+            }
+        }
+
+        /* Dark scrollbar for mobile browsers */
+        ::-webkit-scrollbar {
+            width: 4px;
+            height: 4px;
+        }
+
+        ::-webkit-scrollbar-track {
+            background: transparent;
+        }
+
+        ::-webkit-scrollbar-thumb {
+            background: rgba(255, 255, 255, 0.15);
+            border-radius: 4px;
+        }
+
+        ::-webkit-scrollbar-thumb:hover {
+            background: rgba(255, 255, 255, 0.25);
+        }
+
+        /* Hide scrollbar on mobile for cleaner look */
+        @media (max-width: 768px) {
+            .chat-container::-webkit-scrollbar {
+                width: 0;
+                display: none;
+            }
+
+            .chat-container {
+                scrollbar-width: none;
+            }
         }
     </style>
 </head>
