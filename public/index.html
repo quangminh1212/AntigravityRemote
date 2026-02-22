@@ -824,13 +824,16 @@
             border-radius: 8px !important;
         }
 
-        /* Inline code */
-        #chatContent :not(pre)>code {
+        /* Inline code - aggressively remove all borders/boxes */
+        #chatContent code:not(pre code) {
             font-size: 0.88em !important;
             padding: 1px 3px !important;
             word-break: break-all !important;
             background-color: rgba(255, 255, 255, 0.08) !important;
             border: none !important;
+            border-color: transparent !important;
+            border-width: 0 !important;
+            border-style: none !important;
             border-radius: 3px !important;
             outline: none !important;
             box-shadow: none !important;
@@ -2133,6 +2136,15 @@
             }
 
             // All Antigravity native controls are now visible & clickable via CDP forwarding
+
+            // 5.5 Strip border/outline from all inline code elements (Antigravity injects inline styles)
+            chatContent.querySelectorAll('code').forEach(c => {
+                if (c.closest('pre')) return; // Skip code inside pre blocks
+                c.style.border = 'none';
+                c.style.borderColor = 'transparent';
+                c.style.outline = 'none';
+                c.style.boxShadow = 'none';
+            });
 
             // 6. Find Antigravity's chat thread header and clone it as a fixed bar
             // The chat header contains: thread title text + action buttons (new chat, history, close)
