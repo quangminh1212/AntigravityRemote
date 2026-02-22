@@ -2723,10 +2723,17 @@
             if (!initialScrollDone) {
                 // First render: scroll to bottom to show latest chat messages
                 initialScrollDone = true;
-                chatContainer.scrollTop = chatContainer.scrollHeight;
+                requestAnimationFrame(() => {
+                    chatContainer.scrollTop = chatContainer.scrollHeight;
+                    // Double-ensure after paint
+                    setTimeout(() => { chatContainer.scrollTop = chatContainer.scrollHeight; }, 50);
+                });
             } else if (!userScrolledUp) {
                 // User hasn't scrolled up → always follow new content (show Generating etc.)
-                chatContainer.scrollTop = chatContainer.scrollHeight;
+                requestAnimationFrame(() => {
+                    chatContainer.scrollTop = chatContainer.scrollHeight;
+                    setTimeout(() => { chatContainer.scrollTop = chatContainer.scrollHeight; }, 50);
+                });
             } else {
                 // User is reading older messages → preserve their position
                 chatContainer.scrollTop = scrollPos;
