@@ -1165,12 +1165,25 @@
                 ${data.html}
             `;
 
+            // Post-process: Remove giant inline heights from React virtualized list spacers
+            // These spacers have styles like height: 8299px which push real content off-screen
+            chatContent.querySelectorAll('[style]').forEach(el => {
+                const h = el.style.height;
+                if (h && parseInt(h) > 500) {
+                    el.style.height = 'auto';
+                }
+                const minH = el.style.minHeight;
+                if (minH && parseInt(minH) > 500) {
+                    el.style.minHeight = 'auto';
+                }
+            });
+
             // All Antigravity native controls are now visible & clickable via CDP forwarding
 
             if (!initialScrollDone) {
-                // First render: start at top so toolbar is visible
+                // First render: scroll to bottom to show latest chat messages
                 initialScrollDone = true;
-                chatContainer.scrollTop = 0;
+                chatContainer.scrollTop = chatContainer.scrollHeight;
             } else if (scrollPos > 0) {
                 // Restore previous scroll position
                 chatContainer.scrollTop = scrollPos;
