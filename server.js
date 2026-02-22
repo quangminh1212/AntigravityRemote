@@ -17,7 +17,7 @@ const qrcode = require('qrcode');
 const PORT = 3000;
 const TOKEN_FILE = path.join(__dirname, '.token');
 const LOG_FILE = path.join(__dirname, 'server.log');
-const CDP_PORTS = [9222, 9333, 9229];
+const CDP_PORTS = [9000, 9222, 9333, 9229];
 const SCREENSHOT_INTERVAL = 80;      // ~12 FPS screenshot capture 
 const SCREENSHOT_QUALITY = 70;        // JPEG quality (balance speed vs clarity)
 const RECONNECT_COOLDOWN = 10000;     // 10s between reconnect attempts
@@ -66,7 +66,7 @@ async function discoverTargets() {
             for (const t of list) {
                 if (t.webSocketDebuggerUrl) {
                     targets.push({
-                        id: t.id, port,
+                        id: t.id, port, type: t.type || 'page',
                         title: t.title || '', url: t.url || '',
                         wsUrl: t.webSocketDebuggerUrl
                     });
@@ -81,10 +81,16 @@ function scoreTarget(t) {
     const title = (t.title || '').toLowerCase();
     const url = (t.url || '').toLowerCase();
     let score = 0;
-    if (url.includes('workbench') || url.includes('jetski')) score += 6;
-    if (title.includes('antigravity')) score += 3;
-    if (title.includes('launchpad')) score += 2;
-    if (title.includes('qr') || title.includes('auth.ts')) score -= 6;
+    // Highest priority: workbench-jetski-agent = Antigravity chat panel
+    if (url.includes('jetski-agent') || url.includes('workbench-jetski')) score += 10;
+    if (url.includes('workbench.html') && !url.includes('jetski')) score += 7;
+    if (title.includes('launchpad')) score += 5;
+    if (title.includes('antigravity') && !url.includes('localhost:3000')) score += 3;
+    // Exclude our own remote viewer page
+    if (url.includes('localhost:3000') || url.includes('127.0.0.1:3000')) score -= 20;
+    // Exclude browser internals
+    if (url.includes('chrome://') || url.includes('chrome-extension://')) score -= 10;
+    if (t.type === 'service_worker' || t.type === 'worker') score -= 10;
     if (url.includes('devtools') || title.includes('visual studio code')) score -= 8;
     if (title.includes('vscode-webview')) score -= 8;
     return score;
@@ -354,6 +360,10 @@ async function connectCDP(targetId) {
     }
 
     const sorted = [...targets].sort((a, b) => scoreTarget(b) - scoreTarget(a));
+    log('INFO', 'CDP', `Found ${targets.length} targets:`);
+    for (const t of sorted) {
+        log('INFO', 'CDP', `  [score=${scoreTarget(t)}] "${t.title}" (port ${t.port}, ${t.type}) ${t.url.substring(0, 80)}`);
+    }
     let chosen = targetId ? sorted.find(t => t.id === targetId) : null;
     if (!chosen) chosen = sorted[0];
 
