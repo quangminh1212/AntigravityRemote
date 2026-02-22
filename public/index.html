@@ -824,21 +824,22 @@
             border-radius: 8px !important;
         }
 
-        /* Inline code - no box, just monospace text */
-        #chatContent code:not(pre code) {
+        /* Inline code - dark highlight (bôi đen), no border */
+        #chatContent code:not(pre code),
+        #chatContent#chatContent code:not(pre code) {
             font-size: 0.88em !important;
-            padding: 0 !important;
+            padding: 2px 5px !important;
             word-break: break-all !important;
-            background: none !important;
-            background-color: transparent !important;
+            background: rgba(255, 255, 255, 0.13) !important;
+            background-color: rgba(255, 255, 255, 0.13) !important;
             border: none !important;
             border-color: transparent !important;
             border-width: 0 !important;
             border-style: none !important;
-            border-radius: 0 !important;
+            border-radius: 4px !important;
             outline: none !important;
             box-shadow: none !important;
-            color: #e0b0ff !important;
+            color: #e0e0e0 !important;
         }
 
         /* Tables: horizontal scroll wrapper */
@@ -1786,16 +1787,22 @@
                         font-family: ui-monospace, SFMono-Regular, 'SF Mono', Menlo, Consolas, monospace;
                         font-size: 0.85em;
                     }
-                    #chatContent :not(pre) > code {
-                        background: none;
-                        background-color: transparent;
-                        padding: 0;
-                        border-radius: 0;
-                        font-size: 0.85em;
-                        color: #e0b0ff;
-                        border: none;
-                        outline: none;
-                        box-shadow: none;
+                    #chatContent :not(pre) > code,
+                    #chatContent#chatContent code:not(pre code) {
+                        background: rgba(255,255,255,0.13) !important;
+                        background-color: rgba(255,255,255,0.13) !important;
+                        padding: 2px 5px !important;
+                        border-radius: 4px !important;
+                        font-size: 0.85em !important;
+                        color: #e0e0e0 !important;
+                        border: none !important;
+                        border-width: 0 !important;
+                        border-style: none !important;
+                        border-color: transparent !important;
+                        outline: none !important;
+                        box-shadow: none !important;
+                        -webkit-box-shadow: none !important;
+                        ring: unset;
                     }
                     #chatContent pre code {
                         background-color: transparent !important;
@@ -2140,20 +2147,13 @@
 
             // All Antigravity native controls are now visible & clickable via CDP forwarding
 
-            // 5.5 Strip ALL box styling from inline code elements (force override with !important)
+            // 5.5 Force inline code: dark highlight, NO border (replace all inline styles)
             chatContent.querySelectorAll('code').forEach(c => {
                 if (c.closest('pre')) return; // Skip code inside pre blocks
-                const s = c.style;
-                s.setProperty('border', 'none', 'important');
-                s.setProperty('border-width', '0', 'important');
-                s.setProperty('border-color', 'transparent', 'important');
-                s.setProperty('outline', 'none', 'important');
-                s.setProperty('box-shadow', 'none', 'important');
-                s.setProperty('background', 'none', 'important');
-                s.setProperty('background-color', 'transparent', 'important');
-                s.setProperty('padding', '0', 'important');
-                s.setProperty('margin', '0', 'important');
-                s.setProperty('color', '#e0b0ff', 'important');
+                // Nuclear: remove ALL existing inline styles from Antigravity
+                c.removeAttribute('style');
+                // Apply our style with !important
+                c.style.cssText = 'background: rgba(255,255,255,0.13) !important; background-color: rgba(255,255,255,0.13) !important; padding: 2px 5px !important; border: none !important; border-width: 0 !important; border-color: transparent !important; border-style: none !important; border-radius: 4px !important; outline: none !important; box-shadow: none !important; color: #e0e0e0 !important; font-size: 0.85em !important;';
                 // Strip Tailwind classes that add bg/border/padding
                 if (c.className) {
                     c.className = c.className.replace(/\b(bg-|border-|ring-|px-|py-|p-|rounded)[^\s]*/g, '');
