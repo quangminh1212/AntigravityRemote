@@ -1045,21 +1045,25 @@
 
             chatContent.innerHTML = `
                 <style>
-                    /* Force dark theme regardless of captured color-scheme */
+                    /* Inject all CSS from Antigravity first */
+                    ${data.css}
+                    
+                    /* AFTER Antigravity CSS: Force dark theme on everything */
                     #chatContent, #chatContent * {
                         color-scheme: dark !important;
                     }
                     
-                    /* Inject all CSS from Antigravity */
-                    ${data.css}
-                    
-                    /* Force dark background on main containers */
-                    #chatContent {
-                        background: ${data.bodyBg || '#1e1e1e'} !important;
-                        color: ${data.bodyColor || '#e0e0e0'};
-                    }
-                    #cascade, .cascade-bar, [class*="titlebar"] {
-                        background: ${data.bodyBg || '#1e1e1e'} !important;
+                    /* Force dark background on ALL elements - override any white/light from Antigravity */
+                    #chatContent,
+                    #chatContent > *,
+                    #cascade, #cascade *,
+                    .cascade-bar, .cascade-bar *,
+                    [class*="titlebar"], [class*="titlebar"] *,
+                    [class*="panel"], [class*="panel"] *,
+                    [class*="sidebar"], [class*="sidebar"] *,
+                    [class*="editor-group"], [class*="editor-group"] * {
+                        background-color: #1e1e1e !important;
+                        background-image: none !important;
                     }
                     
                     /* Fix layout: only reset absolute/fixed positions that break mobile,
