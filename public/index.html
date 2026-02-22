@@ -2526,8 +2526,17 @@
                 const oldFixed = document.getElementById('fixedInputBar');
                 if (oldFixed) oldFixed.remove();
 
-                // Clone + move input bar to body
-                const fixedBar = inputBar.cloneNode(true);
+                // Clone parent container (flex-col) to include status bar + input bar
+                const parentContainer = inputBar.parentElement;
+                let fixedBar;
+                let hideTarget = inputBar;
+                const parentCls = parentContainer ? (parentContainer.className || '') : '';
+                if (parentContainer && parentContainer !== chatContent && parentCls.includes('flex') && parentCls.includes('flex-col') && parentContainer.children.length <= 5) {
+                    fixedBar = parentContainer.cloneNode(true);
+                    hideTarget = parentContainer;
+                } else {
+                    fixedBar = inputBar.cloneNode(true);
+                }
                 fixedBar.id = 'fixedInputBar';
 
                 // Keep ALL native Tailwind classes intact for exact visual match
@@ -2594,7 +2603,9 @@
                         #fixedInputBar .text-editor-foreground { color: var(--vscode-editor-foreground, #d4d4d4); }
                         #fixedInputBar .text-white { color: #fff; } #fixedInputBar .text-xs { font-size: 0.75rem; line-height: 1rem; }
                         #fixedInputBar .text-sm { font-size: 0.875rem; line-height: 1.25rem; } #fixedInputBar .font-medium { font-weight: 500; }
-                        #fixedInputBar .opacity-0 { opacity: 0; } #fixedInputBar .opacity-50 { opacity: 0.5; } #fixedInputBar .opacity-70 { opacity: 0.7; } #fixedInputBar .opacity-80 { opacity: 0.8; }
+                        #fixedInputBar .opacity-0 { opacity: 1 !important; } #fixedInputBar .opacity-50 { opacity: 0.5; } #fixedInputBar .opacity-70 { opacity: 0.7; } #fixedInputBar .opacity-80 { opacity: 0.8; }
+                        #fixedInputBar .group-hover\\:opacity-100 { opacity: 1 !important; }
+                        #fixedInputBar .invisible { visibility: visible !important; }
                         #fixedInputBar .hidden { display: none; } #fixedInputBar .cursor-pointer { cursor: pointer; } #fixedInputBar .cursor-text { cursor: text; }
                         #fixedInputBar .cursor-not-allowed { cursor: not-allowed; } #fixedInputBar .cursor-default { cursor: default; }
                         #fixedInputBar .select-none { user-select: none; } #fixedInputBar .overflow-hidden { overflow: hidden; } #fixedInputBar .overflow-y-auto { overflow-y: auto; }
@@ -2630,11 +2641,11 @@
                 }
 
                 // Hide original to avoid duplicate
-                inputBar.style.visibility = 'hidden';
-                inputBar.style.height = '0';
-                inputBar.style.overflow = 'hidden';
-                inputBar.style.padding = '0';
-                inputBar.style.margin = '0';
+                hideTarget.style.visibility = 'hidden';
+                hideTarget.style.height = '0';
+                hideTarget.style.overflow = 'hidden';
+                hideTarget.style.padding = '0';
+                hideTarget.style.margin = '0';
 
                 // Add padding-bottom to chat container so content isn't hidden behind fixed input bar
                 const fixedBarHeight = fixedBar.getBoundingClientRect().height;
