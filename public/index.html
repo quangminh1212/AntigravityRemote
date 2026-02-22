@@ -1043,25 +1043,22 @@
             document.body.style.backgroundColor = bodyBg;
             document.body.style.color = bodyColor;
 
+            // Filter CSS: only keep color/font rules, drop background rules from VS Code's 1.7MB stylesheet
+            const filteredCSS = (data.css || '').split('\n').filter(line => {
+                const l = line.toLowerCase();
+                // Drop background-color/background-image rules that set white/light
+                if (l.includes('background-color') || l.includes('background-image') || l.includes('background:')) return false;
+                return true;
+            }).join('\n');
+
             chatContent.innerHTML = `
                 <style>
-                    /* Inject all CSS from Antigravity first */
-                    ${data.css}
+                    /* Filtered CSS from Antigravity (color/font/layout only, no background rules) */
+                    ${filteredCSS}
                     
-                    /* AFTER Antigravity CSS: Force dark theme on everything */
-                    #chatContent, #chatContent * {
+                    /* Force dark theme on all snapshot content */
+                    #chatContent, #chatContent *, #cascade, #cascade * {
                         color-scheme: dark !important;
-                    }
-                    
-                    /* Force dark background on ALL elements - override any white/light from Antigravity */
-                    #chatContent,
-                    #chatContent > *,
-                    #cascade, #cascade *,
-                    .cascade-bar, .cascade-bar *,
-                    [class*="titlebar"], [class*="titlebar"] *,
-                    [class*="panel"], [class*="panel"] *,
-                    [class*="sidebar"], [class*="sidebar"] *,
-                    [class*="editor-group"], [class*="editor-group"] * {
                         background-color: #1e1e1e !important;
                         background-image: none !important;
                     }
