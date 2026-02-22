@@ -8,8 +8,7 @@
     <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
     <link rel="apple-touch-icon" href="icon-192.png">
     <link rel="manifest" href="manifest.json">
-    <meta name="theme-color" content="#1a1a1a" media="(prefers-color-scheme: dark)">
-    <title>Antigravity Link</title>
+    <title>Antigravity Hub</title>
     <style>
         :root {
             --bg-deep: hsl(240, 10%, 8%);
@@ -69,6 +68,22 @@
             z-index: 1000;
         }
 
+        .bottom-dock-hidden {
+            display: none;
+        }
+
+        .dock-controls-hidden {
+            display: none;
+        }
+
+        .scroll-fab-float {
+            position: fixed;
+            bottom: 20px;
+            right: 20px;
+            z-index: 900;
+            display: none;
+        }
+
         /* Top Layer: Control Chips */
         .dock-controls {
             display: flex;
@@ -76,7 +91,8 @@
             gap: 8px;
             padding: 8px;
             overflow-x: auto;
-            scrollbar-width: none;
+            -ms-overflow-style: none;
+            /* IE/Edge */
             border-bottom: 1px solid hsla(0, 0%, 100%, 0.05);
             width: 100%;
         }
@@ -714,9 +730,9 @@
     <button class="fab-top-right" id="instancesBtn">🖥️</button>
 
     <!-- Bottom dock hidden - using native Antigravity UI from snapshot -->
-    <div class="bottom-dock" style="display:none">
+    <div class="bottom-dock bottom-dock-hidden">
         <button class="fab" id="scrollToBottom">↓</button>
-        <div class="dock-controls" id="nativeStatusBar" style="display:none">
+        <div class="dock-controls dock-controls-hidden" id="nativeStatusBar">
             <div id="modeChip" class="control-chip"><span class="label">MODE</span><span id="modeVal">...</span></div>
             <div id="modelChip" class="control-chip"><span class="label">MODEL</span><span id="modelVal">...</span>
             </div>
@@ -735,8 +751,7 @@
     </div>
 
     <!-- Floating Scroll FAB (moved outside hidden dock) -->
-    <button class="fab" id="scrollToBottomFloat"
-        style="position:fixed;bottom:20px;right:20px;z-index:900;display:none">↓</button>
+    <button class="fab scroll-fab-float" id="scrollToBottomFloat">↓</button>
 
     <!-- Floating Compose Overlay - appears when user taps the "Ask anything" area -->
     <div id="composeOverlay" class="compose-overlay">
@@ -2141,6 +2156,23 @@
         } else {
             showLogin();
         }
+    </script>
+
+    <!-- Dev live-reload (only active when dev-server.js SSE endpoint is running) -->
+    <script>
+        (function () {
+            try {
+                const es = new EventSource('http://localhost:3001/__dev_reload');
+                es.onmessage = function (e) {
+                    const data = JSON.parse(e.data);
+                    if (data.type === 'reload') {
+                        console.log('[DEV] Live reload:', data.file);
+                        location.reload();
+                    }
+                };
+                es.onerror = function () { es.close(); };
+            } catch (e) { /* dev server not running - ignore */ }
+        })();
     </script>
 </body>
 

@@ -3,7 +3,7 @@
     "displayName": "Antigravity Hub",
     "description": "Mobile bridge for Antigravity - full UI parity on your phone",
     "icon": "icon.png",
-    "version": "1.0.11",
+    "version": "1.0.0",
     "license": "MIT",
     "engines": {
         "vscode": "^1.90.0"
@@ -17,8 +17,7 @@
         "url": "https://github.com/cafeTechne/antigravity-link-extension"
     },
     "activationEvents": [
-        "onStartupFinished",
-        "onCommand:antigravity-link.start"
+        "onStartupFinished"
     ],
     "main": "./out/extension.js",
     "contributes": {
@@ -66,6 +65,8 @@
         "watch": "tsc -watch -p ./",
         "typecheck": "tsc -p ./ --noEmit",
         "bundle": "node ./esbuild.js",
+        "dev:watch": "node ./esbuild.js --watch",
+        "dev": "node ./esbuild.js && node ./dev-server.js",
         "package": "vsce package",
         "test": "mocha -r ts-node/register src/test/injectFile.test.ts src/test/injectMessage.test.ts"
     },
