@@ -432,9 +432,7 @@
             width: 100%;
             z-index: 9999 !important;
             padding: 10px 12px;
-            background: rgba(20, 20, 22, 0.95);
-            -webkit-backdrop-filter: blur(12px);
-            backdrop-filter: blur(12px);
+            background: #141416;
             border-bottom: 1px solid var(--border);
             display: flex !important;
             align-items: center;
@@ -1135,16 +1133,7 @@
 </head>
 
 <body>
-    <div class="chat-container" id="chatContainer">
-        <div class="chat-content" id="chatContent">
-            <div class="loading">
-                <div class="spinner"></div>
-                <span>Connecting to Antigravity...</span>
-            </div>
-        </div>
-    </div>
-
-    <!-- Top Header Bar (mimics Antigravity chat header) -->
+    <!-- Top Header Bar (mimics Antigravity chat header) - MUST be first child -->
     <div id="chatHeader">
         <div id="chatHeaderLeft">
             <div id="statusDot" class="status-dot"></div>
@@ -1152,6 +1141,15 @@
         </div>
         <span id="chatHeaderTitle">Antigravity</span>
         <button id="instancesBtn" class="chat-header-btn" title="Instances">🖥️</button>
+    </div>
+
+    <div class="chat-container" id="chatContainer">
+        <div class="chat-content" id="chatContent">
+            <div class="loading">
+                <div class="spinner"></div>
+                <span>Connecting to Antigravity...</span>
+            </div>
+        </div>
     </div>
 
     <!-- Bottom dock hidden - using native Antigravity UI from snapshot -->
