@@ -87,7 +87,7 @@
             overflow-y: auto;
             overflow-x: hidden;
             position: relative;
-            padding-top: 52px;
+            padding-top: 0;
             padding-bottom: 0;
             background: #1e1e1e;
             -webkit-overflow-scrolling: touch;
@@ -424,22 +424,16 @@
 
         /* Chat Header Bar - mimics Antigravity native header */
         #chatHeader {
-            position: fixed !important;
-            top: 0 !important;
-            left: 50% !important;
-            transform: translateX(-50%) !important;
-            max-width: 430px;
+            flex-shrink: 0;
             width: 100%;
-            z-index: 9999 !important;
+            z-index: 100;
             padding: 10px 12px;
             background: #141416;
             border-bottom: 1px solid var(--border);
-            display: flex !important;
+            display: flex;
             align-items: center;
             justify-content: space-between;
             box-shadow: 0 2px 8px rgba(0, 0, 0, 0.3);
-            visibility: visible !important;
-            opacity: 1 !important;
         }
 
         #chatHeaderLeft {
