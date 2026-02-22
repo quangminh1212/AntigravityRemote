@@ -411,7 +411,29 @@ async function connectCDP(targetId) {
                     expression: `(() => {
                         const r = {};
                         const fn = (el) => { if (!el) return {ok:false}; const b = el.getBoundingClientRect(); return b.width > 10 ? {ok:true, x:Math.round(b.x), y:Math.round(b.y), w:Math.round(b.width), h:Math.round(b.height)} : {ok:false}; };
-                        r.chat = fn(Array.from(document.querySelectorAll('iframe.webview')).find(i => i.src && i.src.includes('antigravity-panel')));
+                        // Chat: try multiple selectors for Antigravity panel
+                        let chatEl = null;
+                        const iframes = document.querySelectorAll('iframe');
+                        for (const f of iframes) {
+                            const src = (f.src || f.dataset?.src || '').toLowerCase();
+                            if (src.includes('antigravity') || src.includes('n2ns')) { chatEl = f; break; }
+                        }
+                        if (!chatEl) {
+                            const webviews = document.querySelectorAll('.webview-element, [class*="webview"]');
+                            for (const w of webviews) {
+                                const html = (w.id || w.className || '').toLowerCase();
+                                if (html.includes('antigravity') || html.includes('n2ns')) { chatEl = w; break; }
+                            }
+                        }
+                        if (!chatEl) {
+                            // Fallback: find the pane containing the Antigravity panel view
+                            const panels = document.querySelectorAll('.pane-body, .panel .content');
+                            for (const p of panels) {
+                                const inner = p.querySelector('iframe');
+                                if (inner) { const s = (inner.src || '').toLowerCase(); if (s.includes('antigravity') || s.includes('n2ns')) { chatEl = p; break; } }
+                            }
+                        }
+                        r.chat = fn(chatEl);
                         r.editor = fn(document.querySelector('.part.editor'));
                         r.explorer = fn(document.querySelector('.part.sidebar'));
                         return JSON.stringify(r);
