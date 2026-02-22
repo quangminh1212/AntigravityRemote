@@ -9,6 +9,27 @@ const CAPTURE_SCRIPT = `(() => {
         // Capture chat panel content - could be in workbench or iframe
         const sections = [];
         
+        // 0. Convert blob/vscode images to base64 data URIs FIRST (before capturing HTML)
+        // Canvas draw + toDataURL is synchronous for same-origin images
+        document.querySelectorAll('img').forEach(img => {
+            const src = img.getAttribute('src') || '';
+            if (src && (src.startsWith('blob:') || src.startsWith('vscode-') || src.startsWith('https://file'))) {
+                try {
+                    const canvas = document.createElement('canvas');
+                    const ctx = canvas.getContext('2d');
+                    if (ctx && img.naturalWidth > 0 && img.naturalHeight > 0) {
+                        canvas.width = img.naturalWidth;
+                        canvas.height = img.naturalHeight;
+                        ctx.drawImage(img, 0, 0);
+                        const dataUrl = canvas.toDataURL('image/png');
+                        if (dataUrl && dataUrl.length > 100) {
+                            img.setAttribute('src', dataUrl);
+                        }
+                    }
+                } catch(e) { /* cross-origin or tainted canvas - skip */ }
+            }
+        });
+
         // 1. Try to get the titlebar/toolbar (workbench context)
         const toolbarSelectors = [
             '.titlebar.cascade-panel-open',
@@ -35,33 +56,9 @@ const CAPTURE_SCRIPT = `(() => {
             }
         }
         
-        // Convert blob/vscode images to base64 data URIs so they render outside VS Code
-        const imgPromises = [];
-        document.querySelectorAll('img').forEach(img => {
-            const src = img.getAttribute('src') || '';
-            if (src && (src.startsWith('blob:') || src.startsWith('vscode-') || src.startsWith('https://file'))) {
-                imgPromises.push(
-                    new Promise(resolve => {
-                        try {
-                            const canvas = document.createElement('canvas');
-                            const ctx = canvas.getContext('2d');
-                            if (!ctx || !img.naturalWidth) { resolve(null); return; }
-                            canvas.width = img.naturalWidth;
-                            canvas.height = img.naturalHeight;
-                            ctx.drawImage(img, 0, 0);
-                            const dataUrl = canvas.toDataURL('image/png');
-                            img.setAttribute('src', dataUrl);
-                            resolve(dataUrl);
-                        } catch(e) { resolve(null); }
-                    })
-                );
-            }
-        });
-        // Wait for all conversions (sync since canvas is synchronous for same-origin)
-        
         let cleanHtml;
         if (sections.length > 0) {
-            cleanHtml = sections.join('\\n');
+            cleanHtml = sections.join('\\\\n');
         } else {
             cleanHtml = document.body.outerHTML;
         }
