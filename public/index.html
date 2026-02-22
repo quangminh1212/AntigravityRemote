@@ -862,8 +862,8 @@
         #chatContent button,
         #chatContent [role="button"],
         #chatContent a {
-            min-height: 28px;
-            min-width: 28px;
+            min-height: 24px;
+            min-width: 24px;
         }
 
         /* Hide elements that don't work outside Antigravity */
@@ -885,28 +885,32 @@
             flex-direction: column !important;
         }
 
-        /* === Native Input Bar from Snapshot: Responsive === */
-        /* Ensure bottom action row doesn't overflow on mobile */
-        #chatContent [class*="justify-between"],
-        #chatContent [class*="items-center"][class*="gap"] {
+        /* === Native Input Bar Bottom Row: prevent text wrap & overflow === */
+        /* All text and buttons in the bottom toolbar must stay on one line */
+        #chatContent [class*="sticky"] [class*="justify-between"],
+        #chatContent [class*="sticky"] [class*="items-center"],
+        #chatContent [class*="border-t"] [class*="justify-between"],
+        #chatContent [class*="border-t"] [class*="items-center"] {
             flex-wrap: nowrap !important;
+            white-space: nowrap !important;
             overflow: hidden !important;
+            align-items: center !important;
         }
 
-        /* Truncate long text in bottom row (model name, etc) */
-        #chatContent [class*="truncate"],
-        #chatContent [class*="text-xs"],
-        #chatContent [class*="text-sm"] {
+        /* All spans/text inside the bottom bar: never wrap */
+        #chatContent [class*="sticky"] span,
+        #chatContent [class*="sticky"] [class*="text-"],
+        #chatContent [class*="border-t"] span,
+        #chatContent [class*="border-t"] [class*="text-"] {
+            white-space: nowrap !important;
             overflow: hidden !important;
             text-overflow: ellipsis !important;
-            white-space: nowrap !important;
+            flex-shrink: 1 !important;
         }
 
-        /* Ensure SVG icons in input bar maintain proper size */
+        /* SVG icons: fixed size, never shrink */
         #chatContent svg {
             flex-shrink: 0 !important;
-            min-width: 14px !important;
-            min-height: 14px !important;
         }
 
         /* Scroll FAB position for mobile */
@@ -955,16 +959,25 @@
                 width: 95%;
             }
 
-            /* Native input bar: smaller icons on tiny phones */
+            /* Native input bar: compact for tiny screens */
             #chatContent svg {
                 width: 14px !important;
                 height: 14px !important;
             }
 
             #chatContent button {
-                min-height: 24px !important;
-                min-width: 24px !important;
-                padding: 2px !important;
+                min-height: 22px !important;
+                min-width: 22px !important;
+                padding: 1px !important;
+            }
+
+            #chatContent [class*="gap-2"] {
+                gap: 0.25rem !important;
+            }
+
+            #chatContent [class*="gap-3"],
+            #chatContent [class*="gap-4"] {
+                gap: 0.375rem !important;
             }
         }
 
@@ -975,10 +988,21 @@
                 line-height: 1.65 !important;
             }
 
-            /* Native input bar: optimize for standard mobile */
+            /* Native input bar: right-sized for standard mobile */
             #chatContent svg {
                 width: 16px !important;
                 height: 16px !important;
+            }
+
+            #chatContent button {
+                min-height: 24px !important;
+                min-width: 24px !important;
+                padding: 2px !important;
+            }
+
+            #chatContent [class*="gap-3"],
+            #chatContent [class*="gap-4"] {
+                gap: 0.5rem !important;
             }
         }
 
@@ -1907,23 +1931,24 @@
                         background: #2d2d2d !important;
                     }
 
-                    /* Action buttons at bottom (send, mic, etc) */
-                    #chatContent [class*="bottom"] button,
-                    #chatContent [class*="compose"] button,
-                    #chatContent [class*="toolbar"] button {
-                        min-height: 28px !important;
-                        min-width: 28px !important;
+                    /* Bottom toolbar buttons: compact, proper alignment */
+                    #chatContent [class*="sticky"] button,
+                    #chatContent [class*="border-t"] button {
                         display: inline-flex !important;
                         align-items: center !important;
                         justify-content: center !important;
-                        color: #888 !important;
+                        white-space: nowrap !important;
+                        flex-shrink: 0 !important;
+                        padding: 2px 4px !important;
+                        gap: 4px !important;
                     }
 
-                    /* Antigravity model selector text */
+                    /* Model selector text - constrained width, one line */
                     #chatContent [class*="text-xs"],
                     #chatContent [class*="text-\\[11px\\]"] {
                         font-size: 12px !important;
                         color: #888 !important;
+                        white-space: nowrap !important;
                     }
                 </style>
                 ${data.html}
