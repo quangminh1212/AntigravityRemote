@@ -1554,9 +1554,9 @@
                     .text-gray-100 { color: #f3f4f6 !important; }
                     .text-gray-200 { color: #e5e7eb !important; }
                     .text-gray-300 { color: #d1d5db !important; }
-                    .text-gray-400 { color: #9ca3af !important; }
-                    .text-gray-500 { color: #6b7280 !important; }
-                    .text-gray-600 { color: #4b5563 !important; }
+                    .text-gray-400 { color: #b0b8c4 !important; }
+                    .text-gray-500 { color: #9ca3af !important; }
+                    .text-gray-600 { color: #8b95a3 !important; }
                     .text-blue-400 { color: #60a5fa !important; }
                     .text-blue-500 { color: #3b82f6 !important; }
                     .text-green-400 { color: #4ade80 !important; }
@@ -1693,6 +1693,15 @@
                         font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', system-ui, sans-serif;
                         font-size: 13px;
                         line-height: 1.5;
+                    }
+
+                    /* Force minimum text brightness - prevent any text from blending with dark bg */
+                    #chatContent * {
+                        color: inherit;
+                    }
+                    #chatContent p, #chatContent span, #chatContent div, #chatContent li,
+                    #chatContent td, #chatContent th, #chatContent label, #chatContent dt, #chatContent dd {
+                        color: #dcdcdc;
                     }
                     
                     /* Fix layout: reset fixed positions */
@@ -1959,6 +1968,33 @@
                 const minH = el.style.minHeight;
                 if (minH && parseInt(minH) > 200) {
                     el.style.minHeight = 'auto';
+                }
+                // 1b. Strip dark inline text colors to prevent text blending with dark bg
+                const inlineColor = el.style.color;
+                if (inlineColor) {
+                    // Parse rgb/rgba colors
+                    const rgbMatch = inlineColor.match(/rgb[a]?\((\d+),\s*(\d+),\s*(\d+)/);
+                    if (rgbMatch) {
+                        const r = parseInt(rgbMatch[1]);
+                        const g = parseInt(rgbMatch[2]);
+                        const b = parseInt(rgbMatch[3]);
+                        const brightness = (r * 299 + g * 587 + b * 114) / 1000;
+                        if (brightness < 140) {
+                            el.style.removeProperty('color');
+                        }
+                    }
+                    // Parse hex colors
+                    const hexMatch = inlineColor.match(/^#([0-9a-fA-F]{6})$/);
+                    if (hexMatch) {
+                        const hex = hexMatch[1];
+                        const r = parseInt(hex.substring(0, 2), 16);
+                        const g = parseInt(hex.substring(2, 4), 16);
+                        const b = parseInt(hex.substring(4, 6), 16);
+                        const brightness = (r * 299 + g * 587 + b * 114) / 1000;
+                        if (brightness < 140) {
+                            el.style.removeProperty('color');
+                        }
+                    }
                 }
             });
 
