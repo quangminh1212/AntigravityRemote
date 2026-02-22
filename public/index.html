@@ -886,26 +886,29 @@
         }
 
         /* === Native Input Bar Bottom Row: prevent text wrap & overflow === */
-        /* All text and buttons in the bottom toolbar must stay on one line */
-        #chatContent [class*="sticky"] [class*="justify-between"],
-        #chatContent [class*="sticky"] [class*="items-center"],
-        #chatContent [class*="border-t"] [class*="justify-between"],
-        #chatContent [class*="border-t"] [class*="items-center"] {
+        /* Bottom toolbar rows (inside sticky/border-t containers): single line */
+        #chatContent [class*="sticky"][class*="bottom"] [class*="justify-between"],
+        #chatContent [class*="sticky"][class*="bottom"] [class*="items-center"] {
             flex-wrap: nowrap !important;
             white-space: nowrap !important;
             overflow: hidden !important;
             align-items: center !important;
         }
 
-        /* All spans/text inside the bottom bar: never wrap */
-        #chatContent [class*="sticky"] span,
-        #chatContent [class*="sticky"] [class*="text-"],
-        #chatContent [class*="border-t"] span,
-        #chatContent [class*="border-t"] [class*="text-"] {
+        /* Text/spans inside the bottom input bar only: never wrap */
+        #chatContent [class*="sticky"][class*="bottom"] span,
+        #chatContent [class*="sticky"][class*="bottom"] [class*="truncate"] {
             white-space: nowrap !important;
             overflow: hidden !important;
             text-overflow: ellipsis !important;
             flex-shrink: 1 !important;
+            min-width: 0 !important;
+        }
+
+        /* Bottom bar buttons text: never wrap (Fast, model name etc.) */
+        #chatContent [class*="sticky"][class*="bottom"] button span,
+        #chatContent [class*="sticky"][class*="bottom"] button {
+            white-space: nowrap !important;
         }
 
         /* SVG icons: fixed size, never shrink */
@@ -1070,6 +1073,21 @@
 
             .compose-box {
                 padding: 8px !important;
+            }
+
+            /* Native input bar: compact for landscape */
+            #chatContent [class*="sticky"][class*="bottom"] {
+                padding: 4px 8px !important;
+            }
+
+            #chatContent button {
+                min-height: 22px !important;
+                min-width: 22px !important;
+            }
+
+            #chatContent svg {
+                width: 14px !important;
+                height: 14px !important;
             }
         }
 
@@ -1898,14 +1916,14 @@
 
                     /* Native input/compose area from snapshot - sticky bottom */
                     #chatContent [class*="sticky"][class*="bottom"],
-                    #chatContent [class*="fixed"][class*="bottom"],
-                    #chatContent [class*="border-t"][class*="bg-"] {
+                    #chatContent [class*="fixed"][class*="bottom"] {
                         flex-shrink: 0 !important;
                         position: sticky !important;
                         bottom: 0 !important;
                         z-index: 10 !important;
                         background: #1e1e1e !important;
                         width: 100% !important;
+                        padding-bottom: env(safe-area-inset-bottom, 0) !important;
                     }
 
                     /* Native textarea from Antigravity */
@@ -1931,9 +1949,8 @@
                         background: #2d2d2d !important;
                     }
 
-                    /* Bottom toolbar buttons: compact, proper alignment */
-                    #chatContent [class*="sticky"] button,
-                    #chatContent [class*="border-t"] button {
+                    /* Bottom toolbar buttons: compact, single-line */
+                    #chatContent [class*="sticky"][class*="bottom"] button {
                         display: inline-flex !important;
                         align-items: center !important;
                         justify-content: center !important;
@@ -1943,9 +1960,9 @@
                         gap: 4px !important;
                     }
 
-                    /* Model selector text - constrained width, one line */
-                    #chatContent [class*="text-xs"],
-                    #chatContent [class*="text-\\[11px\\]"] {
+                    /* Model selector text in bottom bar */
+                    #chatContent [class*="sticky"][class*="bottom"] [class*="text-xs"],
+                    #chatContent [class*="sticky"][class*="bottom"] [class*="text-\\[11px\\]"] {
                         font-size: 12px !important;
                         color: #888 !important;
                         white-space: nowrap !important;
