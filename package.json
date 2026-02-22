@@ -1,7 +1,7 @@
 {
-    "name": "antigravity-link-extension",
-    "displayName": "Antigravity Link",
-    "description": "Mobile upload and voice-to-text bridge for Antigravity",
+    "name": "antigravity-hub",
+    "displayName": "Antigravity Hub",
+    "description": "Mobile bridge for Antigravity - full UI parity on your phone",
     "icon": "icon.png",
     "version": "1.0.11",
     "license": "MIT",
@@ -26,21 +26,21 @@
             {
                 "command": "antigravity-link.start",
                 "title": "Start Server",
-                "category": "Antigravity Link"
+                "category": "Antigravity Hub"
             },
             {
                 "command": "antigravity-link.stop",
                 "title": "Stop Server",
-                "category": "Antigravity Link"
+                "category": "Antigravity Hub"
             },
             {
                 "command": "antigravity-link.showQR",
                 "title": "Show QR Code",
-                "category": "Antigravity Link"
+                "category": "Antigravity Hub"
             }
         ],
         "configuration": {
-            "title": "Antigravity Link",
+            "title": "Antigravity Hub",
             "properties": {
                 "antigravityLink.port": {
                     "type": "number",

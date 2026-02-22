@@ -536,7 +536,7 @@ export class AntigravityServer {
                         cert = fs.readFileSync(certPath);
                         key = fs.readFileSync(keyPath);
                     } else {
-                        const attrs = [{ name: 'commonName', value: 'Antigravity Link Extension' }];
+                        const attrs = [{ name: 'commonName', value: 'Antigravity Hub Extension' }];
                         // @ts-ignore
                         const pems = await selfsigned.generate(attrs, { days: 365 });
                         cert = pems.cert;

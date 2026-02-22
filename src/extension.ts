@@ -11,8 +11,8 @@ let globalContext: vscode.ExtensionContext;
 
 export async function activate(context: vscode.ExtensionContext) {
     globalContext = context;
-    outputChannel = vscode.window.createOutputChannel("Antigravity Link");
-    outputChannel.appendLine("🚀 Antigravity Link: Activating...");
+    outputChannel = vscode.window.createOutputChannel("Antigravity Hub");
+    outputChannel.appendLine("🚀 Antigravity Hub: Activating...");
 
     // Status Bar Item
     statusBarItem = vscode.window.createStatusBarItem(vscode.StatusBarAlignment.Left, 100);
@@ -43,7 +43,7 @@ export async function activate(context: vscode.ExtensionContext) {
 
 async function startServer(context: vscode.ExtensionContext) {
     if (server) {
-        vscode.window.showInformationMessage("Antigravity Link server is already running.");
+        vscode.window.showInformationMessage("Antigravity Hub server is already running.");
         return;
     }
 
@@ -76,14 +76,14 @@ async function startServer(context: vscode.ExtensionContext) {
     } catch (e) {
         server = null;
         outputChannel.appendLine(`❌ Failed to start server: ${e}`);
-        vscode.window.showErrorMessage(`Antigravity Link failed to start: ${e}`);
+        vscode.window.showErrorMessage(`Antigravity Hub failed to start: ${e}`);
         updateStatusBar(false);
     }
 }
 
 async function stopServer() {
     if (!server) {
-        vscode.window.showInformationMessage("Antigravity Link server is not running.");
+        vscode.window.showInformationMessage("Antigravity Hub server is not running.");
         return;
     }
 
@@ -91,7 +91,7 @@ async function stopServer() {
         server.stop();
         server = null;
         outputChannel.appendLine("🛑 Server stopped.");
-        vscode.window.showInformationMessage("Antigravity Link server stopped.");
+        vscode.window.showInformationMessage("Antigravity Hub server stopped.");
         updateStatusBar(false);
     } catch (e) {
         vscode.window.showErrorMessage(`Failed to stop server: ${e}`);
@@ -127,7 +127,7 @@ async function showQR() {
         // Create Webview Panel
         const panel = vscode.window.createWebviewPanel(
             'antigravityLinkQR',
-            'Antigravity Link QR',
+            'Antigravity Hub QR',
             vscode.ViewColumn.One,
             {}
         );
@@ -162,11 +162,11 @@ async function showQR() {
 function updateStatusBar(running: boolean, port?: number) {
     if (running) {
         statusBarItem.text = `$(broadcast) Link: ${port}`;
-        statusBarItem.tooltip = "Antigravity Link Server Running - Click to Show QR";
+        statusBarItem.tooltip = "Antigravity Hub Server Running - Click to Show QR";
         statusBarItem.show();
     } else {
         statusBarItem.text = `$(broadcast) Link: Off`;
-        statusBarItem.tooltip = "Antigravity Link Server Stopped - Click to Start";
+        statusBarItem.tooltip = "Antigravity Hub Server Stopped - Click to Start";
         statusBarItem.command = "antigravity-link.start";
         statusBarItem.show();
     }
