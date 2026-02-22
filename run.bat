@@ -80,6 +80,6 @@ if exist ".token" (
     echo     Token will be generated on first run.
 )
 
-:: Start server
-node server.js
+:: Start server with hot reload (auto-restart on file changes)
+npx -y nodemon --watch server.js --watch public --ext js,html,css --signal SIGTERM server.js
 pause
