@@ -610,6 +610,89 @@
             display: none;
             pointer-events: none;
         }
+
+        /* Compose Overlay - slides up when user taps "Ask anything" */
+        .compose-overlay {
+            position: fixed;
+            bottom: 0;
+            left: 0;
+            right: 0;
+            z-index: 2000;
+            transform: translateY(100%);
+            transition: transform 0.3s cubic-bezier(0.16, 1, 0.3, 1);
+            pointer-events: none;
+        }
+
+        .compose-overlay.show {
+            transform: translateY(0);
+            pointer-events: auto;
+        }
+
+        .compose-box {
+            background: hsla(240, 10%, 12%, 0.95);
+            -webkit-backdrop-filter: blur(20px);
+            backdrop-filter: blur(20px);
+            border-top: 1px solid hsla(0, 0%, 100%, 0.1);
+            padding: 12px 12px calc(12px + env(safe-area-inset-bottom, 8px));
+            display: flex;
+            gap: 8px;
+            align-items: flex-end;
+        }
+
+        .compose-box textarea {
+            flex: 1;
+            background: hsla(0, 0%, 100%, 0.08);
+            border: 1px solid hsla(0, 0%, 100%, 0.15);
+            border-radius: 20px;
+            color: #e0e0e0;
+            padding: 10px 16px;
+            font-size: 15px;
+            font-family: inherit;
+            resize: none;
+            max-height: 120px;
+            outline: none;
+            line-height: 1.4;
+        }
+
+        .compose-box textarea:focus {
+            border-color: #3b82f6;
+        }
+
+        .compose-actions {
+            display: flex;
+            gap: 4px;
+            align-items: center;
+        }
+
+        .compose-action-btn {
+            background: none;
+            border: none;
+            color: #999;
+            padding: 8px;
+            cursor: pointer;
+            border-radius: 50%;
+        }
+
+        .compose-action-btn:active {
+            background: hsla(0, 0%, 100%, 0.1);
+        }
+
+        .compose-send-btn {
+            background: #3b82f6;
+            border: none;
+            color: white;
+            width: 40px;
+            height: 40px;
+            border-radius: 50%;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            cursor: pointer;
+        }
+
+        .compose-send-btn:active {
+            background: #2563eb;
+        }
     </style>
 </head>
 
@@ -630,53 +713,59 @@
     </div>
     <button class="fab-top-right" id="instancesBtn">🖥️</button>
 
-    <!-- Unified Bottom Dock -->
-    <div class="bottom-dock">
-        <!-- Floating Scroll FAB -->
+    <!-- Bottom dock hidden - using native Antigravity UI from snapshot -->
+    <div class="bottom-dock" style="display:none">
         <button class="fab" id="scrollToBottom">↓</button>
-
-        <!-- Mode/Model chips hidden - native controls visible in snapshot -->
         <div class="dock-controls" id="nativeStatusBar" style="display:none">
-            <div id="modeChip" class="control-chip">
-                <span class="label">MODE</span>
-                <span id="modeVal">...</span>
-            </div>
-            <div id="modelChip" class="control-chip">
-                <span class="label">MODEL</span>
-                <span id="modelVal">...</span>
+            <div id="modeChip" class="control-chip"><span class="label">MODE</span><span id="modeVal">...</span></div>
+            <div id="modelChip" class="control-chip"><span class="label">MODEL</span><span id="modelVal">...</span>
             </div>
         </div>
-
-        <!-- Bottom Layer: Messaging -->
         <div class="dock-input-row">
             <div class="action-stack">
-                <button id="uploadBtn" class="action-btn" title="Upload File">
-                    <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"
-                        stroke-linecap="round" stroke-linejoin="round">
-                        <path
-                            d="m21.44 11.05-9.19 9.19a6 6 0 0 1-8.49-8.49l8.57-8.57A4 4 0 1 1 18 8.84l-8.59 8.51a2 2 0 0 1-2.83-2.83l8.49-8.48" />
-                    </svg>
-                </button>
-                <button id="micBtn" class="action-btn" title="Speech to Text">
-                    <svg id="micIcon" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor"
-                        stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round">
-                        <path d="M12 2a3 3 0 0 0-3 3v7a3 3 0 0 0 6 0V5a3 3 0 0 0-3-3Z" />
-                        <path d="M19 10v2a7 7 0 0 1-14 0v-2" />
-                        <line x1="12" y1="19" x2="12" y2="22" />
-                    </svg>
-                </button>
+                <button id="uploadBtn" class="action-btn" title="Upload File"></button>
+                <button id="micBtn" class="action-btn" title="Speech to Text"></button>
             </div>
             <div class="input-bubble">
                 <input type="file" id="fileInput" class="file-input-hidden">
                 <textarea id="messageInput" placeholder="Message Antigravity..." rows="1"></textarea>
             </div>
-            <button id="sendBtn" title="Send Message">
-                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3" stroke-linecap="round"
-                    stroke-linejoin="round">
-                    <line x1="22" y1="2" x2="11" y2="13"></line>
-                    <polygon points="22 2 15 22 11 13 2 9 22 2"></polygon>
-                </svg>
-            </button>
+            <button id="sendBtn" title="Send Message"></button>
+        </div>
+    </div>
+
+    <!-- Floating Scroll FAB (moved outside hidden dock) -->
+    <button class="fab" id="scrollToBottomFloat"
+        style="position:fixed;bottom:20px;right:20px;z-index:900;display:none">↓</button>
+
+    <!-- Floating Compose Overlay - appears when user taps the "Ask anything" area -->
+    <div id="composeOverlay" class="compose-overlay">
+        <div class="compose-box">
+            <textarea id="composeInput" placeholder="Message Antigravity..." rows="1"></textarea>
+            <div class="compose-actions">
+                <button id="composeUploadBtn" class="compose-action-btn" title="Upload File">
+                    <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"
+                        stroke-linecap="round" stroke-linejoin="round">
+                        <path
+                            d="m21.44 11.05-9.19 9.19a6 6 0 0 1-8.49-8.49l8.57-8.57A4 4 0 1 1 18 8.84l-8.59 8.51a2 2 0 0 1-2.83-2.83l8.49-8.48" />
+                    </svg>
+                </button>
+                <button id="composeMicBtn" class="compose-action-btn" title="Voice Input">
+                    <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"
+                        stroke-linecap="round" stroke-linejoin="round">
+                        <path d="M12 2a3 3 0 0 0-3 3v7a3 3 0 0 0 6 0V5a3 3 0 0 0-3-3Z" />
+                        <path d="M19 10v2a7 7 0 0 1-14 0v-2" />
+                        <line x1="12" y1="19" x2="12" y2="22" />
+                    </svg>
+                </button>
+                <button id="composeSendBtn" class="compose-send-btn" title="Send">
+                    <svg viewBox="0 0 24 24" width="20" height="20" fill="none" stroke="currentColor" stroke-width="3"
+                        stroke-linecap="round" stroke-linejoin="round">
+                        <line x1="22" y1="2" x2="11" y2="13"></line>
+                        <polygon points="22 2 15 22 11 13 2 9 22 2"></polygon>
+                    </svg>
+                </button>
+            </div>
         </div>
     </div>
 
@@ -971,12 +1060,12 @@
                         pointer-events: auto !important;
                     }
                     
-                    /* Make snapshot input areas visually present but non-interactive (we overlay our own input) */
+                    /* Snapshot input areas - clickable to open compose overlay */
                     #chatContent [contenteditable="true"],
                     #chatContent [role="textbox"],
                     #chatContent textarea {
-                        pointer-events: none !important;
-                        opacity: 0.6;
+                        cursor: text !important;
+                        pointer-events: auto !important;
                     }
                 </style>
                 ${data.html}
@@ -1570,6 +1659,19 @@
             // Ignore container clicks
             if (tag === 'div' && target.id === 'chatContent') return;
 
+            // Detect input area clicks → open compose overlay
+            const isInput = target.getAttribute('contenteditable') === 'true' ||
+                target.getAttribute('role') === 'textbox' ||
+                tag === 'textarea' ||
+                text.includes('Ask anything') ||
+                target.closest('[contenteditable="true"]') ||
+                target.closest('[role="textbox"]');
+
+            if (isInput) {
+                openCompose();
+                return;
+            }
+
             console.log(`Click: "${text}" <${tag}> [${selector}]`);
 
             // 2. Visual Feedback (Ripple effect)
@@ -1607,6 +1709,92 @@
             } catch (err) {
                 console.error('Network error sending click:', err);
             }
+        });
+
+        // --- Compose Overlay Logic ---
+        const composeOverlay = document.getElementById('composeOverlay');
+        const composeInput = document.getElementById('composeInput');
+        const composeSendBtn = document.getElementById('composeSendBtn');
+        const composeUploadBtn = document.getElementById('composeUploadBtn');
+        const composeMicBtn = document.getElementById('composeMicBtn');
+
+        function openCompose() {
+            composeOverlay.classList.add('show');
+            setTimeout(() => composeInput.focus(), 300);
+        }
+
+        function closeCompose() {
+            composeOverlay.classList.remove('show');
+            composeInput.blur();
+        }
+
+        // Close compose when clicking outside
+        composeOverlay.addEventListener('click', (e) => {
+            if (e.target === composeOverlay) closeCompose();
+        });
+
+        // Auto-resize compose input
+        composeInput.addEventListener('input', () => {
+            composeInput.style.height = 'auto';
+            composeInput.style.height = Math.min(composeInput.scrollHeight, 120) + 'px';
+        });
+
+        // Send from compose
+        composeSendBtn.addEventListener('click', async () => {
+            const message = composeInput.value.trim();
+            if (!message) return;
+
+            composeSendBtn.disabled = true;
+            try {
+                const res = await fetch('/send', {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json',
+                        'Authorization': `Bearer ${authToken}`
+                    },
+                    body: JSON.stringify({ message })
+                });
+
+                if (res.ok) {
+                    composeInput.value = '';
+                    composeInput.style.height = 'auto';
+                    closeCompose();
+                    showToast('Sent!', 'success');
+                } else {
+                    showToast('Send failed', 'error');
+                }
+            } catch (err) {
+                showToast('Network error', 'error');
+            }
+            composeSendBtn.disabled = false;
+        });
+
+        // Enter to send (Shift+Enter for newline)
+        composeInput.addEventListener('keydown', (e) => {
+            if (e.key === 'Enter' && !e.shiftKey) {
+                e.preventDefault();
+                composeSendBtn.click();
+            }
+        });
+
+        // Compose upload → trigger file input
+        composeUploadBtn.addEventListener('click', () => {
+            fileInput.click();
+        });
+
+        // Compose mic → use existing mic logic
+        composeMicBtn.addEventListener('click', () => {
+            micBtn.click();
+        });
+
+        // Floating scroll FAB
+        const scrollFab = document.getElementById('scrollToBottomFloat');
+        chatContainer.addEventListener('scroll', () => {
+            const distFromBottom = chatContainer.scrollHeight - chatContainer.scrollTop - chatContainer.clientHeight;
+            scrollFab.style.display = distFromBottom > 200 ? 'flex' : 'none';
+        });
+        scrollFab.addEventListener('click', () => {
+            chatContainer.scrollTop = chatContainer.scrollHeight;
         });
 
         // --- Native Controls Logic ---
