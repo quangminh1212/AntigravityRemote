@@ -2650,7 +2650,8 @@
 
                 // Add padding-bottom to chat container so content isn't hidden behind fixed input bar
                 const fixedBarHeight = fixedBar.getBoundingClientRect().height;
-                chatContainer.style.paddingBottom = fixedBarHeight + 'px';
+                // fixedBarHeight + 8 (bottom offset) + 24 (1 line buffer)
+                chatContainer.style.paddingBottom = (fixedBarHeight + 32) + 'px';
             }
 
             // All Antigravity native controls are now visible & clickable via CDP forwarding
