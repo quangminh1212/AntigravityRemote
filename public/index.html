@@ -1998,15 +1998,16 @@
                         border: 1px solid rgba(255,255,255,0.15) !important;
                         border-radius: 12px !important;
                     }
-                    /* Solid cover below input bar to hide any content underneath */
-                    #fixedInputBar::after {
+                    /* Solid cover behind and below input bar to hide any content underneath */
+                    #fixedInputBar::before {
                         content: '';
-                        position: absolute;
+                        position: fixed;
                         left: 0;
                         right: 0;
-                        top: 100%;
+                        bottom: 0;
                         height: 100px;
                         background: #1e1e1e;
+                        z-index: -1;
                     }
 
                     /* Fallback: if input bar still inside chatContent */
