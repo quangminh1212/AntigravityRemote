@@ -22,31 +22,208 @@
             --text-dim: #999;
         }
 
-        /* Loading state */
+        /* Loading state - Premium Minimalist */
         .loading {
             display: flex;
             flex-direction: column;
             align-items: center;
             justify-content: center;
-            min-height: 60vh;
-            gap: 16px;
-            color: #888;
-            font-size: 14px;
+            min-height: 70vh;
+            gap: 28px;
+            color: #666;
+            font-size: 13px;
+            letter-spacing: 0.02em;
+            animation: loadingFadeIn 0.6s ease-out;
         }
 
-        .spinner {
-            width: 32px;
-            height: 32px;
-            border: 3px solid #333;
-            border-top-color: var(--accent);
-            border-radius: 50%;
-            animation: spin 0.8s linear infinite;
-        }
-
-        @keyframes spin {
-            to {
-                transform: rotate(360deg);
+        @keyframes loadingFadeIn {
+            from {
+                opacity: 0;
+                transform: translateY(8px);
             }
+
+            to {
+                opacity: 1;
+                transform: translateY(0);
+            }
+        }
+
+        .loading-brand {
+            font-size: 18px;
+            font-weight: 600;
+            letter-spacing: 0.08em;
+            color: #aaa;
+            text-transform: uppercase;
+            opacity: 0.5;
+        }
+
+        .loading-dots {
+            display: flex;
+            gap: 8px;
+            align-items: center;
+        }
+
+        .loading-dots span {
+            width: 6px;
+            height: 6px;
+            border-radius: 50%;
+            background: var(--accent);
+            opacity: 0.3;
+            animation: dotPulse 1.4s ease-in-out infinite;
+        }
+
+        .loading-dots span:nth-child(2) {
+            animation-delay: 0.2s;
+        }
+
+        .loading-dots span:nth-child(3) {
+            animation-delay: 0.4s;
+        }
+
+        @keyframes dotPulse {
+
+            0%,
+            80%,
+            100% {
+                opacity: 0.2;
+                transform: scale(0.8);
+            }
+
+            40% {
+                opacity: 1;
+                transform: scale(1.2);
+            }
+        }
+
+        .loading-status {
+            font-size: 12px;
+            color: #555;
+            font-weight: 400;
+        }
+
+        /* Error Popup Modal */
+        .error-popup-overlay {
+            position: fixed;
+            top: 0;
+            left: 0;
+            right: 0;
+            bottom: 0;
+            background: rgba(0, 0, 0, 0.7);
+            -webkit-backdrop-filter: blur(6px);
+            backdrop-filter: blur(6px);
+            display: none;
+            justify-content: center;
+            align-items: center;
+            z-index: 10001;
+            animation: errorFadeIn 0.2s ease-out;
+        }
+
+        .error-popup-overlay.show {
+            display: flex;
+        }
+
+        @keyframes errorFadeIn {
+            from {
+                opacity: 0;
+            }
+
+            to {
+                opacity: 1;
+            }
+        }
+
+        .error-popup {
+            background: #1c1c1e;
+            border: 1px solid rgba(248, 113, 113, 0.2);
+            border-radius: 16px;
+            padding: 24px;
+            width: 90%;
+            max-width: 380px;
+            animation: errorSlideIn 0.3s cubic-bezier(0.16, 1, 0.3, 1);
+        }
+
+        @keyframes errorSlideIn {
+            from {
+                opacity: 0;
+                transform: scale(0.95) translateY(10px);
+            }
+
+            to {
+                opacity: 1;
+                transform: scale(1) translateY(0);
+            }
+        }
+
+        .error-popup-icon {
+            width: 40px;
+            height: 40px;
+            border-radius: 50%;
+            background: rgba(248, 113, 113, 0.1);
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            margin: 0 auto 16px;
+            font-size: 18px;
+        }
+
+        .error-popup-title {
+            text-align: center;
+            font-size: 16px;
+            font-weight: 600;
+            color: #e8e8e8;
+            margin-bottom: 8px;
+        }
+
+        .error-popup-message {
+            text-align: center;
+            font-size: 13px;
+            color: #888;
+            line-height: 1.5;
+            margin-bottom: 16px;
+        }
+
+        .error-popup-code {
+            background: rgba(255, 255, 255, 0.05);
+            border: 1px solid rgba(255, 255, 255, 0.08);
+            border-radius: 8px;
+            padding: 10px 14px;
+            font-family: ui-monospace, SFMono-Regular, monospace;
+            font-size: 11px;
+            color: #f87171;
+            margin-bottom: 20px;
+            word-break: break-all;
+            max-height: 120px;
+            overflow-y: auto;
+        }
+
+        .error-popup-actions {
+            display: flex;
+            gap: 8px;
+        }
+
+        .error-popup-actions button {
+            flex: 1;
+            padding: 12px;
+            border-radius: 10px;
+            border: none;
+            font-size: 14px;
+            font-weight: 500;
+            cursor: pointer;
+            transition: all 0.2s;
+        }
+
+        .error-popup-actions button:active {
+            transform: scale(0.97);
+        }
+
+        .error-popup-retry {
+            background: var(--accent);
+            color: #fff;
+        }
+
+        .error-popup-dismiss {
+            background: rgba(255, 255, 255, 0.08);
+            color: #aaa;
         }
 
         * {
@@ -496,32 +673,7 @@
             transform: scale(0.9);
         }
 
-        /* Loading & Spinner */
-        .loading {
-            display: flex;
-            flex-direction: column;
-            align-items: center;
-            justify-content: center;
-            padding: 40px;
-            gap: 12px;
-            color: var(--text-dim);
-            font-size: 14px;
-        }
-
-        .spinner {
-            width: 28px;
-            height: 28px;
-            border: 3px solid var(--border);
-            border-top-color: var(--accent);
-            border-radius: 50%;
-            animation: spin 0.8s linear infinite;
-        }
-
-        @keyframes spin {
-            to {
-                transform: rotate(360deg);
-            }
-        }
+        /* Loading & Spinner - overridden by premium loading above */
 
         /* Toast Notification */
         .toast-container {
@@ -1172,9 +1324,10 @@
 
     <div class="chat-container" id="chatContainer">
         <div class="chat-content" id="chatContent">
-            <div class="loading">
-                <div class="spinner"></div>
-                <span>Connecting to Antigravity...</span>
+            <div class="loading" id="loadingScreen">
+                <div class="loading-brand">Antigravity</div>
+                <div class="loading-dots"><span></span><span></span><span></span></div>
+                <div class="loading-status" id="loadingStatus">Establishing connection…</div>
             </div>
         </div>
     </div>
@@ -1268,6 +1421,20 @@
     <div id="debugLog" class="debug-log">
     </div>
 
+    <!-- Error Popup -->
+    <div class="error-popup-overlay" id="errorPopupOverlay">
+        <div class="error-popup">
+            <div class="error-popup-icon">⚠️</div>
+            <div class="error-popup-title" id="errorPopupTitle">Connection Error</div>
+            <div class="error-popup-message" id="errorPopupMessage">Unable to connect to the server.</div>
+            <div class="error-popup-code" id="errorPopupCode"></div>
+            <div class="error-popup-actions">
+                <button class="error-popup-dismiss" id="errorPopupDismiss">Dismiss</button>
+                <button class="error-popup-retry" id="errorPopupRetry">Retry</button>
+            </div>
+        </div>
+    </div>
+
     <script>
         const chatContainer = document.getElementById('chatContainer');
         const chatContent = document.getElementById('chatContent');
@@ -1288,6 +1455,44 @@
             toast.textContent = `${icons[type] || ''} ${message}`;
             toastContainer.appendChild(toast);
             setTimeout(() => toast.remove(), 3200);
+        }
+
+        // =============== ERROR POPUP SYSTEM ===============
+        const errorPopupOverlay = document.getElementById('errorPopupOverlay');
+        const errorPopupTitle = document.getElementById('errorPopupTitle');
+        const errorPopupMessage = document.getElementById('errorPopupMessage');
+        const errorPopupCode = document.getElementById('errorPopupCode');
+        const errorPopupDismiss = document.getElementById('errorPopupDismiss');
+        const errorPopupRetry = document.getElementById('errorPopupRetry');
+
+        function showErrorPopup(title, message, codeDetails) {
+            errorPopupTitle.textContent = title;
+            errorPopupMessage.textContent = message;
+            errorPopupCode.textContent = codeDetails || '';
+            errorPopupCode.style.display = codeDetails ? 'block' : 'none';
+            errorPopupOverlay.classList.add('show');
+        }
+
+        function dismissErrorPopup() {
+            errorPopupOverlay.classList.remove('show');
+        }
+
+        errorPopupDismiss.addEventListener('click', dismissErrorPopup);
+        errorPopupRetry.addEventListener('click', () => {
+            dismissErrorPopup();
+            if (pollingInterval) {
+                clearInterval(pollingInterval);
+                pollingInterval = null;
+            }
+            if (ws) { try { ws.close(); } catch (e) { } }
+            ws = null;
+            connectWebSocket();
+        });
+
+        // Update loading status text
+        function updateLoadingStatus(text) {
+            const el = document.getElementById('loadingStatus');
+            if (el) el.textContent = text;
         }
 
         // =============== DEBUG LOGGING SYSTEM ===============
@@ -2587,6 +2792,7 @@
 
             logToScreen(`Connecting via ${protocol}...`);
             updateConnectionUI('connecting');
+            updateLoadingStatus('Connecting via ' + protocol.replace(':', '') + '…');
 
             ws = new WebSocket(wsUrl);
 
@@ -2594,6 +2800,7 @@
             const watchdog = setTimeout(() => {
                 if (!ws || ws.readyState !== WebSocket.OPEN) {
                     logToScreen('WS Connection Timed Out. Falling back to HTTP.', '#fbbf24');
+                    showErrorPopup('Connection Timeout', 'WebSocket could not connect within 5 seconds. Falling back to HTTP polling.', `Protocol: ${protocol}\nHost: ${window.location.host}\nTimeout: 5000ms`);
                     if (ws) ws.close();
                     startHttpPolling();
                 }
@@ -2603,9 +2810,7 @@
                 clearTimeout(watchdog);
                 logToScreen('WebSocket Connected', '#4ade80');
                 updateConnectionUI('ws');
-
-                const loader = document.querySelector('.loading span');
-                if (loader) loader.textContent = 'Authenticating...';
+                updateLoadingStatus('Authenticating…');
 
                 // Auto-connect / Wake-up Logic
                 try {
@@ -2613,7 +2818,7 @@
                     if (res.ok) {
                         const data = await res.json();
                         if (!data.activePort && data.instances.length > 0) {
-                            if (loader) loader.textContent = 'Auto-connecting...';
+                            updateLoadingStatus('Auto-connecting…');
                             await switchInstance(data.instances[0].port);
                             return;
                         }
@@ -2641,16 +2846,35 @@
 
             ws.onclose = (event) => {
                 clearTimeout(watchdog);
-                const reason = event.code === 1008 ? 'Auth Failed' : (event.code === 1006 ? 'Abnormal Closure' : `Closed (${event.code})`);
+                const codeMap = {
+                    1000: 'Normal Closure',
+                    1001: 'Going Away',
+                    1002: 'Protocol Error',
+                    1003: 'Unsupported Data',
+                    1005: 'No Status Code',
+                    1006: 'Abnormal Closure (Network/SSL)',
+                    1007: 'Invalid Payload',
+                    1008: 'Policy Violation (Auth Failed)',
+                    1009: 'Message Too Big',
+                    1010: 'Extension Required',
+                    1011: 'Internal Server Error',
+                    1015: 'TLS Handshake Failed'
+                };
+                const reason = codeMap[event.code] || `Unknown (${event.code})`;
                 logToScreen(`WS Disconnected: ${reason}`);
 
                 if (event.code === 1008) {
+                    showErrorPopup('Authentication Failed', 'Your access token is invalid or expired.', `Code: ${event.code}\nReason: ${reason}`);
                     authToken = '';
                     localStorage.removeItem('ag_auth_token');
                     showLogin();
                 } else if (event.code === 1006) {
-                    // Critical Abnormal Closure (often SSL/Network relates) - fallback immediately
+                    showErrorPopup('Connection Lost', 'WebSocket closed abnormally. Switching to HTTP polling mode.', `Code: ${event.code}\nReason: ${reason}\nURL: ${wsUrl}`);
                     startHttpPolling();
+                } else if (event.code !== 1000) {
+                    showErrorPopup('Disconnected', `Connection closed unexpectedly.`, `Code: ${event.code}\nReason: ${reason}`);
+                    updateConnectionUI('offline');
+                    setTimeout(connectWebSocket, 500);
                 } else {
                     updateConnectionUI('offline');
                     setTimeout(connectWebSocket, 500);
@@ -2659,6 +2883,7 @@
 
             ws.onerror = (e) => {
                 logToScreen('WS Network Error', '#f87171');
+                showToast('❌ WebSocket Error — check popup for details', 'error');
                 ws.close();
             };
         }
