@@ -643,7 +643,7 @@ module.exports = { startServer, stopServer, getServerInfo };
 if (require.main === module) {
     (async () => {
         console.log('\n╔══════════════════════════════════════════╗');
-        console.log('║  📱 AntigravityHub - Remote Chat Viewer  ║');
+        console.log('|  AntigravityHub - Remote Chat Viewer  |');
         console.log('╚══════════════════════════════════════════╝\n');
 
         const info = await startServer();
@@ -653,9 +653,9 @@ if (require.main === module) {
             console.log(qr);
         } catch (e) { }
 
-        console.log(`\n🔗 URL: ${info.url}`);
-        console.log(`🔑 Token: ${info.token}\n`);
-        console.log('✅ Ready! Scan QR code with your phone.\n');
+        console.log(`\n> URL: ${info.url}`);
+        console.log(`> Token: ${info.token}\n`);
+        console.log('[OK] Ready! Scan QR code with your phone.\n');
         console.log('Press Ctrl+C to stop.\n');
 
         process.on('SIGINT', () => {
