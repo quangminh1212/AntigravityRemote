@@ -2243,12 +2243,8 @@
                         width: calc(100% - 16px) !important;
                         max-width: calc(100% - 16px) !important;
                         box-sizing: border-box !important;
-                        /* Exact Antigravity Tailwind values: rounded-lg bg-gray-500/10 p-1 (no outer border) */
-                        background-color: rgba(107, 114, 128, 0.1) !important;
-                        border: none !important;
-                        border-radius: 0.5rem !important;
-                        padding: 0.25rem !important;
-                        margin-bottom: 0.5rem !important;
+                        margin: 0 !important;
+                        /* Let native Tailwind classes handle: border, bg, border-radius, padding */
                     }
                     /* Solid cover behind and below input bar to hide any content underneath */
                     #fixedInputBar::before {
@@ -2534,13 +2530,13 @@
                 const fixedBar = inputBar.cloneNode(true);
                 fixedBar.id = 'fixedInputBar';
 
-                // Strip border-related Tailwind classes that override inline styles with !important
+                // Keep ALL native Tailwind classes intact for exact visual match
+                // Only remove mb-2 (margin-bottom) since we position it fixed
                 fixedBar.className = fixedBar.className
-                    .replace(/\bborder[-\w/]*\b/g, '')
                     .replace(/\bmb-2\b/g, '')
                     .replace(/\s+/g, ' ').trim();
 
-                // Apply positioning via JS
+                // Override ONLY positioning - keep native visual styles untouched
                 fixedBar.style.position = 'fixed';
                 fixedBar.style.bottom = '8px';
                 fixedBar.style.left = '8px';
@@ -2550,15 +2546,7 @@
                 fixedBar.style.zIndex = '100';
                 fixedBar.style.boxSizing = 'border-box';
                 fixedBar.style.transform = 'none';
-
-                // Visual styles: no outer border, use setProperty with important to override any CSS
-                fixedBar.style.setProperty('background-color', 'rgba(107, 114, 128, 0.1)', 'important');
-                fixedBar.style.setProperty('border', 'none', 'important');
-                fixedBar.style.setProperty('border-width', '0', 'important');
-                fixedBar.style.setProperty('outline', 'none', 'important');
-                fixedBar.style.setProperty('box-shadow', 'none', 'important');
-                fixedBar.style.setProperty('border-radius', '0.5rem', 'important');
-                fixedBar.style.setProperty('padding', '0.25rem', 'important');
+                fixedBar.style.margin = '0';
 
                 document.body.appendChild(fixedBar);
 
@@ -2568,10 +2556,7 @@
                     styleEl.id = 'fixedInputBarStyles';
                     styleEl.textContent = `
                         #fixedInputBar *:focus, #fixedInputBar *:focus-visible, #fixedInputBar *:focus-within { outline: none !important; box-shadow: none !important; }
-                        #fixedInputBar [contenteditable] { outline: none !important; border: none !important; box-shadow: none !important; caret-color: #d4d4d4; white-space: pre-wrap !important; word-wrap: break-word !important; word-break: break-word !important; overflow-wrap: break-word !important; }
-                        /* Kill ALL outline/border from snapshot Tailwind on text editor area */
-                        #fixedInputBar .outline-1, #fixedInputBar .outline-gray-500\/10, #fixedInputBar [contenteditable].outline-1 { outline: none !important; outline-width: 0 !important; }
-                        #fixedInputBar > div > div { outline: none !important; border: none !important; box-shadow: none !important; }
+                        #fixedInputBar [contenteditable] { caret-color: #d4d4d4; white-space: pre-wrap !important; word-wrap: break-word !important; word-break: break-word !important; overflow-wrap: break-word !important; }
                         #fixedInputBar .flex { display: flex; } #fixedInputBar .flex-col { flex-direction: column; } #fixedInputBar .flex-row { flex-direction: row; }
                         #fixedInputBar .items-center { align-items: center; } #fixedInputBar .items-start { align-items: flex-start; }
                         #fixedInputBar .justify-between { justify-content: space-between; } #fixedInputBar .justify-start { justify-content: flex-start; }
