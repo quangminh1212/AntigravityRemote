@@ -240,7 +240,7 @@ class CDPClient {
 
     // Dispatch mouse events via CDP Input domain (pixel-perfect like ZaloHub)
     async mouseClick(x, y, button = 'left', clickCount = 1) {
-        if (globalCrop && globalCrop.ok) { x += globalCrop.x; y += globalCrop.y; }
+
         try {
             await this.call('Input.dispatchMouseEvent', {
                 type: 'mousePressed', x, y, button, clickCount
@@ -255,7 +255,7 @@ class CDPClient {
 
     // Dispatch scroll via CDP Input domain
     async mouseScroll(x, y, deltaX, deltaY) {
-        if (globalCrop && globalCrop.ok) { x += globalCrop.x; y += globalCrop.y; }
+
         try {
             await this.call('Input.dispatchMouseEvent', {
                 type: 'mouseWheel', x, y, deltaX: deltaX || 0, deltaY: deltaY || 0
@@ -369,7 +369,7 @@ class CDPClient {
 // ========== MAIN STATE ==========
 let cdpClient = null;
 let lastFrameData = null;  // base64 JPEG frame
-let globalCrop = null;     // Iframe crop bounding box
+let globalCrops = null;    // {chat, editor, explorer} crop regions
 let lastReconnectTime = 0;
 let consecutiveFails = 0;
 let screenshotInterval = null;
@@ -402,29 +402,26 @@ async function connectCDP(targetId) {
         cdpClient = client;
         log('INFO', 'CDP', `Connected to: ${chosen.title} (port ${chosen.port})`);
 
-        // Detect crop region for n2ns.antigravity-panel
+        // Detect crop regions for chat, editor, explorer
         if (cropInterval) clearInterval(cropInterval);
         cropInterval = setInterval(async () => {
             if (!cdpClient || !cdpClient.connected) return;
             try {
                 const res = await cdpClient.call('Runtime.evaluate', {
                     expression: `(() => {
-                        const iframe = Array.from(document.querySelectorAll('iframe.webview')).find(i => i.src.includes('n2ns.antigravity-panel'));
-                        if (!iframe) return JSON.stringify({ok: false});
-                        const r = iframe.getBoundingClientRect();
-                        return JSON.stringify({ok: true, x: Math.round(r.x), y: Math.round(r.y), w: Math.round(r.width), h: Math.round(r.height)});
+                        const r = {};
+                        const fn = (el) => { if (!el) return {ok:false}; const b = el.getBoundingClientRect(); return b.width > 10 ? {ok:true, x:Math.round(b.x), y:Math.round(b.y), w:Math.round(b.width), h:Math.round(b.height)} : {ok:false}; };
+                        r.chat = fn(Array.from(document.querySelectorAll('iframe.webview')).find(i => i.src && i.src.includes('antigravity-panel')));
+                        r.editor = fn(document.querySelector('.part.editor'));
+                        r.explorer = fn(document.querySelector('.part.sidebar'));
+                        return JSON.stringify(r);
                     })()`
                 });
                 if (res && res.result && res.result.value) {
-                    const crop = JSON.parse(res.result.value);
-                    if (crop.ok) {
-                        const changed = !globalCrop || globalCrop.x !== crop.x || globalCrop.y !== crop.y || globalCrop.w !== crop.w || globalCrop.h !== crop.h;
-                        globalCrop = crop;
-                        if (changed) broadcastCrop(globalCrop);
-                    } else if (globalCrop && globalCrop.ok) {
-                        globalCrop = { ok: false };
-                        broadcastCrop(globalCrop);
-                    }
+                    const crops = JSON.parse(res.result.value);
+                    const changed = JSON.stringify(crops) !== JSON.stringify(globalCrops);
+                    globalCrops = crops;
+                    if (changed) broadcastCrops(globalCrops);
                 }
             } catch (e) { }
         }, 1000);
@@ -548,8 +545,8 @@ wss.on('connection', (ws, req) => {
     if (lastFrameData) {
         ws.send(JSON.stringify({ type: 'frame', data: lastFrameData }));
     }
-    if (globalCrop) {
-        ws.send(JSON.stringify({ type: 'crop', data: globalCrop }));
+    if (globalCrops) {
+        ws.send(JSON.stringify({ type: 'crops', data: globalCrops }));
     }
 
     // Send viewport info
@@ -611,8 +608,8 @@ function broadcastFrame(base64Data) {
     });
 }
 
-function broadcastCrop(crop) {
-    const msg = JSON.stringify({ type: 'crop', data: crop });
+function broadcastCrops(crops) {
+    const msg = JSON.stringify({ type: 'crops', data: crops });
     wss.clients.forEach(client => {
         if (client.readyState === WebSocket.OPEN) {
             client.send(msg);
