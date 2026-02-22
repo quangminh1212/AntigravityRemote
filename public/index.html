@@ -1165,16 +1165,28 @@
                 ${data.html}
             `;
 
-            // Post-process: Remove giant inline heights from React virtualized list spacers
-            // These spacers have styles like height: 8299px which push real content off-screen
+            // Post-process: Fix React virtualized list artifacts
+            // 1. Strip large inline heights/min-heights (spacers from virtual scroll)
             chatContent.querySelectorAll('[style]').forEach(el => {
                 const h = el.style.height;
-                if (h && parseInt(h) > 500) {
+                if (h && parseInt(h) > 200) {
                     el.style.height = 'auto';
                 }
                 const minH = el.style.minHeight;
-                if (minH && parseInt(minH) > 500) {
+                if (minH && parseInt(minH) > 200) {
                     el.style.minHeight = 'auto';
+                }
+            });
+
+            // 2. Collapse empty "Thought" spacer divs (bg-gray-500/10)
+            // These are 130-220px tall each but contain no visible text
+            chatContent.querySelectorAll('div').forEach(el => {
+                if (el.offsetHeight > 80 && el.innerText.trim().length < 5 && el.children.length < 2) {
+                    el.style.height = '0';
+                    el.style.minHeight = '0';
+                    el.style.padding = '0';
+                    el.style.margin = '0';
+                    el.style.overflow = 'hidden';
                 }
             });
 
