@@ -1020,21 +1020,35 @@
             height: auto !important;
             border-radius: 6px;
             object-fit: contain !important;
+            display: inline-block !important;
         }
 
-        /* User-attached images: ensure reasonable display size */
+        /* User-attached images: ensure reasonable display size like Antigravity native */
         #chatContent img[src*="data:"],
         #chatContent img[src*="blob:"],
         #chatContent img[class*="max-w-"],
-        #chatContent img[class*="rounded"] {
-            min-width: 120px !important;
+        #chatContent img[class*="rounded"],
+        #chatContent img[class*="w-"],
+        #chatContent img[class*="h-"] {
+            min-width: 200px !important;
             max-width: 100% !important;
-            max-height: 400px !important;
+            max-height: 500px !important;
+            width: auto !important;
+            height: auto !important;
         }
 
-        /* Image wrapper containers - don't restrict width */
+        /* Image wrapper containers - remove ALL Tailwind width/height restrictions */
         #chatContent [class*="max-w-"] {
             max-width: 100% !important;
+        }
+
+        #chatContent div[class*="w-"]:has(> img),
+        #chatContent div[class*="h-"]:has(> img),
+        #chatContent span[class*="w-"]:has(> img) {
+            width: auto !important;
+            height: auto !important;
+            max-width: 100% !important;
+            max-height: none !important;
         }
 
         /* Headings: readable on mobile */
