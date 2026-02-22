@@ -424,22 +424,24 @@
 
         /* Chat Header Bar - mimics Antigravity native header */
         #chatHeader {
-            position: fixed;
-            top: 0;
-            left: 50%;
-            transform: translateX(-50%);
+            position: fixed !important;
+            top: 0 !important;
+            left: 50% !important;
+            transform: translateX(-50%) !important;
             max-width: 430px;
             width: 100%;
-            z-index: 9999;
+            z-index: 9999 !important;
             padding: 10px 12px;
-            background: rgba(20, 20, 22, 0.92);
+            background: rgba(20, 20, 22, 0.95);
             -webkit-backdrop-filter: blur(12px);
             backdrop-filter: blur(12px);
             border-bottom: 1px solid var(--border);
-            display: flex;
+            display: flex !important;
             align-items: center;
             justify-content: space-between;
             box-shadow: 0 2px 8px rgba(0, 0, 0, 0.3);
+            visibility: visible !important;
+            opacity: 1 !important;
         }
 
         #chatHeaderLeft {
