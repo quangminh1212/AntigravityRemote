@@ -1020,9 +1020,9 @@
                         position: revert !important;
                     }
                     
-                    /* Use captured text color from Antigravity (works for any theme) */
-                    #cascade, #cascade * {
-                        color: ${data.bodyColor || 'inherit'};
+                    /* Set default text color from Antigravity, but allow individual element colors to override */
+                    #chatContent {
+                        color: ${data.bodyColor || '#e0e0e0'};
                     }
                     
                     /* Code blocks - keep dark background */
