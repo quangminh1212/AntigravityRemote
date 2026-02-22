@@ -1,9 +1,6 @@
 node_modules/
-out/
 uploads/
 .token
-cert.pem
-key.pem
-*.vsix
 *.log
+*.vsix
 .DS_Store
