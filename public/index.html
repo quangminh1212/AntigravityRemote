@@ -864,8 +864,25 @@
         /* Images fit screen */
         #chatContent img {
             max-width: 100% !important;
+            width: auto !important;
             height: auto !important;
             border-radius: 6px;
+            object-fit: contain !important;
+        }
+
+        /* User-attached images: ensure reasonable display size */
+        #chatContent img[src*="data:"],
+        #chatContent img[src*="blob:"],
+        #chatContent img[class*="max-w-"],
+        #chatContent img[class*="rounded"] {
+            min-width: 120px !important;
+            max-width: 100% !important;
+            max-height: 400px !important;
+        }
+
+        /* Image wrapper containers - don't restrict width */
+        #chatContent [class*="max-w-"] {
+            max-width: 100% !important;
         }
 
         /* Headings: readable on mobile */
