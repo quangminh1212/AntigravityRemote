@@ -2044,15 +2044,37 @@
                 }
             });
 
-            // 2. Collapse empty "Thought" spacer divs (bg-gray-500/10)
-            // These are 130-220px tall each but contain no visible text
+            // 2. Collapse skeleton/placeholder/empty spacer blocks
+            // Antigravity uses virtual scroll - unloaded messages show as gray placeholders
             chatContent.querySelectorAll('div').forEach(el => {
-                if (el.offsetHeight > 80 && el.innerText.trim().length < 5 && el.children.length < 2) {
+                const text = el.innerText.trim();
+                const h = el.offsetHeight;
+                const w = el.offsetWidth;
+                const cls = el.className || '';
+                const style = el.getAttribute('style') || '';
+
+                // Skip small elements and elements with real text content
+                if (h < 40 || text.length > 20) return;
+
+                // Detect skeleton/placeholder patterns:
+                // a) Tall empty divs (spacers from virtual scroll)
+                // b) Divs with only child divs but no text (skeleton shimmer blocks)
+                // c) Divs with animate-pulse or bg-gray classes (loading indicators)
+                // d) Divs with large inline height/width but no content
+                const isSkeleton = (
+                    (h > 60 && text.length < 5) ||
+                    (cls.includes('animate') && cls.includes('pulse')) ||
+                    (cls.includes('bg-gray') && h > 40 && text.length < 3) ||
+                    (h > 80 && el.children.length > 0 && text.length < 10 && !el.querySelector('img,svg,video,canvas,pre,code'))
+                );
+
+                if (isSkeleton) {
                     el.style.height = '0';
                     el.style.minHeight = '0';
                     el.style.padding = '0';
                     el.style.margin = '0';
                     el.style.overflow = 'hidden';
+                    el.style.display = 'none';
                 }
             });
 
@@ -2307,12 +2329,26 @@
 
         // Scroll handling
         let scrollTimeout;
+        let lastScrollTop = 0;
+        let scrollForwardThrottle = null;
         chatContainer.addEventListener('scroll', () => {
             userIsScrolling = true;
             clearTimeout(scrollTimeout);
 
             const isNearBottom = chatContainer.scrollHeight - chatContainer.scrollTop - chatContainer.clientHeight < 100;
             scrollToBottomBtn.classList.toggle('show', !isNearBottom);
+
+            // Forward scroll to Antigravity via WebSocket (throttled)
+            const scrollDelta = chatContainer.scrollTop - lastScrollTop;
+            lastScrollTop = chatContainer.scrollTop;
+            if (ws && ws.readyState === WebSocket.OPEN && Math.abs(scrollDelta) > 10) {
+                if (!scrollForwardThrottle) {
+                    scrollForwardThrottle = setTimeout(() => {
+                        scrollForwardThrottle = null;
+                    }, 150);
+                    ws.send(JSON.stringify({ type: 'scroll', deltaY: scrollDelta }));
+                }
+            }
 
             scrollTimeout = setTimeout(() => {
                 userIsScrolling = false;

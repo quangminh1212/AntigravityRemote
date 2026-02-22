@@ -575,11 +575,41 @@ export class AntigravityServer {
                     if (this.state.lastSnapshot) {
                         ws.send(JSON.stringify({ type: 'snapshot', data: this.state.lastSnapshot, timestamp: new Date().toISOString() }));
                     }
-                    ws.on('message', (data) => {
+                    ws.on('message', async (data) => {
                         try {
                             const msg = JSON.parse(data.toString());
                             if (msg.type === 'request_snapshot' && this.state.lastSnapshot) {
                                 ws.send(JSON.stringify({ type: 'snapshot', data: this.state.lastSnapshot, timestamp: new Date().toISOString() }));
+                            }
+                            // Forward scroll events to Antigravity via CDP
+                            if (msg.type === 'scroll' && typeof msg.deltaY === 'number') {
+                                const activeCdp = this.state.activeTargetId
+                                    ? this.state.cdpConnections.find(c => c.id === this.state.activeTargetId)
+                                    : this.state.cdpConnections[0];
+                                if (activeCdp) {
+                                    try {
+                                        await activeCdp.call("Runtime.evaluate", {
+                                            expression: `(() => {
+                                                const scrollContainers = document.querySelectorAll('[class*="overflow-y-auto"], [class*="overflow-y-scroll"], [style*="overflow"]');
+                                                for (const el of scrollContainers) {
+                                                    if (el.scrollHeight > el.clientHeight && el.clientHeight > 200) {
+                                                        el.scrollBy({ top: ${msg.deltaY}, behavior: 'auto' });
+                                                        return true;
+                                                    }
+                                                }
+                                                window.scrollBy({ top: ${msg.deltaY}, behavior: 'auto' });
+                                                return false;
+                                            })()`,
+                                            returnByValue: true,
+                                            contextId: activeCdp.contexts[0]?.id
+                                        });
+                                        // Trigger immediate snapshot after scroll
+                                        this.lastChangeTime = Date.now();
+                                        setTimeout(() => this.updateSnapshot(), 50);
+                                    } catch (e) {
+                                        serverLog('WARN', 'SCROLL', `Scroll forward failed: ${(e as Error).message}`);
+                                    }
+                                }
                             }
                         } catch { }
                     });
