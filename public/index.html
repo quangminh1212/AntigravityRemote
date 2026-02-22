@@ -2140,17 +2140,24 @@
 
             // All Antigravity native controls are now visible & clickable via CDP forwarding
 
-            // 5.5 Strip border/outline/background from all inline code elements
+            // 5.5 Strip ALL box styling from inline code elements (force override with !important)
             chatContent.querySelectorAll('code').forEach(c => {
                 if (c.closest('pre')) return; // Skip code inside pre blocks
-                c.style.border = 'none';
-                c.style.borderColor = 'transparent';
-                c.style.outline = 'none';
-                c.style.boxShadow = 'none';
-                c.style.background = 'none';
-                c.style.backgroundColor = 'transparent';
-                c.style.padding = '0';
-                c.style.color = '#e0b0ff';
+                const s = c.style;
+                s.setProperty('border', 'none', 'important');
+                s.setProperty('border-width', '0', 'important');
+                s.setProperty('border-color', 'transparent', 'important');
+                s.setProperty('outline', 'none', 'important');
+                s.setProperty('box-shadow', 'none', 'important');
+                s.setProperty('background', 'none', 'important');
+                s.setProperty('background-color', 'transparent', 'important');
+                s.setProperty('padding', '0', 'important');
+                s.setProperty('margin', '0', 'important');
+                s.setProperty('color', '#e0b0ff', 'important');
+                // Strip Tailwind classes that add bg/border/padding
+                if (c.className) {
+                    c.className = c.className.replace(/\b(bg-|border-|ring-|px-|py-|p-|rounded)[^\s]*/g, '');
+                }
             });
 
             // 6. Find Antigravity's chat thread header and clone it as a fixed bar
