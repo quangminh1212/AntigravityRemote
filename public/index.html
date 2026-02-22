@@ -2650,7 +2650,7 @@
 
                 // Add padding-bottom to chat container so content isn't hidden behind fixed input bar
                 const fixedBarHeight = fixedBar.getBoundingClientRect().height;
-                chatContainer.style.paddingBottom = (fixedBarHeight + 48) + 'px';
+                chatContainer.style.paddingBottom = fixedBarHeight + 'px';
             }
 
             // All Antigravity native controls are now visible & clickable via CDP forwarding
@@ -2720,30 +2720,13 @@
                 // No header found this snapshot, keep existing one
             }
 
-            // Scroll to end of actual content (not into padding) + 1 extra line
-            function scrollToContentEnd() {
-                const lastChild = chatContent.lastElementChild;
-                if (lastChild) {
-                    lastChild.scrollIntoView({ block: 'end', behavior: 'instant' });
-                } else {
-                    chatContainer.scrollTop = chatContainer.scrollHeight;
-                }
-            }
+            // Auto-scroll: mimic Antigravity native behavior
             if (!initialScrollDone) {
-                // First render: scroll to bottom to show latest chat messages
                 initialScrollDone = true;
-                requestAnimationFrame(() => {
-                    scrollToContentEnd();
-                    setTimeout(scrollToContentEnd, 50);
-                });
+                chatContainer.scrollTop = chatContainer.scrollHeight;
             } else if (!userScrolledUp) {
-                // User hasn't scrolled up → always follow new content (show Generating etc.)
-                requestAnimationFrame(() => {
-                    scrollToContentEnd();
-                    setTimeout(scrollToContentEnd, 50);
-                });
+                chatContainer.scrollTop = chatContainer.scrollHeight;
             } else {
-                // User is reading older messages → preserve their position
                 chatContainer.scrollTop = scrollPos;
             }
         }
@@ -2995,12 +2978,7 @@
 
         scrollToBottomBtn.addEventListener('click', () => {
             userScrolledUp = false;
-            const lastChild = chatContent.lastElementChild;
-            if (lastChild) {
-                lastChild.scrollIntoView({ block: 'end', behavior: 'smooth' });
-            } else {
-                chatContainer.scrollTo({ top: chatContainer.scrollHeight, behavior: 'smooth' });
-            }
+            chatContainer.scrollTo({ top: chatContainer.scrollHeight, behavior: 'smooth' });
         });
 
         // Input handlers
