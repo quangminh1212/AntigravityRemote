@@ -128,16 +128,16 @@
         .canvas-container {
             flex: 1;
             display: flex;
-            align-items: flex-start;
-            justify-content: center;
+            flex-direction: column;
             background: #1e1e1e;
-            overflow-x: hidden;
-            overflow-y: auto;
+            overflow: hidden;
             position: relative;
         }
 
         canvas#remote-canvas {
-            transform-origin: top center;
+            width: 100%;
+            height: 100%;
+            object-fit: contain;
             cursor: default;
             image-rendering: auto;
             display: block;
@@ -409,12 +409,9 @@
 
             // ========== SCALE ==========
             function recalcScale() {
-                const cw = container.clientWidth;
-                if (cw > 0 && viewportW > 0) {
-                    scale = cw / viewportW;
-                    canvas.style.transform = `scale(${scale})`;
-                    // Set canvas visual height so container can scroll
-                    canvas.style.marginBottom = `${(viewportH * scale) - viewportH}px`;
+                const rect = canvas.getBoundingClientRect();
+                if (rect.width > 0 && viewportW > 0) {
+                    scale = rect.width / viewportW;
                 }
             }
 
@@ -483,8 +480,10 @@
             // ========== COORDINATE CONVERSION (with crop offset) ==========
             function getServerCoords(clientX, clientY) {
                 const rect = canvas.getBoundingClientRect();
-                const x = (clientX - rect.left) / scale;
-                const y = (clientY - rect.top) / scale;
+                const scaleX = canvas.width / rect.width;
+                const scaleY = canvas.height / rect.height;
+                const x = (clientX - rect.left) * scaleX;
+                const y = (clientY - rect.top) * scaleY;
                 const crop = getActiveCrop();
                 const ox = (crop && crop.ok) ? crop.x : 0;
                 const oy = (crop && crop.ok) ? crop.y : 0;
