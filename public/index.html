@@ -2232,7 +2232,7 @@
                     startHttpPolling();
                 } else {
                     updateConnectionUI('offline');
-                    setTimeout(connectWebSocket, 2000);
+                    setTimeout(connectWebSocket, 500);
                 }
             };
 
@@ -2501,7 +2501,7 @@
                     // Request snapshot with retry mechanism
                     let retries = 0;
                     const maxRetries = 3;
-                    const retryDelay = 500;
+                    const retryDelay = 200;
 
                     const requestSnapshot = () => {
                         if (ws && ws.readyState === WebSocket.OPEN) {

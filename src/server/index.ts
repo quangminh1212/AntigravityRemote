@@ -14,9 +14,9 @@ import { securityMiddleware } from '../middleware/security';
 
 // Config defaults (aligned with root server)
 const MAX_UPLOAD_SIZE_MB = 50;
-const POLL_FAST = 300;      // Near-realtime when content is changing
-const POLL_SLOW = 1500;     // Idle mode when nothing changes
-const POLL_FAST_DURATION = 5000; // Stay fast for 5s after last change
+const POLL_FAST = 100;      // Realtime: ~10 FPS when content is changing
+const POLL_SLOW = 500;      // Still responsive when idle
+const POLL_FAST_DURATION = 8000; // Stay fast for 8s after last change
 const HTTP_TIMEOUT = 2000;
 
 const TOKEN_FILENAME = '.token';
