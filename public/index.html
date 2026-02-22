@@ -88,7 +88,7 @@
             overflow-x: hidden;
             position: relative;
             padding-top: 0;
-            padding-bottom: 0;
+            padding-bottom: 80px;
             background: #1e1e1e;
             -webkit-overflow-scrolling: touch;
             overscroll-behavior-y: contain;
@@ -2153,11 +2153,9 @@
                 inputBar.style.padding = '0';
                 inputBar.style.margin = '0';
 
-                // Add padding-bottom to chat container so content isn't hidden behind fixed bar + bottom dock
-                const barHeight = fixedBar.getBoundingClientRect().height;
-                const bottomDock = document.querySelector('.bottom-dock');
-                const dockHeight = bottomDock ? bottomDock.getBoundingClientRect().height : 0;
-                chatContainer.style.paddingBottom = (barHeight + dockHeight + 16) + 'px';
+                // Add padding-bottom to chat container so content isn't hidden behind fixed input bar
+                const fixedBarHeight = fixedBar.getBoundingClientRect().height;
+                chatContainer.style.paddingBottom = (fixedBarHeight + 24) + 'px';
             }
 
             // All Antigravity native controls are now visible & clickable via CDP forwarding
