@@ -1992,8 +1992,18 @@
                         background: #1e1e1e !important;
                         width: 100% !important;
                         max-width: 100% !important;
-                        padding-bottom: env(safe-area-inset-bottom, 8px) !important;
+                        padding-bottom: 20px !important;
                         box-sizing: border-box !important;
+                    }
+                    /* Solid cover below input bar to hide any content underneath */
+                    #fixedInputBar::after {
+                        content: '';
+                        position: absolute;
+                        left: 0;
+                        right: 0;
+                        top: 100%;
+                        height: 100px;
+                        background: #1e1e1e;
                     }
 
                     /* Fallback: if input bar still inside chatContent */
