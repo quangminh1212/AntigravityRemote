@@ -1587,6 +1587,7 @@
         const loginBtn = document.getElementById('loginBtn');
 
         let userIsScrolling = false;
+        let userScrolledUp = false;
         let ws = null;
         let pendingMessage = null; // Track message waiting for visual confirmation
         let initialScrollDone = false;
@@ -2723,10 +2724,10 @@
                 // First render: scroll to bottom to show latest chat messages
                 initialScrollDone = true;
                 chatContainer.scrollTop = chatContainer.scrollHeight;
-            } else if (isNearBottom) {
-                // User was near bottom → auto-scroll to show new content
+            } else if (!userScrolledUp) {
+                // User hasn't scrolled up → always follow new content (show Generating etc.)
                 chatContainer.scrollTop = chatContainer.scrollHeight;
-            } else if (scrollPos > 0) {
+            } else {
                 // User is reading older messages → preserve their position
                 chatContainer.scrollTop = scrollPos;
             }
@@ -2957,6 +2958,8 @@
 
             const isNearBottom = chatContainer.scrollHeight - chatContainer.scrollTop - chatContainer.clientHeight < 100;
             scrollToBottomBtn.classList.toggle('show', !isNearBottom);
+            // Track if user scrolled up (away from bottom)
+            userScrolledUp = !isNearBottom;
 
             // Forward scroll to Antigravity via WebSocket (throttled)
             const scrollDelta = chatContainer.scrollTop - lastScrollTop;
@@ -2976,6 +2979,7 @@
         });
 
         scrollToBottomBtn.addEventListener('click', () => {
+            userScrolledUp = false;
             chatContainer.scrollTo({ top: chatContainer.scrollHeight, behavior: 'smooth' });
         });
 
