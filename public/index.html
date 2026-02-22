@@ -87,12 +87,14 @@
         }
 
         .chat-content {
-            padding: 8px 10px 0;
-            min-height: 0;
+            padding: 0;
+            min-height: 100%;
             background: #1e1e1e;
             color: #e0e0e0;
             word-break: break-word;
             overflow-wrap: break-word;
+            display: flex;
+            flex-direction: column;
         }
 
         /* --- Unified Bottom Dock --- */
@@ -856,12 +858,12 @@
             font-size: 14px !important;
         }
 
-        /* Buttons and interactive: minimum 44px touch target */
+        /* Buttons and interactive: touch targets */
         #chatContent button,
         #chatContent [role="button"],
         #chatContent a {
-            min-height: 32px;
-            min-width: 32px;
+            min-height: 28px;
+            min-width: 28px;
         }
 
         /* Hide elements that don't work outside Antigravity */
@@ -870,13 +872,41 @@
             display: none !important;
         }
 
-        /* React app container: ensure it fills width */
+        /* React app container: ensure it fills width and height */
         #chatContent .react-app-container,
         #chatContent #react-app,
-        #chatContent #chat {
+        #chatContent #chat,
+        #chatContent #cascade {
             width: 100% !important;
             max-width: 100% !important;
             overflow-x: hidden !important;
+            flex: 1 !important;
+            display: flex !important;
+            flex-direction: column !important;
+        }
+
+        /* === Native Input Bar from Snapshot: Responsive === */
+        /* Ensure bottom action row doesn't overflow on mobile */
+        #chatContent [class*="justify-between"],
+        #chatContent [class*="items-center"][class*="gap"] {
+            flex-wrap: nowrap !important;
+            overflow: hidden !important;
+        }
+
+        /* Truncate long text in bottom row (model name, etc) */
+        #chatContent [class*="truncate"],
+        #chatContent [class*="text-xs"],
+        #chatContent [class*="text-sm"] {
+            overflow: hidden !important;
+            text-overflow: ellipsis !important;
+            white-space: nowrap !important;
+        }
+
+        /* Ensure SVG icons in input bar maintain proper size */
+        #chatContent svg {
+            flex-shrink: 0 !important;
+            min-width: 14px !important;
+            min-height: 14px !important;
         }
 
         /* Scroll FAB position for mobile */
@@ -895,10 +925,6 @@
 
         /* Small phones (iPhone SE, 320px) */
         @media (max-width: 374px) {
-            .chat-content {
-                padding: 6px 8px 0 !important;
-            }
-
             #chatContent {
                 font-size: 14px !important;
                 line-height: 1.6 !important;
@@ -928,26 +954,36 @@
             .toast-container {
                 width: 95%;
             }
+
+            /* Native input bar: smaller icons on tiny phones */
+            #chatContent svg {
+                width: 14px !important;
+                height: 14px !important;
+            }
+
+            #chatContent button {
+                min-height: 24px !important;
+                min-width: 24px !important;
+                padding: 2px !important;
+            }
         }
 
         /* Standard phones (375px - 430px: iPhone, most Android) */
         @media (min-width: 375px) and (max-width: 430px) {
-            .chat-content {
-                padding: 8px 12px 0;
-            }
-
             #chatContent {
                 font-size: 15px !important;
                 line-height: 1.65 !important;
+            }
+
+            /* Native input bar: optimize for standard mobile */
+            #chatContent svg {
+                width: 16px !important;
+                height: 16px !important;
             }
         }
 
         /* Large phones / small tablets (431px - 768px) */
         @media (min-width: 431px) and (max-width: 768px) {
-            .chat-content {
-                padding: 12px 16px 0;
-            }
-
             #chatContent {
                 font-size: 15px !important;
                 line-height: 1.65 !important;
@@ -961,9 +997,7 @@
         /* Tablets and desktop (769px+) */
         @media (min-width: 769px) {
             .chat-content {
-                padding: 16px 24px 0;
-                max-width: 900px;
-                margin: 0 auto;
+                max-width: 100%;
             }
 
             #chatContent {
@@ -1815,6 +1849,79 @@
                     #chatContent textarea {
                         cursor: text !important;
                         pointer-events: auto !important;
+                    }
+
+                    /* === FULL-HEIGHT LAYOUT: mirror Antigravity exactly === */
+                    /* React app container fills the viewport */
+                    #chatContent > #chat,
+                    #chatContent > #react-app,
+                    #chatContent > .react-app-container,
+                    #chatContent > #cascade {
+                        display: flex !important;
+                        flex-direction: column !important;
+                        min-height: 100% !important;
+                        flex: 1 !important;
+                    }
+
+                    /* Chat messages area grows to push input bar to bottom */
+                    #chatContent [class*="overflow-y-auto"],
+                    #chatContent [class*="overflow-y-scroll"],
+                    #chatContent [class*="flex-1"][class*="flex-col"],
+                    #chatContent [class*="grow"][class*="overflow"] {
+                        flex: 1 1 auto !important;
+                        overflow: visible !important;
+                        max-height: none !important;
+                    }
+
+                    /* Native input/compose area from snapshot - sticky bottom */
+                    #chatContent [class*="sticky"][class*="bottom"],
+                    #chatContent [class*="fixed"][class*="bottom"],
+                    #chatContent [class*="border-t"][class*="bg-"] {
+                        flex-shrink: 0 !important;
+                        position: relative !important;
+                        width: 100% !important;
+                    }
+
+                    /* Native textarea from Antigravity */
+                    #chatContent textarea,
+                    #chatContent [contenteditable="true"],
+                    #chatContent [role="textbox"] {
+                        background-color: transparent !important;
+                        color: #e0e0e0 !important;
+                        border: none !important;
+                        outline: none !important;
+                        font-size: 14px !important;
+                        line-height: 1.5 !important;
+                        resize: none !important;
+                        width: 100% !important;
+                    }
+
+                    /* Input wrapper from Antigravity (the rounded input box) */
+                    #chatContent [class*="rounded"][class*="border"][class*="bg-"],
+                    #chatContent [class*="input-wrapper"],
+                    #chatContent [class*="composer"] {
+                        border-radius: 12px !important;
+                        border: 1px solid rgba(255, 255, 255, 0.1) !important;
+                        background: #2d2d2d !important;
+                    }
+
+                    /* Action buttons at bottom (send, mic, etc) */
+                    #chatContent [class*="bottom"] button,
+                    #chatContent [class*="compose"] button,
+                    #chatContent [class*="toolbar"] button {
+                        min-height: 28px !important;
+                        min-width: 28px !important;
+                        display: inline-flex !important;
+                        align-items: center !important;
+                        justify-content: center !important;
+                        color: #888 !important;
+                    }
+
+                    /* Antigravity model selector text */
+                    #chatContent [class*="text-xs"],
+                    #chatContent [class*="text-\\[11px\\]"] {
+                        font-size: 12px !important;
+                        color: #888 !important;
                     }
                 </style>
                 ${data.html}
