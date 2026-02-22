@@ -124,6 +124,45 @@ async function main() {
     console.log(`${c.cyan}║  ${c.green}Antigravity Hub - Dev Mode${c.reset}          ${c.cyan}║${c.reset}`);
     console.log(`${c.cyan}╚══════════════════════════════════════╝${c.reset}\n`);
 
+    // 0. Clear old session data (clean start)
+    log('🧹', `${c.yellow}Clearing old session data...${c.reset}`);
+
+    // Clear server.log
+    const logFile = path.join(__dirname, 'server.log');
+    if (fs.existsSync(logFile)) {
+        fs.writeFileSync(logFile, '');
+        log('  🗑️', `${c.dim}Cleared server.log${c.reset}`);
+    }
+
+    // Clear uploads/ (old uploaded files)
+    const uploadsDir = path.join(__dirname, 'uploads');
+    if (fs.existsSync(uploadsDir)) {
+        const files = fs.readdirSync(uploadsDir);
+        for (const f of files) {
+            try { fs.unlinkSync(path.join(uploadsDir, f)); } catch (e) { }
+        }
+        if (files.length > 0) log('  🗑️', `${c.dim}Cleared ${files.length} file(s) from uploads/${c.reset}`);
+    }
+
+    // Clear out/ (force fresh build)
+    const outDir = path.join(__dirname, 'out');
+    if (fs.existsSync(outDir)) {
+        const outFiles = fs.readdirSync(outDir);
+        for (const f of outFiles) {
+            try { fs.unlinkSync(path.join(outDir, f)); } catch (e) { }
+        }
+        log('  🗑️', `${c.dim}Cleared out/ build cache${c.reset}`);
+    }
+
+    // Clear Node.js require cache (any leftover modules)
+    Object.keys(require.cache).forEach(key => {
+        if (key.includes(path.join(__dirname, 'out')) || key.includes(path.join(__dirname, 'src'))) {
+            delete require.cache[key];
+        }
+    });
+    log('  🗑️', `${c.dim}Cleared Node.js require cache${c.reset}`);
+    log('✅', `${c.green}Session data cleared${c.reset}`);
+
     // 1. Start esbuild watch
     log('🔨', `${c.yellow}Starting esbuild watch...${c.reset}`);
     const ctx = await esbuild.context({
