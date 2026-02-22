@@ -1944,6 +1944,16 @@
                         max-height: none !important;
                     }
 
+                    /* Sticky chat thread header */
+                    #chatContent [data-thread-header] {
+                        position: sticky !important;
+                        top: 0 !important;
+                        z-index: 50 !important;
+                        background-color: #1e1e1e !important;
+                        border-bottom: 1px solid #333 !important;
+                        padding: 4px 8px !important;
+                    }
+
                     /* Native input/compose area - fixed at bottom of body */
                     #fixedInputBar {
                         position: fixed !important;
@@ -2121,6 +2131,40 @@
             }
 
             // All Antigravity native controls are now visible & clickable via CDP forwarding
+
+            // 6. Find and sticky-fix the Antigravity chat thread header
+            // The chat header contains: thread title text + action buttons (new chat, history, close)
+            // It's typically the first flex row div inside the chat area with buttons
+            const chatHeaderCandidates = chatContent.querySelectorAll('div');
+            let threadHeader = null;
+            for (const el of chatHeaderCandidates) {
+                const cls = el.className || '';
+                const h = el.offsetHeight;
+                const buttons = el.querySelectorAll('button');
+                const directText = el.childNodes.length > 0 ?
+                    Array.from(el.childNodes).filter(n => n.nodeType === 3).map(n => n.textContent.trim()).join('') : '';
+
+                // Header pattern: flex row, 30-60px tall, has 2+ buttons, near top of content
+                if (cls.includes('flex') && h >= 25 && h <= 70 && buttons.length >= 2) {
+                    // Check it has text content (thread title) but not too much (not a message)
+                    const text = el.innerText.trim();
+                    if (text.length > 2 && text.length < 100) {
+                        threadHeader = el;
+                        break;
+                    }
+                }
+            }
+
+            if (threadHeader) {
+                threadHeader.setAttribute('data-thread-header', 'true');
+                threadHeader.style.position = 'sticky';
+                threadHeader.style.top = '0';
+                threadHeader.style.zIndex = '50';
+                threadHeader.style.backgroundColor = '#1e1e1e';
+                threadHeader.style.borderBottom = '1px solid #333';
+                threadHeader.style.padding = '4px 8px';
+                threadHeader.style.margin = '0';
+            }
 
             if (!initialScrollDone) {
                 // First render: scroll to bottom to show latest chat messages
