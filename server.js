@@ -309,11 +309,22 @@ class CDPClient {
             const modFlag = modifiers.reduce((acc, m) => acc | ({ control: 1, alt: 2, shift: 4, meta: 8 }[m] || 0), 0);
 
             if (mapped) {
+                const isChar = mapped.key.length === 1;
                 await this.call('Input.dispatchKeyEvent', {
-                    type: 'keyDown', key: mapped.key, code: mapped.code,
+                    type: isChar ? 'keyDown' : 'rawKeyDown',
+                    key: mapped.key, code: mapped.code,
                     windowsVirtualKeyCode: mapped.keyCode, nativeVirtualKeyCode: mapped.keyCode,
-                    modifiers: modFlag
+                    modifiers: modFlag,
+                    text: isChar ? mapped.key : undefined
                 });
+                if (isChar) {
+                    await this.call('Input.dispatchKeyEvent', {
+                        type: 'char', key: mapped.key, code: mapped.code,
+                        windowsVirtualKeyCode: mapped.keyCode, nativeVirtualKeyCode: mapped.keyCode,
+                        modifiers: modFlag,
+                        text: mapped.key
+                    });
+                }
                 await this.call('Input.dispatchKeyEvent', {
                     type: 'keyUp', key: mapped.key, code: mapped.code,
                     windowsVirtualKeyCode: mapped.keyCode, nativeVirtualKeyCode: mapped.keyCode,
@@ -325,7 +336,14 @@ class CDPClient {
                 await this.call('Input.dispatchKeyEvent', {
                     type: 'keyDown', key: baseKey, code: `Key${baseKey.toUpperCase()}`,
                     windowsVirtualKeyCode: charCode, nativeVirtualKeyCode: charCode,
-                    modifiers: modFlag
+                    modifiers: modFlag,
+                    text: baseKey
+                });
+                await this.call('Input.dispatchKeyEvent', {
+                    type: 'char', key: baseKey, code: `Key${baseKey.toUpperCase()}`,
+                    windowsVirtualKeyCode: charCode, nativeVirtualKeyCode: charCode,
+                    modifiers: modFlag,
+                    text: baseKey
                 });
                 await this.call('Input.dispatchKeyEvent', {
                     type: 'keyUp', key: baseKey, code: `Key${baseKey.toUpperCase()}`,
