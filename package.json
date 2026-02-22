@@ -1,89 +1,16 @@
 {
     "name": "antigravity-hub",
-    "displayName": "Antigravity Hub",
-    "description": "Mobile bridge for Antigravity - full UI parity on your phone",
-    "icon": "icon.png",
-    "version": "1.0.0",
-    "license": "MIT",
-    "engines": {
-        "vscode": "^1.90.0"
-    },
-    "categories": [
-        "Other"
-    ],
-    "publisher": "cafetechne",
-    "repository": {
-        "type": "git",
-        "url": "https://github.com/cafeTechne/antigravity-link-extension"
-    },
-    "activationEvents": [
-        "onStartupFinished"
-    ],
-    "main": "./out/extension.js",
-    "contributes": {
-        "commands": [
-            {
-                "command": "antigravity-link.start",
-                "title": "Start Server",
-                "category": "Antigravity Hub"
-            },
-            {
-                "command": "antigravity-link.stop",
-                "title": "Stop Server",
-                "category": "Antigravity Hub"
-            },
-            {
-                "command": "antigravity-link.showQR",
-                "title": "Show QR Code",
-                "category": "Antigravity Hub"
-            }
-        ],
-        "configuration": {
-            "title": "Antigravity Hub",
-            "properties": {
-                "antigravityLink.port": {
-                    "type": "number",
-                    "default": 3000,
-                    "description": "Port for the local upload server"
-                },
-                "antigravityLink.autoStart": {
-                    "type": "boolean",
-                    "default": false,
-                    "description": "Start Antigravity Link automatically when VS Code launches"
-                },
-                "antigravityLink.useHttps": {
-                    "type": "boolean",
-                    "default": true,
-                    "description": "Serve the mobile bridge over HTTPS with a self-signed certificate"
-                }
-            }
-        }
-    },
+    "version": "2.0.0",
+    "description": "Remote chat viewer for Antigravity - scan QR, use on phone",
+    "main": "server.js",
     "scripts": {
-        "vscode:prepublish": "npm run typecheck && npm run bundle",
-        "compile": "tsc -p ./",
-        "watch": "tsc -watch -p ./",
-        "typecheck": "tsc -p ./ --noEmit",
-        "bundle": "node ./esbuild.js",
-        "dev:watch": "node ./esbuild.js --watch",
-        "dev": "node ./esbuild.js && node ./dev-server.js",
-        "package": "vsce package"
-    },
-    "devDependencies": {
-        "@types/express": "^4.17.21",
-        "@types/node": "^20.12.7",
-        "@types/qrcode": "^1.5.5",
-        "@types/selfsigned": "^2.0.4",
-        "@types/vscode": "^1.90.0",
-        "@types/ws": "^8.5.10",
-        "esbuild": "^0.27.3",
-        "typescript": "^5.4.5",
-        "vsce": "^1.94.0"
+        "start": "node server.js",
+        "dev": "node server.js"
     },
     "dependencies": {
         "express": "^4.19.2",
         "qrcode": "^1.5.3",
-        "selfsigned": "^2.4.1",
         "ws": "^8.16.0"
-    }
+    },
+    "license": "MIT"
 }
