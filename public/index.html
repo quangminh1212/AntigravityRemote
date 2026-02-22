@@ -1446,6 +1446,12 @@
                 if (l.includes('background-color: #fff') || l.includes('background-color: white') ||
                     l.includes('background: #fff') || l.includes('background: white') ||
                     l.includes('background-color: rgb(255')) return false;
+                // Drop ALL rules targeting inline code elements (we provide our own styling)
+                if (l.match(/\bcode\b/) && !l.includes('pre code') && !l.includes('pre>code') && !l.includes('.code')) {
+                    if (l.includes('border') || l.includes('background') || l.includes('padding') ||
+                        l.includes('outline') || l.includes('box-shadow') || l.includes('ring') ||
+                        l.includes('border-radius') || l.includes('margin')) return false;
+                }
                 return true;
             }).join('\n');
 
