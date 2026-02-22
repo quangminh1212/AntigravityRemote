@@ -635,8 +635,8 @@
         <!-- Floating Scroll FAB -->
         <button class="fab" id="scrollToBottom">↓</button>
 
-        <!-- Top Layer: Scrapers (Mode, Model) -->
-        <div class="dock-controls" id="nativeStatusBar">
+        <!-- Mode/Model chips hidden - native controls visible in snapshot -->
+        <div class="dock-controls" id="nativeStatusBar" style="display:none">
             <div id="modeChip" class="control-chip">
                 <span class="label">MODE</span>
                 <span id="modeVal">...</span>
@@ -1814,14 +1814,12 @@
                 return isModelId && hasModelText;
             });
 
-            // 4. Update status chips text (buttons remain visible in snapshot)
+            // 4. Track mode/model state (chips hidden, native controls visible in snapshot)
             if (modeBtn) {
                 const text = (modeBtn.innerText || modeBtn.textContent || '').trim();
                 modeVal.textContent = text;
-                modeVal.style.color = '#3b82f6';
                 currentModeSelector = getUniqueSelector(modeBtn);
                 currentModeText = text;
-                nativeStatusBar.style.display = 'flex';
             }
 
             if (modelBtn) {
@@ -1829,7 +1827,6 @@
                 modelVal.textContent = text;
                 currentModelSelector = getUniqueSelector(modelBtn);
                 currentModelText = text;
-                nativeStatusBar.style.display = 'flex';
             }
 
             // 3. Detect Open Panels (Popovers & Menus)
