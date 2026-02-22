@@ -265,10 +265,10 @@
             overflow-x: hidden;
             position: relative;
             padding-top: 0;
-            padding-bottom: 80px;
+            padding-bottom: 0;
             background: #1e1e1e;
             -webkit-overflow-scrolling: touch;
-            overscroll-behavior-y: contain;
+            overscroll-behavior-y: none;
         }
 
         .chat-content {
@@ -2720,19 +2720,27 @@
                 // No header found this snapshot, keep existing one
             }
 
+            // Scroll to end of actual content (not into padding)
+            function scrollToContentEnd() {
+                const lastChild = chatContent.lastElementChild;
+                if (lastChild) {
+                    lastChild.scrollIntoView({ block: 'end', behavior: 'instant' });
+                } else {
+                    chatContainer.scrollTop = chatContainer.scrollHeight;
+                }
+            }
             if (!initialScrollDone) {
                 // First render: scroll to bottom to show latest chat messages
                 initialScrollDone = true;
                 requestAnimationFrame(() => {
-                    chatContainer.scrollTop = chatContainer.scrollHeight;
-                    // Double-ensure after paint
-                    setTimeout(() => { chatContainer.scrollTop = chatContainer.scrollHeight; }, 50);
+                    scrollToContentEnd();
+                    setTimeout(scrollToContentEnd, 50);
                 });
             } else if (!userScrolledUp) {
                 // User hasn't scrolled up → always follow new content (show Generating etc.)
                 requestAnimationFrame(() => {
-                    chatContainer.scrollTop = chatContainer.scrollHeight;
-                    setTimeout(() => { chatContainer.scrollTop = chatContainer.scrollHeight; }, 50);
+                    scrollToContentEnd();
+                    setTimeout(scrollToContentEnd, 50);
                 });
             } else {
                 // User is reading older messages → preserve their position
@@ -2987,7 +2995,12 @@
 
         scrollToBottomBtn.addEventListener('click', () => {
             userScrolledUp = false;
-            chatContainer.scrollTo({ top: chatContainer.scrollHeight, behavior: 'smooth' });
+            const lastChild = chatContent.lastElementChild;
+            if (lastChild) {
+                lastChild.scrollIntoView({ block: 'end', behavior: 'smooth' });
+            } else {
+                chatContainer.scrollTo({ top: chatContainer.scrollHeight, behavior: 'smooth' });
+            }
         });
 
         // Input handlers
