@@ -1478,6 +1478,9 @@
 
             chatContent.innerHTML = `
                 <style>
+                    /* Antigravity CSS Variables */
+                    :root, :host { ${data.cssVars || ''} }
+                    
                     /* Scoped Antigravity CSS */
                     ${scopedCSS}
                     
@@ -1638,9 +1641,35 @@
                     .text-purple-400 { color: #c084fc !important; }
                     .text-emerald-400 { color: #34d399 !important; }
                     .text-cyan-400 { color: #22d3ee !important; }
-                    .text-\\[var\\(--vscode-foreground\\)\\] { color: #d4d4d4 !important; }
-                    .text-\\[var\\(--vscode-descriptionForeground\\)\\] { color: #9ca3af !important; }
+                    .text-\\[var\\(--vscode-foreground\\)\\] { color: var(--vscode-foreground, #d4d4d4) !important; }
+                    .text-\\[var\\(--vscode-descriptionForeground\\)\\] { color: var(--vscode-descriptionForeground, #9ca3af) !important; }
                     [class*="text-vscode-"] { color: inherit; }
+                    
+                    /* IDE Theme Colors - Antigravity custom classes */
+                    .text-ide-text-color { color: var(--vscode-foreground, #d4d4d4) !important; }
+                    .text-ide-input-color { color: var(--vscode-input-foreground, #cccccc) !important; }
+                    .text-ide-tooltip-color { color: var(--vscode-editorHoverWidget-foreground, #cccccc) !important; }
+                    .text-editor-foreground { color: var(--vscode-editor-foreground, #d4d4d4) !important; }
+                    .text-current { color: currentColor !important; }
+                    
+                    .bg-ide-input-background { background-color: var(--vscode-input-background, #3c3c3c) !important; }
+                    .bg-ide-chat-background { background-color: var(--vscode-sideBar-background, #252526) !important; }
+                    .bg-editor-background { background-color: var(--vscode-editor-background, #1e1e1e) !important; }
+                    .bg-ide-active-selection-color { background-color: var(--vscode-editor-selectionBackground, #264f78) !important; }
+                    
+                    .border-ide-tooltip-color { border-color: var(--vscode-editorHoverWidget-border, #454545) !important; }
+                    .border-ide-input-border { border-color: var(--vscode-input-border, #3c3c3c) !important; }
+                    
+                    .outline-ide-active-selection-color { outline-color: var(--vscode-focusBorder, #007fd4) !important; }
+                    .outline-gray-500\\/10 { outline-color: rgba(107, 114, 128, 0.1) !important; }
+                    .outline-gray-500\\/30 { outline-color: rgba(107, 114, 128, 0.3) !important; }
+                    
+                    /* Opacity variants */
+                    .\\!text-ide-input-color { color: var(--vscode-input-foreground, #cccccc) !important; }
+                    
+                    /* Lucide icons - ensure SVG icons display properly */
+                    .lucide { display: inline-block; vertical-align: middle; }
+                    svg.lucide { width: 1em; height: 1em; }
                     
                     /* Backgrounds */
                     .bg-transparent { background-color: transparent !important; }

@@ -53,6 +53,7 @@ export interface Snapshot {
     html: string;
     controlsHtml?: string;
     css: string;
+    cssVars?: string;
     backgroundColor: string;
     color: string;
     fontFamily: string;

@@ -56,10 +56,36 @@ const CAPTURE_SCRIPT = `(() => {
         const rootStyles = window.getComputedStyle(document.documentElement);
         const bodyStyles = window.getComputedStyle(document.body);
 
+        // Extract all CSS custom properties (variables) from root
+        let cssVars = '';
+        try {
+            const rootEl = document.documentElement;
+            for (const sheet of document.styleSheets) {
+                try {
+                    for (const rule of sheet.cssRules) {
+                        if (rule instanceof CSSStyleRule && (rule.selectorText === ':root' || rule.selectorText === ':host' || rule.selectorText === 'html' || rule.selectorText === 'body')) {
+                            for (let i = 0; i < rule.style.length; i++) {
+                                const prop = rule.style[i];
+                                if (prop.startsWith('--')) {
+                                    cssVars += prop + ': ' + rule.style.getPropertyValue(prop).trim() + '; ';
+                                }
+                            }
+                        }
+                    }
+                } catch(e) {}
+            }
+            // Also get inline style variables
+            const inlineStyle = rootEl.getAttribute('style') || '';
+            if (inlineStyle.includes('--')) {
+                cssVars += inlineStyle;
+            }
+        } catch(e) {}
+
         return {
             html: cleanHtml,
             controlsHtml: fullBodyHtml,
             css: allCSS,
+            cssVars: cssVars,
             backgroundColor: bodyStyles.backgroundColor,
             color: bodyStyles.color,
             fontFamily: bodyStyles.fontFamily,
