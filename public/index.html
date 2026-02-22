@@ -2720,11 +2720,13 @@
                 // No header found this snapshot, keep existing one
             }
 
-            // Scroll to end of actual content (not into padding)
+            // Scroll to end of actual content (not into padding) + 1 extra line
             function scrollToContentEnd() {
                 const lastChild = chatContent.lastElementChild;
                 if (lastChild) {
                     lastChild.scrollIntoView({ block: 'end', behavior: 'instant' });
+                    // Scroll 1 extra line (~24px) so content isn't flush against status bar
+                    chatContainer.scrollTop += 24;
                 } else {
                     chatContainer.scrollTop = chatContainer.scrollHeight;
                 }
