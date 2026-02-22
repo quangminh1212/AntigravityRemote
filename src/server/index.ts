@@ -119,7 +119,11 @@ export class AntigravityServer {
     private configureMiddleware() {
         this.app.use(express.json({ limit: `${MAX_UPLOAD_SIZE_MB}mb` }));
         this.app.use(express.urlencoded({ limit: `${MAX_UPLOAD_SIZE_MB}mb`, extended: true }));
-        this.app.use(express.static(this.publicDir));
+        this.app.use(express.static(this.publicDir, {
+            etag: false,
+            maxAge: 0,
+            setHeaders: (res) => { res.setHeader('Cache-Control', 'no-cache, no-store, must-revalidate'); }
+        }));
         if (this.useAuth) {
             this.app.use(authMiddleware(this.authToken));
         }
