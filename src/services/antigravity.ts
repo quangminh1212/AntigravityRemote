@@ -34,6 +34,30 @@ const CAPTURE_SCRIPT = `(() => {
             }
         }
         
+        // Convert blob/vscode images to base64 data URIs so they render outside VS Code
+        const imgPromises = [];
+        document.querySelectorAll('img').forEach(img => {
+            const src = img.getAttribute('src') || '';
+            if (src && (src.startsWith('blob:') || src.startsWith('vscode-') || src.startsWith('https://file'))) {
+                imgPromises.push(
+                    new Promise(resolve => {
+                        try {
+                            const canvas = document.createElement('canvas');
+                            const ctx = canvas.getContext('2d');
+                            if (!ctx || !img.naturalWidth) { resolve(null); return; }
+                            canvas.width = img.naturalWidth;
+                            canvas.height = img.naturalHeight;
+                            ctx.drawImage(img, 0, 0);
+                            const dataUrl = canvas.toDataURL('image/png');
+                            img.setAttribute('src', dataUrl);
+                            resolve(dataUrl);
+                        } catch(e) { resolve(null); }
+                    })
+                );
+            }
+        });
+        // Wait for all conversions (sync since canvas is synchronous for same-origin)
+        
         let cleanHtml;
         if (sections.length > 0) {
             cleanHtml = sections.join('\\n');
