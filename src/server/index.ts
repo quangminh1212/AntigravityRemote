@@ -14,8 +14,8 @@ import { securityMiddleware } from '../middleware/security';
 
 // Config defaults (aligned with root server)
 const MAX_UPLOAD_SIZE_MB = 50;
-const POLL_FAST = 100;      // Realtime: ~10 FPS when content is changing
-const POLL_SLOW = 500;      // Still responsive when idle
+const POLL_FAST = 42;       // Realtime: ~24 FPS when content is changing
+const POLL_SLOW = 100;      // Smooth idle: ~10 FPS
 const POLL_FAST_DURATION = 8000; // Stay fast for 8s after last change
 const HTTP_TIMEOUT = 2000;
 
