@@ -5,10 +5,10 @@ import util from 'util';
 // Scripts
 const CAPTURE_SCRIPT = `(() => {
     try {
-        // Capture both toolbar and chat panel for complete UI
+        // Capture chat panel content - could be in workbench or iframe
         const sections = [];
         
-        // 1. Try to get the titlebar/toolbar
+        // 1. Try to get the titlebar/toolbar (workbench context)
         const toolbarSelectors = [
             '.titlebar.cascade-panel-open',
             '.cascade-bar',
@@ -19,10 +19,19 @@ const CAPTURE_SCRIPT = `(() => {
             if (el) { sections.push(el.outerHTML); break; }
         }
         
-        // 2. Get the main cascade chat panel
-        const cascade = document.querySelector('#cascade');
-        if (cascade) {
-            sections.push(cascade.outerHTML);
+        // 2. Get chat panel - try multiple selectors for different contexts
+        const chatSelectors = [
+            '#cascade',           // Legacy cascade element
+            '#chat',              // React chat component in iframe
+            '#react-app',         // React app container in iframe
+            '.react-app-container' // Alternative React container
+        ];
+        for (const sel of chatSelectors) {
+            const el = document.querySelector(sel);
+            if (el && el.innerHTML.length > 100) {
+                sections.push(el.outerHTML);
+                break;
+            }
         }
         
         let cleanHtml;
@@ -138,7 +147,9 @@ function formatException(details: any): string {
 async function captureSnapshotInternal(cdp: CDPConnection): Promise<SnapshotDebugResult> {
     const errors: string[] = [];
     const contexts: SnapshotDebugContext[] = [];
+    const candidates: { snapshot: Snapshot; htmlLen: number; ctxId: number }[] = [];
 
+    // Collect snapshots from ALL contexts, then pick the best one
     for (const ctx of cdp.contexts) {
         const ctxDiag: SnapshotDebugContext = { id: ctx.id };
         try {
@@ -178,8 +189,9 @@ async function captureSnapshotInternal(cdp: CDPConnection): Promise<SnapshotDebu
                 // Convert vscode-file:// icons to base64 in both HTML and CSS
                 snapshot.html = convertVsCodeIcons(snapshot.html);
                 snapshot.css = convertVsCodeIcons(snapshot.css);
+                candidates.push({ snapshot, htmlLen: (snapshot.html || '').length, ctxId: ctx.id });
                 contexts.push(ctxDiag);
-                return { snapshot, errors, contexts };
+                continue; // Don't return yet - collect all candidates
             }
 
             if (result.result) {
@@ -205,6 +217,13 @@ async function captureSnapshotInternal(cdp: CDPConnection): Promise<SnapshotDebu
         } finally {
             contexts.push(ctxDiag);
         }
+    }
+
+    // If we found candidates, pick the one with the most HTML content
+    // The iframe (chat panel) will always have more content than the workbench titlebar
+    if (candidates.length > 0) {
+        candidates.sort((a, b) => b.htmlLen - a.htmlLen);
+        return { snapshot: candidates[0].snapshot, errors, contexts };
     }
 
     // Fallback: try main world without contextId
