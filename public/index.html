@@ -2723,8 +2723,11 @@
                 // First render: scroll to bottom to show latest chat messages
                 initialScrollDone = true;
                 chatContainer.scrollTop = chatContainer.scrollHeight;
+            } else if (isNearBottom) {
+                // User was near bottom → auto-scroll to show new content
+                chatContainer.scrollTop = chatContainer.scrollHeight;
             } else if (scrollPos > 0) {
-                // Restore previous scroll position
+                // User is reading older messages → preserve their position
                 chatContainer.scrollTop = scrollPos;
             }
         }
