@@ -60,6 +60,7 @@
             overflow: hidden;
             height: 100%;
             height: 100dvh;
+            background: #111;
         }
 
         body {
@@ -72,6 +73,9 @@
             flex-direction: column;
             overflow: hidden;
             padding-top: env(safe-area-inset-top, 0);
+            /* Force phone layout on all screens */
+            max-width: 430px;
+            margin: 0 auto;
         }
 
         /* --- Chat Area --- */
@@ -984,14 +988,18 @@
             }
         }
 
-        /* Standard phones (375px - 430px: iPhone, most Android) */
-        @media (min-width: 375px) and (max-width: 430px) {
+        /* Phone layout defaults (375px+, always applied) */
+        @media (min-width: 375px) {
             #chatContent {
                 font-size: 15px !important;
                 line-height: 1.65 !important;
             }
 
-            /* Native input bar: right-sized for standard mobile */
+            #chatContent pre {
+                font-size: 13px !important;
+            }
+
+            /* Native input bar: right-sized for mobile */
             #chatContent svg {
                 width: 16px !important;
                 height: 16px !important;
@@ -1006,48 +1014,6 @@
             #chatContent [class*="gap-3"],
             #chatContent [class*="gap-4"] {
                 gap: 0.5rem !important;
-            }
-        }
-
-        /* Large phones / small tablets (431px - 768px) */
-        @media (min-width: 431px) and (max-width: 768px) {
-            #chatContent {
-                font-size: 15px !important;
-                line-height: 1.65 !important;
-            }
-
-            #chatContent pre {
-                font-size: 13px !important;
-            }
-        }
-
-        /* Tablets and desktop (769px+) */
-        @media (min-width: 769px) {
-            .chat-content {
-                max-width: 100%;
-            }
-
-            #chatContent {
-                font-size: 15px !important;
-                line-height: 1.6 !important;
-            }
-
-            #chatContent pre {
-                font-size: 13.5px !important;
-            }
-
-            #connectivityBadge {
-                top: 16px;
-                left: 16px;
-                padding: 8px 12px;
-                font-size: 11px;
-            }
-
-            .fab-top-right {
-                top: 16px;
-                right: 16px;
-                width: 40px;
-                height: 40px;
             }
         }
 
@@ -1111,15 +1077,14 @@
         }
 
         /* Hide scrollbar on mobile for cleaner look */
-        @media (max-width: 768px) {
-            .chat-container::-webkit-scrollbar {
-                width: 0;
-                display: none;
-            }
+        /* Always hide scrollbar for phone-style clean look */
+        .chat-container::-webkit-scrollbar {
+            width: 0;
+            display: none;
+        }
 
-            .chat-container {
-                scrollbar-width: none;
-            }
+        .chat-container {
+            scrollbar-width: none;
         }
     </style>
 </head>
