@@ -265,9 +265,9 @@
         <canvas id="remote-canvas"></canvas>
 
         <div class="loading-overlay" id="loadingOverlay">
-            <div class="spinner"></div>
-            <div class="loading-text">Connecting to Antigravity...</div>
-            <div class="loading-subtext">Make sure Antigravity is running on your PC</div>
+            <div class="spinner" id="loadingSpinner"></div>
+            <div class="loading-text" id="loadingText">Connecting to Antigravity...</div>
+            <div class="loading-subtext" id="loadingSubText">Make sure Antigravity is running on your PC</div>
         </div>
     </div>
 
@@ -286,6 +286,9 @@
             const container = document.getElementById('canvasContainer');
             const hiddenInput = document.getElementById('hiddenInput');
             const loadingOverlay = document.getElementById('loadingOverlay');
+            const loadingText = document.getElementById('loadingText');
+            const loadingSubText = document.getElementById('loadingSubText');
+            const loadingSpinner = document.getElementById('loadingSpinner');
             const statusDot = document.getElementById('statusDot');
             const statusLabel = document.getElementById('statusLabel');
             const toastEl = document.getElementById('toast');
@@ -298,6 +301,7 @@
             let viewportH = 800;
             let isComposing = false;
             let reconnectTimer = null;
+            let currentCrop = null;
 
             // ========== TOAST ==========
             let toastTimeout = null;
@@ -328,17 +332,26 @@
             resizeObserver.observe(container);
 
             // ========== DRAW FRAME ==========
-            function drawFrame(base64Data) {
+            function drawFrame(base64Data, crop) {
                 const img = new Image();
                 img.onload = () => {
-                    if (canvas.width !== img.width || canvas.height !== img.height) {
-                        canvas.width = img.width;
-                        canvas.height = img.height;
-                        viewportW = img.width;
-                        viewportH = img.height;
+                    if (crop && crop.ok && crop.w > 0 && crop.h > 0) {
+                        canvas.width = crop.w;
+                        canvas.height = crop.h;
+                        viewportW = crop.w;
+                        viewportH = crop.h;
                         recalcScale();
+                        requestAnimationFrame(() => ctx.drawImage(img, crop.x, crop.y, crop.w, crop.h, 0, 0, crop.w, crop.h));
+                    } else {
+                        if (canvas.width !== img.width || canvas.height !== img.height) {
+                            canvas.width = img.width;
+                            canvas.height = img.height;
+                            viewportW = img.width;
+                            viewportH = img.height;
+                            recalcScale();
+                        }
+                        requestAnimationFrame(() => ctx.drawImage(img, 0, 0));
                     }
-                    requestAnimationFrame(() => ctx.drawImage(img, 0, 0));
 
                     if (!hasFrame) {
                         hasFrame = true;
@@ -382,15 +395,35 @@
                 ws.onmessage = (event) => {
                     try {
                         const msg = JSON.parse(event.data);
-                        switch (msg.type) {
-                            case 'frame':
-                                drawFrame(msg.data);
-                                break;
-                            case 'viewport':
-                                viewportW = msg.width || 1280;
-                                viewportH = msg.height || 800;
-                                recalcScale();
-                                break;
+
+                        if (msg.type === 'crop') {
+                            currentCrop = msg.data;
+                            if (!currentCrop.ok) {
+                                loadingOverlay.style.display = 'flex';
+                                loadingOverlay.classList.remove('hidden');
+                                loadingText.textContent = 'Vui lòng mở khung Chat trong IDE';
+                                loadingSubText.textContent = '(Bấm vào tab Antigravity để mở)';
+                                loadingSpinner.style.display = 'none';
+                                ctx.clearRect(0, 0, canvas.width, canvas.height);
+                                hasFrame = false;
+                            } else {
+                                loadingOverlay.style.display = 'none';
+                                loadingOverlay.classList.add('hidden');
+                                loadingSpinner.style.display = 'block';
+                            }
+                            return;
+                        }
+
+                        if (msg.type === 'frame') {
+                            if (currentCrop && !currentCrop.ok) return; // skip frame if chat is closed
+                            loadingOverlay.style.display = 'none';
+                            loadingOverlay.classList.add('hidden');
+                            drawFrame(msg.data, currentCrop);
+                            return;
+                        }
+
+                        if (msg.type === 'viewport') {
+                            return;
                         }
                     } catch (e) { }
                 };

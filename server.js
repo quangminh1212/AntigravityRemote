@@ -82,18 +82,24 @@ function scoreTarget(t) {
     const title = (t.title || '').toLowerCase();
     const url = (t.url || '').toLowerCase();
     let score = 0;
-    // Highest priority: workbench-jetski-agent = Antigravity chat panel
-    if (url.includes('jetski-agent') || url.includes('workbench-jetski')) score += 10;
-    if (url.includes('workbench.html') && !url.includes('jetski')) score += 7;
-    if (title.includes('launchpad')) score += 5;
-    if (title.includes('antigravity') && !url.includes('localhost:3000')) score += 3;
+
+    // HIGHEST PRIORITY: The main IDE window where the chat panel is embedded
+    if (url.includes('workbench.html') && !url.includes('jetski-agent')) {
+        score += 100;
+        if (title.includes('antigravity')) score += 50;
+    }
+
+    // NEGATIVE PRIORITY: Webviews, iframes, and popups cannot be screencasted efficiently via CDP
+    if (url.includes('n2ns.antigravity-panel') || title.includes('vscode-webview')) score -= 100;
+    if (url.includes('jetski-agent') || url.includes('workbench-jetski') || title.includes('launchpad')) score -= 100;
+
     // Exclude our own remote viewer page
     if (url.includes('localhost:3000') || url.includes('127.0.0.1:3000')) score -= 20;
     // Exclude browser internals
     if (url.includes('chrome://') || url.includes('chrome-extension://')) score -= 10;
     if (t.type === 'service_worker' || t.type === 'worker') score -= 10;
     if (url.includes('devtools') || title.includes('visual studio code')) score -= 8;
-    if (title.includes('vscode-webview')) score -= 8;
+
     return score;
 }
 
@@ -234,6 +240,7 @@ class CDPClient {
 
     // Dispatch mouse events via CDP Input domain (pixel-perfect like ZaloHub)
     async mouseClick(x, y, button = 'left', clickCount = 1) {
+        if (globalCrop && globalCrop.ok) { x += globalCrop.x; y += globalCrop.y; }
         try {
             await this.call('Input.dispatchMouseEvent', {
                 type: 'mousePressed', x, y, button, clickCount
@@ -248,6 +255,7 @@ class CDPClient {
 
     // Dispatch scroll via CDP Input domain
     async mouseScroll(x, y, deltaX, deltaY) {
+        if (globalCrop && globalCrop.ok) { x += globalCrop.x; y += globalCrop.y; }
         try {
             await this.call('Input.dispatchMouseEvent', {
                 type: 'mouseWheel', x, y, deltaX: deltaX || 0, deltaY: deltaY || 0
@@ -343,9 +351,11 @@ class CDPClient {
 // ========== MAIN STATE ==========
 let cdpClient = null;
 let lastFrameData = null;  // base64 JPEG frame
+let globalCrop = null;     // Iframe crop bounding box
 let lastReconnectTime = 0;
 let consecutiveFails = 0;
 let screenshotInterval = null;
+let cropInterval = null;
 
 // ========== CDP CONNECTION ==========
 async function connectCDP(targetId) {
@@ -373,6 +383,33 @@ async function connectCDP(targetId) {
         await client.connect();
         cdpClient = client;
         log('INFO', 'CDP', `Connected to: ${chosen.title} (port ${chosen.port})`);
+
+        // Detect crop region for n2ns.antigravity-panel
+        if (cropInterval) clearInterval(cropInterval);
+        cropInterval = setInterval(async () => {
+            if (!cdpClient || !cdpClient.connected) return;
+            try {
+                const res = await cdpClient.call('Runtime.evaluate', {
+                    expression: `(() => {
+                        const iframe = Array.from(document.querySelectorAll('iframe.webview')).find(i => i.src.includes('n2ns.antigravity-panel'));
+                        if (!iframe) return JSON.stringify({ok: false});
+                        const r = iframe.getBoundingClientRect();
+                        return JSON.stringify({ok: true, x: Math.round(r.x), y: Math.round(r.y), w: Math.round(r.width), h: Math.round(r.height)});
+                    })()`
+                });
+                if (res && res.result && res.result.value) {
+                    const crop = JSON.parse(res.result.value);
+                    if (crop.ok) {
+                        const changed = !globalCrop || globalCrop.x !== crop.x || globalCrop.y !== crop.y || globalCrop.w !== crop.w || globalCrop.h !== crop.h;
+                        globalCrop = crop;
+                        if (changed) broadcastCrop(globalCrop);
+                    } else if (globalCrop && globalCrop.ok) {
+                        globalCrop = { ok: false };
+                        broadcastCrop(globalCrop);
+                    }
+                }
+            } catch (e) { }
+        }, 1000);
 
         // Setup screencast frame handler
         client.onFrame = (base64Data) => {
@@ -419,6 +456,10 @@ function stopScreenshotPolling() {
     if (screenshotInterval) {
         clearInterval(screenshotInterval);
         screenshotInterval = null;
+    }
+    if (cropInterval) {
+        clearInterval(cropInterval);
+        cropInterval = null;
     }
 }
 
@@ -489,6 +530,9 @@ wss.on('connection', (ws, req) => {
     if (lastFrameData) {
         ws.send(JSON.stringify({ type: 'frame', data: lastFrameData }));
     }
+    if (globalCrop) {
+        ws.send(JSON.stringify({ type: 'crop', data: globalCrop }));
+    }
 
     // Send viewport info
     ws.send(JSON.stringify({
@@ -542,6 +586,15 @@ wss.on('connection', (ws, req) => {
 // Broadcast frame to all WS clients
 function broadcastFrame(base64Data) {
     const msg = JSON.stringify({ type: 'frame', data: base64Data });
+    wss.clients.forEach(client => {
+        if (client.readyState === WebSocket.OPEN) {
+            client.send(msg);
+        }
+    });
+}
+
+function broadcastCrop(crop) {
+    const msg = JSON.stringify({ type: 'crop', data: crop });
     wss.clients.forEach(client => {
         if (client.readyState === WebSocket.OPEN) {
             client.send(msg);
