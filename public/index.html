@@ -2650,7 +2650,7 @@
 
                 // Add padding-bottom to chat container so content isn't hidden behind fixed input bar
                 const fixedBarHeight = fixedBar.getBoundingClientRect().height;
-                chatContainer.style.paddingBottom = (fixedBarHeight + 24) + 'px';
+                chatContainer.style.paddingBottom = (fixedBarHeight + 48) + 'px';
             }
 
             // All Antigravity native controls are now visible & clickable via CDP forwarding
@@ -2725,8 +2725,6 @@
                 const lastChild = chatContent.lastElementChild;
                 if (lastChild) {
                     lastChild.scrollIntoView({ block: 'end', behavior: 'instant' });
-                    // Scroll 1 extra line (~24px) so content isn't flush against status bar
-                    chatContainer.scrollTop += 24;
                 } else {
                     chatContainer.scrollTop = chatContainer.scrollHeight;
                 }
