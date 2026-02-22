@@ -1,9 +1,9 @@
 /**
- * AntigravityHub v2 - Remote Chat Viewer
+ * AntigravityHub v2.1 - Remote Chat Viewer (VS Code Extension Module)
  * Pixel-perfect mirror of Antigravity chat on your phone
- * Uses CDP Screencast (same as ZaloRemote) for real-time screen streaming
+ * Uses CDP Screencast for real-time screen streaming
  * 
- * Pure Node.js - no TypeScript, no build step
+ * Exports: startServer(outputChannel), stopServer(), getServerInfo()
  */
 const express = require('express');
 const http = require('http');
@@ -23,11 +23,12 @@ const SCREENSHOT_QUALITY = 70;        // JPEG quality (balance speed vs clarity)
 const RECONNECT_COOLDOWN = 10000;     // 10s between reconnect attempts
 
 // ========== LOGGER ==========
+let _outputChannel = null;
 const log = (level, cat, msg) => {
     const ts = new Date().toISOString();
     const line = `[${ts}][${level}][${cat}] ${msg}`;
+    if (_outputChannel) _outputChannel.appendLine(line);
     if (level === 'ERROR') console.error(line);
-    else if (level === 'WARN') console.warn(line);
     else console.log(line);
     fs.appendFile(LOG_FILE, line + '\n', () => { });
 };
@@ -549,14 +550,7 @@ function broadcastFrame(base64Data) {
 }
 
 // ========== AUTO RECONNECT ==========
-setInterval(async () => {
-    if (cdpClient && cdpClient.connected) return;
-    const now = Date.now();
-    if (now - lastReconnectTime < RECONNECT_COOLDOWN) return;
-    lastReconnectTime = now;
-    log('INFO', 'CDP', 'Auto-reconnecting...');
-    try { await connectCDP(); } catch (e) { }
-}, 1000);
+let reconnectInterval = null;
 
 // ========== STARTUP ==========
 async function getLocalIP() {
@@ -574,49 +568,102 @@ async function getLocalIP() {
     return clean ? clean.addr : 'localhost';
 }
 
-async function main() {
+// ========== EXPORTS ==========
+let _server = null;
+let _serverInfo = null;
+
+async function startServer(outputChannel) {
+    if (_server) return _serverInfo;
+    _outputChannel = outputChannel || null;
+
     if (fs.existsSync(LOG_FILE)) fs.writeFileSync(LOG_FILE, '');
 
     const localIP = await getLocalIP();
     const url = `http://${localIP}:${PORT}/?token=${AUTH_TOKEN}`;
 
-    console.log('\n╔══════════════════════════════════════════╗');
-    console.log('║  📱 AntigravityHub - Remote Chat Viewer  ║');
-    console.log('╚══════════════════════════════════════════╝\n');
+    return new Promise((resolve, reject) => {
+        _server = server;
+        server.listen(PORT, async () => {
+            log('INFO', 'SERVER', `Listening on http://0.0.0.0:${PORT}`);
 
-    try {
-        const qr = await qrcode.toString(url, { type: 'terminal', small: true });
-        console.log(qr);
-    } catch (e) { }
+            log('INFO', 'CDP', 'Discovering Antigravity chat targets...');
+            const connected = await connectCDP();
+            if (connected) {
+                log('INFO', 'CDP', 'Connected! Streaming chat to mobile...');
+            } else {
+                log('WARN', 'CDP', 'No chat targets found. Will auto-reconnect.');
+            }
 
-    console.log(`\n🔗 URL: ${url}`);
-    console.log(`🔑 Token: ${AUTH_TOKEN}\n`);
+            // Auto-reconnect interval
+            reconnectInterval = setInterval(async () => {
+                if (cdpClient && cdpClient.connected) return;
+                const now = Date.now();
+                if (now - lastReconnectTime < RECONNECT_COOLDOWN) return;
+                lastReconnectTime = now;
+                log('INFO', 'CDP', 'Auto-reconnecting...');
+                try { await connectCDP(); } catch (e) { }
+            }, 1000);
 
-    server.listen(PORT, async () => {
-        log('INFO', 'SERVER', `Listening on http://0.0.0.0:${PORT}`);
+            _serverInfo = { url, token: AUTH_TOKEN, ip: localIP, port: PORT };
+            resolve(_serverInfo);
+        });
 
-        log('INFO', 'CDP', 'Discovering Antigravity targets...');
-        const connected = await connectCDP();
-        if (connected) {
-            log('INFO', 'CDP', 'Connected! Streaming screen to mobile...');
-        } else {
-            log('WARN', 'CDP', 'No targets found. Will auto-reconnect every 10s.');
-        }
-
-        console.log('✅ Ready! Scan QR code with your phone.\n');
-        console.log('Press Ctrl+C to stop.\n');
-    });
-
-    process.on('SIGINT', () => {
-        log('INFO', 'SERVER', 'Shutting down...');
-        stopScreenshotPolling();
-        if (cdpClient) cdpClient.close();
-        server.close();
-        process.exit(0);
+        server.on('error', (err) => {
+            log('ERROR', 'SERVER', `Server error: ${err.message}`);
+            reject(err);
+        });
     });
 }
 
-main().catch(err => {
-    console.error('Fatal:', err);
-    process.exit(1);
-});
+function stopServer() {
+    if (reconnectInterval) {
+        clearInterval(reconnectInterval);
+        reconnectInterval = null;
+    }
+    stopScreenshotPolling();
+    if (cdpClient) {
+        cdpClient.close();
+        cdpClient = null;
+    }
+    if (_server) {
+        _server.close();
+        _server = null;
+    }
+    _serverInfo = null;
+    log('INFO', 'SERVER', 'Stopped');
+}
+
+function getServerInfo() {
+    return _serverInfo;
+}
+
+module.exports = { startServer, stopServer, getServerInfo };
+
+// Standalone mode (node server.js)
+if (require.main === module) {
+    (async () => {
+        console.log('\n╔══════════════════════════════════════════╗');
+        console.log('║  📱 AntigravityHub - Remote Chat Viewer  ║');
+        console.log('╚══════════════════════════════════════════╝\n');
+
+        const info = await startServer();
+
+        try {
+            const qr = await qrcode.toString(info.url, { type: 'terminal', small: true });
+            console.log(qr);
+        } catch (e) { }
+
+        console.log(`\n🔗 URL: ${info.url}`);
+        console.log(`🔑 Token: ${info.token}\n`);
+        console.log('✅ Ready! Scan QR code with your phone.\n');
+        console.log('Press Ctrl+C to stop.\n');
+
+        process.on('SIGINT', () => {
+            stopServer();
+            process.exit(0);
+        });
+    })().catch(err => {
+        console.error('Fatal:', err);
+        process.exit(1);
+    });
+}
