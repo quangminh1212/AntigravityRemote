@@ -5,23 +5,29 @@ import util from 'util';
 // Scripts
 const CAPTURE_SCRIPT = `(() => {
     try {
-        const containerSelectors = [
-            '#cascade',
+        // Capture both toolbar and chat panel for complete UI
+        const sections = [];
+        
+        // 1. Try to get the titlebar/toolbar
+        const toolbarSelectors = [
             '.titlebar.cascade-panel-open',
             '.cascade-bar',
             '[id="workbench.parts.titlebar"]'
         ];
+        for (const sel of toolbarSelectors) {
+            const el = document.querySelector(sel);
+            if (el) { sections.push(el.outerHTML); break; }
+        }
         
-        let cascade;
-        for (const sel of containerSelectors) {
-            cascade = document.querySelector(sel);
-            if (cascade) break;
+        // 2. Get the main cascade chat panel
+        const cascade = document.querySelector('#cascade');
+        if (cascade) {
+            sections.push(cascade.outerHTML);
         }
         
         let cleanHtml;
-        if (cascade) {
-            // Keep the full cascade UI including input area and controls
-            cleanHtml = cascade.outerHTML;
+        if (sections.length > 0) {
+            cleanHtml = sections.join('\\n');
         } else {
             cleanHtml = document.body.outerHTML;
         }

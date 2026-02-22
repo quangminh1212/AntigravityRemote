@@ -1074,18 +1074,11 @@
             // All Antigravity native controls are now visible & clickable via CDP forwarding
 
             if (!initialScrollDone) {
-                // Force a double-RAF scroll on first render to land at the newest content
+                // First render: start at top so toolbar is visible
                 initialScrollDone = true;
-                requestAnimationFrame(() => {
-                    requestAnimationFrame(() => {
-                        chatContainer.scrollTop = chatContainer.scrollHeight;
-                    });
-                });
-            } else if (isNearBottom || scrollPos === 0) {
-                requestAnimationFrame(() => {
-                    chatContainer.scrollTop = chatContainer.scrollHeight;
-                });
-            } else {
+                chatContainer.scrollTop = 0;
+            } else if (scrollPos > 0) {
+                // Restore previous scroll position
                 chatContainer.scrollTop = scrollPos;
             }
         }
