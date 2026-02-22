@@ -1869,7 +1869,6 @@
                     #chatContent [class*="flex-1"][class*="flex-col"],
                     #chatContent [class*="grow"][class*="overflow"] {
                         flex: 1 1 auto !important;
-                        overflow: visible !important;
                         max-height: none !important;
                     }
 
@@ -1878,7 +1877,10 @@
                     #chatContent [class*="fixed"][class*="bottom"],
                     #chatContent [class*="border-t"][class*="bg-"] {
                         flex-shrink: 0 !important;
-                        position: relative !important;
+                        position: sticky !important;
+                        bottom: 0 !important;
+                        z-index: 10 !important;
+                        background: #1e1e1e !important;
                         width: 100% !important;
                     }
 
