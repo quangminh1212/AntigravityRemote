@@ -3,7 +3,7 @@
 
 <head>
     <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
     <title>AntigravityHub</title>
     <style>
         * {
@@ -141,7 +141,7 @@
             image-rendering: auto;
         }
 
-        /* Hidden textarea for keyboard input (same as ZaloRemote) */
+        /* Hidden textarea for keyboard input */
         .hidden-input {
             position: fixed;
             left: -9999px;
@@ -198,10 +198,74 @@
             margin-top: -8px;
         }
 
+        /* Bottom Tab Bar */
+        .tab-bar {
+            display: flex;
+            height: 56px;
+            background: #252526;
+            border-top: 1px solid rgba(255, 255, 255, 0.06);
+            flex-shrink: 0;
+            z-index: 10;
+            padding-bottom: env(safe-area-inset-bottom, 0);
+        }
+
+        .tab-item {
+            flex: 1;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            justify-content: center;
+            gap: 3px;
+            border: none;
+            background: transparent;
+            color: #666;
+            cursor: pointer;
+            transition: color 0.2s;
+            -webkit-tap-highlight-color: transparent;
+            position: relative;
+        }
+
+        .tab-item::before {
+            content: '';
+            position: absolute;
+            top: 0;
+            left: 50%;
+            transform: translateX(-50%) scaleX(0);
+            width: 32px;
+            height: 3px;
+            border-radius: 0 0 3px 3px;
+            background: #0078d4;
+            transition: transform 0.25s ease;
+        }
+
+        .tab-item.active {
+            color: #0078d4;
+        }
+
+        .tab-item.active::before {
+            transform: translateX(-50%) scaleX(1);
+        }
+
+        .tab-item svg {
+            width: 22px;
+            height: 22px;
+            fill: currentColor;
+        }
+
+        .tab-item .tab-label {
+            font-size: 10px;
+            font-weight: 500;
+            letter-spacing: 0.3px;
+        }
+
+        .tab-item:active {
+            background: rgba(255, 255, 255, 0.05);
+        }
+
         /* Toast */
         .toast {
             position: fixed;
-            bottom: 60px;
+            bottom: 72px;
             left: 50%;
             transform: translateX(-50%) translateY(20px);
             background: rgba(37, 37, 38, 0.95);
@@ -242,28 +306,23 @@
             <span class="status-label" id="statusLabel">Connecting...</span>
         </div>
         <div class="toolbar-right">
-            <button class="icon-btn" id="btnRefresh" title="Refresh frame"><svg viewBox="0 0 24 24">
+            <button class="icon-btn" id="btnRefresh" title="Refresh"><svg viewBox="0 0 24 24">
                     <path
                         d="M17.65 6.35A7.96 7.96 0 0012 4c-4.42 0-7.99 3.58-7.99 8s3.57 8 7.99 8c3.73 0 6.84-2.55 7.73-6h-2.08A5.99 5.99 0 0112 18c-3.31 0-6-2.69-6-6s2.69-6 6-6c1.66 0 3.14.69 4.22 1.78L13 11h7V4l-2.35 2.35z" />
-                </svg></button>
-            <button class="icon-btn" id="btnFit" title="Fit to screen"><svg viewBox="0 0 24 24">
-                    <path
-                        d="M3 5v4h2V5h4V3H5c-1.1 0-2 .9-2 2zm2 10H3v4c0 1.1.9 2 2 2h4v-2H5v-4zm14 4h-4v2h4c1.1 0 2-.9 2-2v-4h-2v4zm0-16h-4v2h4v4h2V5c0-1.1-.9-2-2-2z" />
                 </svg></button>
             <button class="icon-btn" id="btnFullscreen" title="Fullscreen"><svg viewBox="0 0 24 24">
                     <path d="M7 14H5v5h5v-2H7v-3zm-2-4h2V7h3V5H5v5zm12 7h-3v2h5v-5h-2v3zM14 5v2h3v3h2V5h-5z" />
                 </svg></button>
-            <button class="icon-btn" id="btnKeyboard" title="Toggle keyboard"><svg viewBox="0 0 24 24">
+            <button class="icon-btn" id="btnKeyboard" title="Keyboard"><svg viewBox="0 0 24 24">
                     <path
                         d="M20 5H4c-1.1 0-1.99.9-1.99 2L2 17c0 1.1.9 2 2 2h16c1.1 0 2-.9 2-2V7c0-1.1-.9-2-2-2zm-9 3h2v2h-2V8zm0 3h2v2h-2v-2zM8 8h2v2H8V8zm0 3h2v2H8v-2zm-1 2H5v-2h2v2zm0-3H5V8h2v2zm9 7H8v-2h8v2zm0-4h-2v-2h2v2zm0-3h-2V8h2v2zm3 3h-2v-2h2v2zm0-3h-2V8h2v2z" />
                 </svg></button>
         </div>
     </div>
 
-    <!-- Canvas (pixel-perfect remote view) -->
+    <!-- Canvas -->
     <div class="canvas-container" id="canvasContainer">
         <canvas id="remote-canvas"></canvas>
-
         <div class="loading-overlay" id="loadingOverlay">
             <div class="spinner" id="loadingSpinner"></div>
             <div class="loading-text" id="loadingText">Connecting to Antigravity...</div>
@@ -271,7 +330,30 @@
         </div>
     </div>
 
-    <!-- Hidden textarea for keyboard input (like ZaloRemote) -->
+    <!-- Bottom Tab Bar -->
+    <div class="tab-bar">
+        <button class="tab-item active" data-view="chat">
+            <svg viewBox="0 0 24 24">
+                <path
+                    d="M20 2H4c-1.1 0-2 .9-2 2v18l4-4h14c1.1 0 2-.9 2-2V4c0-1.1-.9-2-2-2zm0 14H5.17L4 17.17V4h16v12z" />
+            </svg>
+            <span class="tab-label">Chat</span>
+        </button>
+        <button class="tab-item" data-view="editor">
+            <svg viewBox="0 0 24 24">
+                <path d="M9.4 16.6L4.8 12l4.6-4.6L8 6l-6 6 6 6 1.4-1.4zm5.2 0l4.6-4.6-4.6-4.6L16 6l6 6-6 6-1.4-1.4z" />
+            </svg>
+            <span class="tab-label">Editor</span>
+        </button>
+        <button class="tab-item" data-view="explorer">
+            <svg viewBox="0 0 24 24">
+                <path d="M10 4H4c-1.1 0-1.99.9-1.99 2L2 18c0 1.1.9 2 2 2h16c1.1 0 2-.9 2-2V8c0-1.1-.9-2-2-2h-8l-2-2z" />
+            </svg>
+            <span class="tab-label">Explorer</span>
+        </button>
+    </div>
+
+    <!-- Hidden textarea for keyboard input -->
     <textarea id="hiddenInput" class="hidden-input" autocomplete="off" autocorrect="off" spellcheck="false"
         aria-label="Remote keyboard input" title="Remote keyboard input"></textarea>
 
@@ -280,7 +362,6 @@
 
     <script>
         (() => {
-            // ========== ELEMENTS ==========
             const canvas = document.getElementById('remote-canvas');
             const ctx = canvas.getContext('2d');
             const container = document.getElementById('canvasContainer');
@@ -301,7 +382,13 @@
             let viewportH = 800;
             let isComposing = false;
             let reconnectTimer = null;
-            let currentCrop = null;
+            let allCrops = null;
+            let activeView = 'chat';
+            let lastFrameBase64 = null;
+
+            function getActiveCrop() {
+                return allCrops ? (allCrops[activeView] || null) : null;
+            }
 
             // ========== TOAST ==========
             let toastTimeout = null;
@@ -331,16 +418,45 @@
             const resizeObserver = new ResizeObserver(() => recalcScale());
             resizeObserver.observe(container);
 
+            // ========== LOADING ==========
+            function updateLoadingForView() {
+                const crop = getActiveCrop();
+                if (crop && crop.ok && hasFrame) {
+                    loadingOverlay.classList.add('hidden');
+                    loadingOverlay.style.display = 'none';
+                } else if (allCrops && !(crop && crop.ok)) {
+                    const msgs = {
+                        chat: ['Vui lòng mở khung Chat trong IDE', '(Bấm vào tab Antigravity để mở)'],
+                        editor: ['Editor không hiển thị', '(Hãy mở 1 file trong IDE)'],
+                        explorer: ['Sidebar không hiển thị', '(Hãy mở Explorer trong IDE)']
+                    };
+                    const [t, s] = msgs[activeView] || ['Đang tải...', ''];
+                    loadingOverlay.style.display = 'flex';
+                    loadingOverlay.classList.remove('hidden');
+                    loadingText.textContent = t;
+                    loadingSubText.textContent = s;
+                    loadingSpinner.style.display = 'none';
+                    ctx.clearRect(0, 0, canvas.width, canvas.height);
+                    hasFrame = false;
+                }
+            }
+
             // ========== DRAW FRAME ==========
-            function drawFrame(base64Data, crop) {
+            function drawFrame(base64Data) {
+                lastFrameBase64 = base64Data;
+                const crop = getActiveCrop();
+                if (!crop || !crop.ok) return;
+
                 const img = new Image();
                 img.onload = () => {
-                    if (crop && crop.ok && crop.w > 0 && crop.h > 0) {
-                        canvas.width = crop.w;
-                        canvas.height = crop.h;
-                        viewportW = crop.w;
-                        viewportH = crop.h;
-                        recalcScale();
+                    if (crop.w > 0 && crop.h > 0) {
+                        if (canvas.width !== crop.w || canvas.height !== crop.h) {
+                            canvas.width = crop.w;
+                            canvas.height = crop.h;
+                            viewportW = crop.w;
+                            viewportH = crop.h;
+                            recalcScale();
+                        }
                         requestAnimationFrame(() => ctx.drawImage(img, crop.x, crop.y, crop.w, crop.h, 0, 0, crop.w, crop.h));
                     } else {
                         if (canvas.width !== img.width || canvas.height !== img.height) {
@@ -352,23 +468,26 @@
                         }
                         requestAnimationFrame(() => ctx.drawImage(img, 0, 0));
                     }
-
                     if (!hasFrame) {
                         hasFrame = true;
                         loadingOverlay.classList.add('hidden');
+                        loadingOverlay.style.display = 'none';
                     }
                 };
                 img.src = 'data:image/jpeg;base64,' + base64Data;
             }
 
-            // ========== COORDINATE CONVERSION ==========
+            // ========== COORDINATE CONVERSION (with crop offset) ==========
             function getServerCoords(clientX, clientY) {
                 const rect = canvas.getBoundingClientRect();
                 const x = (clientX - rect.left) / scale;
                 const y = (clientY - rect.top) / scale;
+                const crop = getActiveCrop();
+                const ox = (crop && crop.ok) ? crop.x : 0;
+                const oy = (crop && crop.ok) ? crop.y : 0;
                 return {
-                    x: Math.round(Math.max(0, Math.min(x, viewportW))),
-                    y: Math.round(Math.max(0, Math.min(y, viewportH)))
+                    x: Math.round(Math.max(0, x) + ox),
+                    y: Math.round(Math.max(0, y) + oy)
                 };
             }
 
@@ -396,29 +515,16 @@
                     try {
                         const msg = JSON.parse(event.data);
 
-                        if (msg.type === 'crop') {
-                            currentCrop = msg.data;
-                            if (!currentCrop.ok) {
-                                loadingOverlay.style.display = 'flex';
-                                loadingOverlay.classList.remove('hidden');
-                                loadingText.textContent = 'Vui lòng mở khung Chat trong IDE';
-                                loadingSubText.textContent = '(Bấm vào tab Antigravity để mở)';
-                                loadingSpinner.style.display = 'none';
-                                ctx.clearRect(0, 0, canvas.width, canvas.height);
-                                hasFrame = false;
-                            } else {
-                                loadingOverlay.style.display = 'none';
-                                loadingOverlay.classList.add('hidden');
-                                loadingSpinner.style.display = 'block';
-                            }
+                        if (msg.type === 'crops') {
+                            allCrops = msg.data;
+                            updateLoadingForView();
+                            // Redraw with current frame if available
+                            if (lastFrameBase64) drawFrame(lastFrameBase64);
                             return;
                         }
 
                         if (msg.type === 'frame') {
-                            if (currentCrop && !currentCrop.ok) return; // skip frame if chat is closed
-                            loadingOverlay.style.display = 'none';
-                            loadingOverlay.classList.add('hidden');
-                            drawFrame(msg.data, currentCrop);
+                            drawFrame(msg.data);
                             return;
                         }
 
@@ -441,8 +547,29 @@
                 ws.onerror = () => { };
             }
 
+            // ========== TAB SWITCHING ==========
+            const tabItems = document.querySelectorAll('.tab-item');
+            tabItems.forEach(tab => {
+                tab.addEventListener('click', () => {
+                    const view = tab.dataset.view;
+                    if (view === activeView) return;
+
+                    activeView = view;
+                    tabItems.forEach(t => t.classList.remove('active'));
+                    tab.classList.add('active');
+
+                    hasFrame = false;
+                    updateLoadingForView();
+
+                    // Redraw with cached frame using new crop
+                    if (lastFrameBase64) drawFrame(lastFrameBase64);
+
+                    const labels = { chat: 'Chat', editor: 'Editor', explorer: 'Explorer' };
+                    showToast(labels[view] || view);
+                });
+            });
+
             // ========== MOUSE/TOUCH INPUT ==========
-            // Click
             canvas.addEventListener('click', (e) => {
                 e.preventDefault();
                 const coords = getServerCoords(e.clientX, e.clientY);
@@ -450,7 +577,6 @@
                 focusInput();
             });
 
-            // Double click
             canvas.addEventListener('dblclick', (e) => {
                 e.preventDefault();
                 const coords = getServerCoords(e.clientX, e.clientY);
@@ -458,14 +584,12 @@
                 focusInput();
             });
 
-            // Right click
             canvas.addEventListener('contextmenu', (e) => {
                 e.preventDefault();
                 const coords = getServerCoords(e.clientX, e.clientY);
                 send({ type: 'click', ...coords, button: 'right' });
             });
 
-            // Scroll (throttled)
             let lastWheelTime = 0;
             canvas.addEventListener('wheel', (e) => {
                 e.preventDefault();
@@ -476,7 +600,7 @@
                 send({ type: 'scroll', ...coords, deltaX: e.deltaX, deltaY: e.deltaY });
             }, { passive: false });
 
-            // Touch → click (for mobile)
+            // Touch tap
             let touchStartPos = null;
             let touchStartTime = 0;
             canvas.addEventListener('touchstart', (e) => {
@@ -493,7 +617,6 @@
                 const dx = Math.abs(touch.clientX - touchStartPos.x);
                 const dy = Math.abs(touch.clientY - touchStartPos.y);
                 const dt = Date.now() - touchStartTime;
-                // Tap (not swipe)
                 if (dx < 15 && dy < 15 && dt < 500) {
                     const coords = getServerCoords(touch.clientX, touch.clientY);
                     send({ type: 'click', ...coords, button: 'left' });
@@ -502,12 +625,11 @@
                 touchStartPos = null;
             }, { passive: false });
 
-            // Touch scroll (2-finger or swipe)
+            // Touch scroll (2-finger)
             let lastTouchY = null;
             canvas.addEventListener('touchmove', (e) => {
                 e.preventDefault();
                 if (e.touches.length >= 2) {
-                    // 2-finger scroll
                     const touch = e.touches[0];
                     const coords = getServerCoords(touch.clientX, touch.clientY);
                     if (lastTouchY !== null) {
@@ -521,14 +643,12 @@
             canvas.addEventListener('touchend', () => { lastTouchY = null; });
             canvas.addEventListener('touchcancel', () => { lastTouchY = null; });
 
-            // ========== KEYBOARD INPUT (same pattern as ZaloRemote) ==========
+            // ========== KEYBOARD INPUT ==========
             function focusInput() {
                 hiddenInput.focus();
             }
 
-            // Map special keys
             const keyMap = {
-                ' ': 'Space',
                 'Enter': 'Enter', 'Backspace': 'Backspace', 'Delete': 'Delete',
                 'Tab': 'Tab', 'Escape': 'Escape',
                 'ArrowUp': 'ArrowUp', 'ArrowDown': 'ArrowDown',
@@ -541,8 +661,6 @@
             hiddenInput.addEventListener('keydown', (e) => {
                 if (e.isComposing || isComposing) return;
                 if (modifierOnlyKeys.includes(e.key)) return;
-
-                // Let Ctrl+V fall through to paste handler
                 if ((e.ctrlKey || e.metaKey) && e.key.toLowerCase() === 'v') return;
 
                 const modifiers = [];
@@ -554,7 +672,7 @@
 
                 if (modifiers.length > 0) {
                     e.preventDefault();
-                    const baseKey = mapped || (e.key.length === 1 ? e.key.toLowerCase() : e.key);
+                    const baseKey = mapped || (e.key === ' ' ? 'Space' : (e.key.length === 1 ? e.key.toLowerCase() : e.key));
                     const combo = [...modifiers, baseKey].join('+');
                     send({ type: 'keydown', key: combo });
                 } else if (mapped) {
@@ -563,7 +681,6 @@
                 }
             });
 
-            // IME composition (Vietnamese input)
             hiddenInput.addEventListener('compositionstart', () => { isComposing = true; });
             hiddenInput.addEventListener('compositionend', (e) => {
                 isComposing = false;
@@ -571,7 +688,6 @@
                 hiddenInput.value = '';
             });
 
-            // Regular character input
             hiddenInput.addEventListener('input', (e) => {
                 if (isComposing) return;
                 const text = hiddenInput.value;
@@ -581,14 +697,12 @@
                 }
             });
 
-            // Paste handler
             hiddenInput.addEventListener('paste', (e) => {
                 e.preventDefault();
                 const text = e.clipboardData?.getData('text/plain');
                 if (text) send({ type: 'type', text });
             });
 
-            // Re-focus on blur
             hiddenInput.addEventListener('blur', () => {
                 setTimeout(focusInput, 100);
             });
@@ -597,11 +711,6 @@
             document.getElementById('btnRefresh').addEventListener('click', () => {
                 send({ type: 'request_frame' });
                 showToast('Refreshing...');
-            });
-
-            document.getElementById('btnFit').addEventListener('click', () => {
-                send({ type: 'resize', width: window.innerWidth, height: window.innerHeight - 44 });
-                showToast('📐 Fit to screen');
             });
 
             document.getElementById('btnFullscreen').addEventListener('click', () => {
@@ -614,7 +723,7 @@
 
             document.getElementById('btnKeyboard').addEventListener('click', () => {
                 hiddenInput.focus();
-                showToast('⌨️ Keyboard activated');
+                showToast('⌨️ Keyboard');
             });
 
             // ========== KEEPALIVE ==========
