@@ -76,6 +76,7 @@
             /* Force phone layout on all screens */
             max-width: 430px;
             margin: 0 auto;
+            position: relative;
         }
 
         /* --- Chat Area --- */
@@ -892,7 +893,9 @@
         /* === Native Input Bar Bottom Row: prevent text wrap & overflow === */
         /* Bottom toolbar rows: single line layout */
         #chatContent [data-input-bar] [class*="justify-between"],
-        #chatContent [data-input-bar] [class*="items-center"] {
+        #chatContent [data-input-bar] [class*="items-center"],
+        #fixedInputBar [class*="justify-between"],
+        #fixedInputBar [class*="items-center"] {
             flex-wrap: nowrap !important;
             white-space: nowrap !important;
             overflow: hidden !important;
@@ -901,7 +904,9 @@
 
         /* Text/spans inside the bottom input bar only: never wrap */
         #chatContent [data-input-bar] span,
-        #chatContent [data-input-bar] [class*="truncate"] {
+        #chatContent [data-input-bar] [class*="truncate"],
+        #fixedInputBar span,
+        #fixedInputBar [class*="truncate"] {
             white-space: nowrap !important;
             overflow: hidden !important;
             text-overflow: ellipsis !important;
@@ -911,7 +916,9 @@
 
         /* Bottom bar buttons text: never wrap (Fast, model name etc.) */
         #chatContent [data-input-bar] button span,
-        #chatContent [data-input-bar] button {
+        #chatContent [data-input-bar] button,
+        #fixedInputBar button span,
+        #fixedInputBar button {
             white-space: nowrap !important;
         }
 
@@ -1042,7 +1049,8 @@
             }
 
             /* Native input bar: compact for landscape */
-            #chatContent [data-input-bar] {
+            #chatContent [data-input-bar],
+            #fixedInputBar {
                 padding: 4px 8px !important;
             }
 
@@ -1879,15 +1887,25 @@
                         max-height: none !important;
                     }
 
-                    /* Native input/compose area from snapshot - sticky bottom */
-                    #chatContent [data-input-bar] {
-                        flex-shrink: 0 !important;
-                        position: sticky !important;
+                    /* Native input/compose area - fixed at bottom of body */
+                    #fixedInputBar {
+                        position: fixed !important;
                         bottom: 0 !important;
-                        z-index: 10 !important;
+                        left: 50% !important;
+                        transform: translateX(-50%) !important;
+                        z-index: 100 !important;
                         background: #1e1e1e !important;
                         width: 100% !important;
+                        max-width: 430px !important;
                         padding-bottom: env(safe-area-inset-bottom, 0) !important;
+                        box-sizing: border-box !important;
+                    }
+
+                    /* Fallback: if input bar still inside chatContent */
+                    #chatContent [data-input-bar] {
+                        flex-shrink: 0 !important;
+                        background: #1e1e1e !important;
+                        width: 100% !important;
                     }
 
                     /* Native textarea from Antigravity */
@@ -1905,7 +1923,8 @@
                     }
 
                     /* Bottom toolbar buttons: compact, single-line */
-                    #chatContent [data-input-bar] button {
+                    #chatContent [data-input-bar] button,
+                    #fixedInputBar button {
                         display: inline-flex !important;
                         align-items: center !important;
                         justify-content: center !important;
@@ -1917,7 +1936,9 @@
 
                     /* Model selector text in bottom bar */
                     #chatContent [data-input-bar] [class*="text-xs"],
-                    #chatContent [data-input-bar] [class*="text-\\[11px\\]"] {
+                    #chatContent [data-input-bar] [class*="text-\\[11px\\]"],
+                    #fixedInputBar [class*="text-xs"],
+                    #fixedInputBar [class*="text-\\[11px\\]"] {
                         font-size: 12px !important;
                         color: #888 !important;
                         white-space: nowrap !important;
@@ -1968,6 +1989,30 @@
                     el.style.display = 'none';
                 }
             });
+
+            // 5. Move input bar out of scroll container and fix it to the bottom
+            const inputBar = chatContent.querySelector('[data-input-bar]');
+            if (inputBar) {
+                // Remove old fixed input bar if exists
+                const oldFixed = document.getElementById('fixedInputBar');
+                if (oldFixed) oldFixed.remove();
+
+                // Clone + move input bar to body
+                const fixedBar = inputBar.cloneNode(true);
+                fixedBar.id = 'fixedInputBar';
+                document.body.appendChild(fixedBar);
+
+                // Hide original to avoid duplicate
+                inputBar.style.visibility = 'hidden';
+                inputBar.style.height = '0';
+                inputBar.style.overflow = 'hidden';
+                inputBar.style.padding = '0';
+                inputBar.style.margin = '0';
+
+                // Add padding-bottom to chat container so content isn't hidden behind fixed bar
+                const barHeight = fixedBar.getBoundingClientRect().height;
+                chatContainer.style.paddingBottom = (barHeight + 8) + 'px';
+            }
 
             // All Antigravity native controls are now visible & clickable via CDP forwarding
 
