@@ -1995,6 +1995,15 @@
                 }
             });
 
+            // 4. Hide floating dropdown/popup menus that render inline instead of floating
+            // These have w-max + bg-editor-background and break flex layout by occupying space
+            chatContent.querySelectorAll('[data-input-bar] div').forEach(el => {
+                const cls = el.className || '';
+                if (cls.includes('w-max') && cls.includes('bg-editor-background')) {
+                    el.style.display = 'none';
+                }
+            });
+
             // All Antigravity native controls are now visible & clickable via CDP forwarding
 
             if (!initialScrollDone) {
