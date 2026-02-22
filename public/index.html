@@ -1043,53 +1043,411 @@
             document.body.style.backgroundColor = bodyBg;
             document.body.style.color = bodyColor;
 
-            // Filter CSS: only keep color/font rules, drop background rules from VS Code's 1.7MB stylesheet
-            const filteredCSS = (data.css || '').split('\n').filter(line => {
+            // Smart CSS: keep original CSS but scope problematic VS Code workbench rules
+            // The React chat app uses Tailwind CSS classes which won't be in the captured CSS
+            const scopedCSS = (data.css || '').split('\n').filter(line => {
                 const l = line.toLowerCase();
-                // Drop background-color/background-image rules that set white/light
-                if (l.includes('background-color') || l.includes('background-image') || l.includes('background:')) return false;
+                // Drop VS Code workbench-specific rules that break our layout
+                if (l.includes('.monaco-workbench') && (l.includes('background') || l.includes('position: absolute'))) return false;
+                if (l.includes('#workbench.') || l.includes('.part.sidebar') || l.includes('.part.editor')) return false;
+                if (l.includes('position: fixed') || l.includes('position:fixed')) return false;
+                // Drop rules that force white/light backgrounds
+                if (l.includes('background-color: #fff') || l.includes('background-color: white') ||
+                    l.includes('background: #fff') || l.includes('background: white') ||
+                    l.includes('background-color: rgb(255')) return false;
                 return true;
             }).join('\n');
 
             chatContent.innerHTML = `
                 <style>
-                    /* Filtered CSS from Antigravity (color/font/layout only, no background rules) */
-                    ${filteredCSS}
+                    /* Scoped Antigravity CSS */
+                    ${scopedCSS}
                     
-                    /* Force dark theme on all snapshot content */
-                    #chatContent, #chatContent *, #cascade, #cascade * {
-                        color-scheme: dark !important;
-                        background-color: #1e1e1e !important;
-                        background-image: none !important;
+                    /* ===== Tailwind CSS utilities used by Antigravity React chat ===== */
+                    .flex { display: flex !important; }
+                    .inline-flex { display: inline-flex !important; }
+                    .grid { display: grid !important; }
+                    .hidden { display: none !important; }
+                    .block { display: block !important; }
+                    .inline { display: inline !important; }
+                    .contents { display: contents !important; }
+                    
+                    .flex-col { flex-direction: column !important; }
+                    .flex-row { flex-direction: row !important; }
+                    .flex-wrap { flex-wrap: wrap !important; }
+                    .flex-1 { flex: 1 1 0% !important; }
+                    .flex-shrink-0 { flex-shrink: 0 !important; }
+                    .flex-grow { flex-grow: 1 !important; }
+                    .grow { flex-grow: 1 !important; }
+                    .shrink-0 { flex-shrink: 0 !important; }
+                    
+                    .items-start { align-items: flex-start !important; }
+                    .items-center { align-items: center !important; }
+                    .items-end { align-items: flex-end !important; }
+                    .items-baseline { align-items: baseline !important; }
+                    .justify-start { justify-content: flex-start !important; }
+                    .justify-center { justify-content: center !important; }
+                    .justify-end { justify-content: flex-end !important; }
+                    .justify-between { justify-content: space-between !important; }
+                    .self-start { align-self: flex-start !important; }
+                    .self-end { align-self: flex-end !important; }
+                    
+                    .gap-0 { gap: 0 !important; }
+                    .gap-0\\.5 { gap: 0.125rem !important; }
+                    .gap-1 { gap: 0.25rem !important; }
+                    .gap-1\\.5 { gap: 0.375rem !important; }
+                    .gap-2 { gap: 0.5rem !important; }
+                    .gap-3 { gap: 0.75rem !important; }
+                    .gap-4 { gap: 1rem !important; }
+                    .gap-6 { gap: 1.5rem !important; }
+                    .gap-x-1 { column-gap: 0.25rem !important; }
+                    .gap-x-2 { column-gap: 0.5rem !important; }
+                    .gap-y-1 { row-gap: 0.25rem !important; }
+                    
+                    .w-full { width: 100% !important; }
+                    .w-auto { width: auto !important; }
+                    .w-4 { width: 1rem !important; }
+                    .w-5 { width: 1.25rem !important; }
+                    .w-6 { width: 1.5rem !important; }
+                    .w-8 { width: 2rem !important; }
+                    .w-10 { width: 2.5rem !important; }
+                    .w-fit { width: fit-content !important; }
+                    .min-w-0 { min-width: 0 !important; }
+                    .max-w-full { max-width: 100% !important; }
+                    .max-w-none { max-width: none !important; }
+                    .max-w-\\[80\\%\\] { max-width: 80% !important; }
+                    
+                    .h-full { height: 100% !important; }
+                    .h-auto { height: auto !important; }
+                    .h-4 { height: 1rem !important; }
+                    .h-5 { height: 1.25rem !important; }
+                    .h-6 { height: 1.5rem !important; }
+                    .h-8 { height: 2rem !important; }
+                    .h-10 { height: 2.5rem !important; }
+                    .min-h-0 { min-height: 0 !important; }
+                    .min-h-\\[2rem\\] { min-height: 2rem !important; }
+                    
+                    /* Spacing */
+                    .p-0 { padding: 0 !important; }
+                    .p-1 { padding: 0.25rem !important; }
+                    .p-1\\.5 { padding: 0.375rem !important; }
+                    .p-2 { padding: 0.5rem !important; }
+                    .p-3 { padding: 0.75rem !important; }
+                    .p-4 { padding: 1rem !important; }
+                    .px-1 { padding-left: 0.25rem !important; padding-right: 0.25rem !important; }
+                    .px-1\\.5 { padding-left: 0.375rem !important; padding-right: 0.375rem !important; }
+                    .px-2 { padding-left: 0.5rem !important; padding-right: 0.5rem !important; }
+                    .px-3 { padding-left: 0.75rem !important; padding-right: 0.75rem !important; }
+                    .px-4 { padding-left: 1rem !important; padding-right: 1rem !important; }
+                    .py-0\\.5 { padding-top: 0.125rem !important; padding-bottom: 0.125rem !important; }
+                    .py-1 { padding-top: 0.25rem !important; padding-bottom: 0.25rem !important; }
+                    .py-1\\.5 { padding-top: 0.375rem !important; padding-bottom: 0.375rem !important; }
+                    .py-2 { padding-top: 0.5rem !important; padding-bottom: 0.5rem !important; }
+                    .py-3 { padding-top: 0.75rem !important; padding-bottom: 0.75rem !important; }
+                    .py-4 { padding-top: 1rem !important; padding-bottom: 1rem !important; }
+                    .pt-1 { padding-top: 0.25rem !important; }
+                    .pt-2 { padding-top: 0.5rem !important; }
+                    .pt-4 { padding-top: 1rem !important; }
+                    .pb-1 { padding-bottom: 0.25rem !important; }
+                    .pb-2 { padding-bottom: 0.5rem !important; }
+                    .pb-4 { padding-bottom: 1rem !important; }
+                    .pl-2 { padding-left: 0.5rem !important; }
+                    .pl-4 { padding-left: 1rem !important; }
+                    .pr-2 { padding-right: 0.5rem !important; }
+                    
+                    .m-0 { margin: 0 !important; }
+                    .mt-1 { margin-top: 0.25rem !important; }
+                    .mt-2 { margin-top: 0.5rem !important; }
+                    .mt-3 { margin-top: 0.75rem !important; }
+                    .mt-4 { margin-top: 1rem !important; }
+                    .mb-1 { margin-bottom: 0.25rem !important; }
+                    .mb-2 { margin-bottom: 0.5rem !important; }
+                    .mb-4 { margin-bottom: 1rem !important; }
+                    .ml-1 { margin-left: 0.25rem !important; }
+                    .ml-2 { margin-left: 0.5rem !important; }
+                    .ml-auto { margin-left: auto !important; }
+                    .mr-1 { margin-right: 0.25rem !important; }
+                    .mr-2 { margin-right: 0.5rem !important; }
+                    .mx-auto { margin-left: auto !important; margin-right: auto !important; }
+                    
+                    /* Text */
+                    .text-xs { font-size: 0.75rem !important; line-height: 1rem !important; }
+                    .text-sm { font-size: 0.875rem !important; line-height: 1.25rem !important; }
+                    .text-base { font-size: 1rem !important; line-height: 1.5rem !important; }
+                    .text-lg { font-size: 1.125rem !important; line-height: 1.75rem !important; }
+                    .text-xl { font-size: 1.25rem !important; line-height: 1.75rem !important; }
+                    .text-2xl { font-size: 1.5rem !important; line-height: 2rem !important; }
+                    .font-medium { font-weight: 500 !important; }
+                    .font-semibold { font-weight: 600 !important; }
+                    .font-bold { font-weight: 700 !important; }
+                    .font-normal { font-weight: 400 !important; }
+                    .font-mono { font-family: ui-monospace, SFMono-Regular, 'SF Mono', Menlo, Consolas, monospace !important; }
+                    .italic { font-style: italic !important; }
+                    .leading-tight { line-height: 1.25 !important; }
+                    .leading-relaxed { line-height: 1.625 !important; }
+                    .leading-none { line-height: 1 !important; }
+                    .tracking-tight { letter-spacing: -0.025em !important; }
+                    .text-left { text-align: left !important; }
+                    .text-center { text-align: center !important; }
+                    .text-right { text-align: right !important; }
+                    .truncate { overflow: hidden !important; text-overflow: ellipsis !important; white-space: nowrap !important; }
+                    .whitespace-pre-wrap { white-space: pre-wrap !important; }
+                    .whitespace-nowrap { white-space: nowrap !important; }
+                    .break-words { overflow-wrap: break-word !important; }
+                    .break-all { word-break: break-all !important; }
+                    .line-clamp-1 { display: -webkit-box; -webkit-line-clamp: 1; -webkit-box-orient: vertical; overflow: hidden; }
+                    .line-clamp-2 { display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical; overflow: hidden; }
+                    .underline { text-decoration: underline !important; }
+                    .no-underline { text-decoration: none !important; }
+                    
+                    /* Dark theme colors - matching Antigravity's palette */
+                    .text-white { color: #ffffff !important; }
+                    .text-gray-100 { color: #f3f4f6 !important; }
+                    .text-gray-200 { color: #e5e7eb !important; }
+                    .text-gray-300 { color: #d1d5db !important; }
+                    .text-gray-400 { color: #9ca3af !important; }
+                    .text-gray-500 { color: #6b7280 !important; }
+                    .text-gray-600 { color: #4b5563 !important; }
+                    .text-blue-400 { color: #60a5fa !important; }
+                    .text-blue-500 { color: #3b82f6 !important; }
+                    .text-green-400 { color: #4ade80 !important; }
+                    .text-green-500 { color: #22c55e !important; }
+                    .text-yellow-400 { color: #facc15 !important; }
+                    .text-yellow-500 { color: #eab308 !important; }
+                    .text-red-400 { color: #f87171 !important; }
+                    .text-red-500 { color: #ef4444 !important; }
+                    .text-orange-400 { color: #fb923c !important; }
+                    .text-purple-400 { color: #c084fc !important; }
+                    .text-emerald-400 { color: #34d399 !important; }
+                    .text-cyan-400 { color: #22d3ee !important; }
+                    .text-\\[var\\(--vscode-foreground\\)\\] { color: #cccccc !important; }
+                    .text-\\[var\\(--vscode-descriptionForeground\\)\\] { color: #9ca3af !important; }
+                    [class*="text-vscode-"] { color: inherit; }
+                    
+                    /* Backgrounds */
+                    .bg-transparent { background-color: transparent !important; }
+                    .bg-black { background-color: #000000 !important; }
+                    .bg-white { background-color: #ffffff !important; }
+                    .bg-gray-500\\/10 { background-color: rgba(107, 114, 128, 0.1) !important; }
+                    .bg-gray-500\\/20 { background-color: rgba(107, 114, 128, 0.2) !important; }
+                    .bg-gray-600 { background-color: #4b5563 !important; }
+                    .bg-gray-700 { background-color: #374151 !important; }
+                    .bg-gray-700\\/50 { background-color: rgba(55, 65, 81, 0.5) !important; }
+                    .bg-gray-800 { background-color: #1f2937 !important; }
+                    .bg-gray-800\\/50 { background-color: rgba(31, 41, 55, 0.5) !important; }
+                    .bg-gray-900 { background-color: #111827 !important; }
+                    .bg-blue-500 { background-color: #3b82f6 !important; }
+                    .bg-blue-600 { background-color: #2563eb !important; }
+                    .bg-blue-500\\/10 { background-color: rgba(59, 130, 246, 0.1) !important; }
+                    .bg-blue-500\\/20 { background-color: rgba(59, 130, 246, 0.2) !important; }
+                    .bg-green-500\\/10 { background-color: rgba(34, 197, 94, 0.1) !important; }
+                    .bg-green-500\\/20 { background-color: rgba(34, 197, 94, 0.2) !important; }
+                    .bg-green-600 { background-color: #16a34a !important; }
+                    .bg-red-500\\/10 { background-color: rgba(239, 68, 68, 0.1) !important; }
+                    .bg-red-500\\/20 { background-color: rgba(239, 68, 68, 0.2) !important; }
+                    .bg-yellow-500\\/10 { background-color: rgba(234, 179, 8, 0.1) !important; }
+                    .bg-orange-500\\/10 { background-color: rgba(249, 115, 22, 0.1) !important; }
+                    .bg-\\[var\\(--vscode-input-background\\)\\] { background-color: #3c3c3c !important; }
+                    .bg-\\[var\\(--vscode-editor-background\\)\\] { background-color: #1e1e1e !important; }
+                    [class*="bg-vscode-"] { background-color: #2d2d2d; }
+                    
+                    /* Borders */
+                    .border { border-width: 1px !important; border-style: solid !important; }
+                    .border-0 { border-width: 0 !important; }
+                    .border-2 { border-width: 2px !important; border-style: solid !important; }
+                    .border-t { border-top-width: 1px !important; border-top-style: solid !important; }
+                    .border-b { border-bottom-width: 1px !important; border-bottom-style: solid !important; }
+                    .border-l { border-left-width: 1px !important; border-left-style: solid !important; }
+                    .border-l-2 { border-left-width: 2px !important; border-left-style: solid !important; }
+                    .border-gray-500\\/20 { border-color: rgba(107, 114, 128, 0.2) !important; }
+                    .border-gray-600 { border-color: #4b5563 !important; }
+                    .border-gray-700 { border-color: #374151 !important; }
+                    .border-gray-700\\/50 { border-color: rgba(55, 65, 81, 0.5) !important; }
+                    .border-blue-500 { border-color: #3b82f6 !important; }
+                    .border-blue-500\\/30 { border-color: rgba(59, 130, 246, 0.3) !important; }
+                    .border-green-500\\/30 { border-color: rgba(34, 197, 94, 0.3) !important; }
+                    .border-transparent { border-color: transparent !important; }
+                    .border-\\[var\\(--vscode-input-border\\)\\] { border-color: #3c3c3c !important; }
+                    
+                    .rounded { border-radius: 0.25rem !important; }
+                    .rounded-md { border-radius: 0.375rem !important; }
+                    .rounded-lg { border-radius: 0.5rem !important; }
+                    .rounded-xl { border-radius: 0.75rem !important; }
+                    .rounded-2xl { border-radius: 1rem !important; }
+                    .rounded-full { border-radius: 9999px !important; }
+                    .rounded-none { border-radius: 0 !important; }
+                    
+                    /* Overflow & position */
+                    .overflow-hidden { overflow: hidden !important; }
+                    .overflow-auto { overflow: auto !important; }
+                    .overflow-x-auto { overflow-x: auto !important; }
+                    .overflow-y-auto { overflow-y: auto !important; }
+                    .overflow-x-hidden { overflow-x: hidden !important; }
+                    .overflow-visible { overflow: visible !important; }
+                    .relative { position: relative !important; }
+                    .absolute { position: absolute !important; }
+                    .sticky { position: sticky !important; }
+                    .inset-0 { top: 0; right: 0; bottom: 0; left: 0; }
+                    .top-0 { top: 0 !important; }
+                    .right-0 { right: 0 !important; }
+                    .bottom-0 { bottom: 0 !important; }
+                    .left-0 { left: 0 !important; }
+                    .z-10 { z-index: 10 !important; }
+                    .z-20 { z-index: 20 !important; }
+                    
+                    /* Opacity, cursors, transitions */
+                    .opacity-0 { opacity: 0 !important; }
+                    .opacity-50 { opacity: 0.5 !important; }
+                    .opacity-60 { opacity: 0.6 !important; }
+                    .opacity-70 { opacity: 0.7 !important; }
+                    .opacity-75 { opacity: 0.75 !important; }
+                    .opacity-80 { opacity: 0.8 !important; }
+                    .opacity-100 { opacity: 1 !important; }
+                    .cursor-pointer { cursor: pointer !important; }
+                    .cursor-text { cursor: text !important; }
+                    .select-none { user-select: none !important; }
+                    .select-text { user-select: text !important; }
+                    .pointer-events-none { pointer-events: none !important; }
+                    .pointer-events-auto { pointer-events: auto !important; }
+                    .transition { transition: all 150ms cubic-bezier(0.4,0,0.2,1) !important; }
+                    .transition-colors { transition: color, background-color 150ms ease !important; }
+                    .transition-opacity { transition: opacity 150ms ease !important; }
+                    .duration-150 { transition-duration: 150ms !important; }
+                    .duration-200 { transition-duration: 200ms !important; }
+                    
+                    /* Shadows & effects */
+                    .shadow { box-shadow: 0 1px 3px 0 rgba(0,0,0,0.3) !important; }
+                    .shadow-sm { box-shadow: 0 1px 2px 0 rgba(0,0,0,0.2) !important; }
+                    .shadow-md { box-shadow: 0 4px 6px -1px rgba(0,0,0,0.3) !important; }
+                    .shadow-lg { box-shadow: 0 10px 15px -3px rgba(0,0,0,0.3) !important; }
+                    .ring-1 { box-shadow: 0 0 0 1px rgba(107,114,128,0.3) !important; }
+                    
+                    /* SVG/icons */
+                    .fill-current { fill: currentColor !important; }
+                    .stroke-current { stroke: currentColor !important; }
+                    
+                    /* Hover states */
+                    .hover\\:bg-gray-500\\/20:hover { background-color: rgba(107,114,128,0.2) !important; }
+                    .hover\\:bg-gray-700:hover { background-color: #374151 !important; }
+                    .hover\\:bg-blue-500\\/20:hover { background-color: rgba(59,130,246,0.2) !important; }
+                    .hover\\:text-white:hover { color: #fff !important; }
+                    .hover\\:underline:hover { text-decoration: underline !important; }
+                    .hover\\:opacity-100:hover { opacity: 1 !important; }
+                    .group:hover .group-hover\\:opacity-100 { opacity: 1 !important; }
+                    .group:hover .group-hover\\:visible { visibility: visible !important; }
+                    
+                    /* ===== Base dark theme ===== */
+                    #chatContent {
+                        color-scheme: dark;
+                        background-color: #1e1e1e;
+                        color: #cccccc;
+                        font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', system-ui, sans-serif;
+                        font-size: 13px;
+                        line-height: 1.5;
                     }
                     
-                    /* Fix layout: only reset absolute/fixed positions that break mobile,
-                       but keep relative and other positioning intact */
+                    /* Fix layout: reset fixed positions */
                     #chatContent [style*="position: fixed"],
                     #chatContent [style*="position:fixed"] {
                         position: relative !important;
                     }
                     
-                    /* Ensure content flows naturally */
-                    #cascade {
-                        position: relative !important;
-                        width: 100% !important;
-                        max-width: 100vw !important;
-                        overflow-x: hidden !important;
+                    /* Markdown content styling */
+                    #chatContent h1, #chatContent h2, #chatContent h3, #chatContent h4 {
+                        color: #e0e0e0;
+                        font-weight: 600;
+                        margin: 0.75em 0 0.5em;
+                    }
+                    #chatContent h1 { font-size: 1.5em; }
+                    #chatContent h2 { font-size: 1.25em; }
+                    #chatContent h3 { font-size: 1.1em; }
+                    
+                    #chatContent a { color: #4fc1ff; text-decoration: none; }
+                    #chatContent a:hover { text-decoration: underline; }
+                    
+                    #chatContent strong, #chatContent b { color: #e0e0e0; font-weight: 600; }
+                    
+                    #chatContent ul, #chatContent ol { padding-left: 1.5em; margin: 0.5em 0; }
+                    #chatContent li { margin: 0.25em 0; }
+                    #chatContent li::marker { color: #6b7280; }
+                    
+                    /* Code blocks */
+                    #chatContent pre {
+                        background-color: #0d1117 !important;
+                        border: 1px solid #30363d;
+                        border-radius: 6px;
+                        padding: 12px 16px;
+                        overflow-x: auto;
+                        margin: 0.5em 0;
+                    }
+                    #chatContent code {
+                        font-family: ui-monospace, SFMono-Regular, 'SF Mono', Menlo, Consolas, monospace;
+                        font-size: 0.85em;
+                    }
+                    #chatContent :not(pre) > code {
+                        background-color: rgba(110, 118, 129, 0.2);
+                        padding: 0.15em 0.4em;
+                        border-radius: 4px;
+                        color: #e06c75;
+                    }
+                    #chatContent pre code {
+                        background-color: transparent !important;
+                        padding: 0;
+                        color: #d4d4d4;
                     }
                     
-                    /* Code blocks - keep dark background */
-                    pre, code, #cascade pre, #cascade code,
-                    [class*="hljs"], [class*="shiki"] {
-                        background-color: #1e1e1e !important;
-                        color: #d4d4d4 !important;
+                    /* Tables */
+                    #chatContent table {
+                        border-collapse: collapse;
+                        width: 100%;
+                        margin: 0.5em 0;
                     }
-                    pre code { background-color: transparent !important; }
+                    #chatContent th, #chatContent td {
+                        border: 1px solid #30363d;
+                        padding: 6px 13px;
+                        text-align: left;
+                    }
+                    #chatContent th {
+                        background-color: rgba(110, 118, 129, 0.1);
+                        font-weight: 600;
+                        color: #e0e0e0;
+                    }
+                    #chatContent tr:nth-child(even) {
+                        background-color: rgba(110, 118, 129, 0.05);
+                    }
+                    
+                    /* Blockquotes */
+                    #chatContent blockquote {
+                        border-left: 3px solid #3b82f6;
+                        padding-left: 1em;
+                        margin: 0.5em 0;
+                        color: #9ca3af;
+                    }
+                    
+                    /* Horizontal rule */
+                    #chatContent hr {
+                        border: none;
+                        border-top: 1px solid #30363d;
+                        margin: 1em 0;
+                    }
+                    
+                    /* Input/textarea */
+                    #chatContent input, #chatContent textarea, #chatContent [contenteditable] {
+                        background-color: #3c3c3c;
+                        color: #cccccc;
+                        border: 1px solid #3c3c3c;
+                        border-radius: 4px;
+                        padding: 4px 8px;
+                    }
+                    
+                    /* Buttons */
+                    #chatContent button {
+                        cursor: pointer;
+                        pointer-events: auto;
+                    }
                     
                     /* Hide broken vscode-file:// icons */
-                    img[src^="vscode-file://"] {
-                        display: none !important;
-                    }
+                    img[src^="vscode-file://"] { display: none !important; }
                     [style*="vscode-file://"] {
                         background-image: none !important;
                         mask-image: none !important;
@@ -1115,6 +1473,7 @@
                     .codicon-check::before { content: "✓" !important; }
                     .codicon-chevron-down::before { content: "▾" !important; }
                     .codicon-chevron-right::before { content: "▸" !important; }
+                    .codicon-chevron-up::before { content: "▴" !important; }
                     .codicon-copy::before { content: "📋" !important; }
                     .codicon-edit::before, .codicon-pencil::before { content: "✏" !important; }
                     .codicon-trash::before, .codicon-delete::before { content: "🗑" !important; }
@@ -1133,11 +1492,11 @@
                     .codicon-terminal::before { content: ">" !important; }
                     .codicon-link::before { content: "🔗" !important; }
                     .codicon-sparkle::before { content: "✨" !important; }
-                    
-                    /* Fallback: any unmatched codicon shows • instead of □ */
-                    .codicon::before {
-                        content: "•" !important;
-                    }
+                    .codicon-arrow-right::before { content: "→" !important; }
+                    .codicon-arrow-left::before { content: "←" !important; }
+                    .codicon-thumb-up::before { content: "👍" !important; }
+                    .codicon-thumb-down::before { content: "👎" !important; }
+                    .codicon::before { content: "•" !important; }
                     
                     /* Ensure content areas show fully */
                     [class*="terminal"], [class*="xterm"], [class*="output"],
@@ -1147,14 +1506,12 @@
                         overflow: visible !important;
                     }
                     
-                    /* Make interactive elements clickable */
+                    /* Interactive elements */
                     #chatContent button, #chatContent [role="button"],
                     #chatContent a, #chatContent [class*="cursor-pointer"] {
                         cursor: pointer !important;
                         pointer-events: auto !important;
                     }
-                    
-                    /* Snapshot input areas - clickable to open compose overlay */
                     #chatContent [contenteditable="true"],
                     #chatContent [role="textbox"],
                     #chatContent textarea {
