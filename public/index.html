@@ -307,8 +307,7 @@
             color: var(--text-main);
         }
 
-        .mic-btn,
-        .stop-btn {
+        .mic-btn {
             width: 26px;
             height: 26px;
             border-radius: 4px;
@@ -322,8 +321,7 @@
             transition: all 0.15s;
         }
 
-        .mic-btn:hover,
-        .stop-btn:hover {
+        .mic-btn:hover {
             background: rgba(255, 255, 255, 0.06);
         }
 
@@ -332,15 +330,37 @@
             height: 14px;
         }
 
-        .stop-btn {
-            color: transparent;
+        .send-btn {
+            width: 28px;
+            height: 28px;
+            border-radius: 50%;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            background: var(--accent);
+            border: none;
+            cursor: pointer;
+            color: #ffffff;
+            transition: all 0.15s;
+            flex-shrink: 0;
         }
 
-        .stop-btn-inner {
-            width: 12px;
-            height: 12px;
-            border-radius: 2px;
-            background: #dc2626;
+        .send-btn:hover {
+            background: #2563eb;
+        }
+
+        .send-btn:active {
+            transform: scale(0.92);
+        }
+
+        .send-btn:disabled {
+            opacity: 0.5;
+            cursor: not-allowed;
+        }
+
+        .send-btn svg {
+            width: 16px;
+            height: 16px;
         }
 
         /* Hidden legacy elements */
@@ -563,23 +583,21 @@
             </button>
             <button class="ag-header-btn" id="instancesBtn" title="Instances">
                 <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round">
-                    <circle cx="12" cy="12" r="1"></circle>
-                    <path d="M20 12a8 8 0 1 0-16 0 8 8 0 0 0 16 0Z"></path>
-                    <path d="M12 2v2"></path>
-                    <path d="M12 20v2"></path>
-                    <path d="m4.93 4.93 1.41 1.41"></path>
-                    <path d="m17.66 17.66 1.41 1.41"></path>
-                    <path d="M2 12h2"></path>
-                    <path d="M20 12h2"></path>
-                    <path d="m6.34 17.66-1.41 1.41"></path>
-                    <path d="m19.07 4.93-1.41 1.41"></path>
+                    <circle cx="12" cy="12" r="10"></circle>
+                    <polyline points="12 6 12 12 16 14"></polyline>
                 </svg>
             </button>
             <button class="ag-header-btn" title="More">
                 <svg viewBox="0 0 24 24" fill="currentColor">
-                    <circle cx="12" cy="5" r="1.5"></circle>
+                    <circle cx="5" cy="12" r="1.5"></circle>
                     <circle cx="12" cy="12" r="1.5"></circle>
-                    <circle cx="12" cy="19" r="1.5"></circle>
+                    <circle cx="19" cy="12" r="1.5"></circle>
+                </svg>
+            </button>
+            <button class="ag-header-btn" title="Close">
+                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round">
+                    <line x1="18" y1="6" x2="6" y2="18"></line>
+                    <line x1="6" y1="6" x2="18" y2="18"></line>
                 </svg>
             </button>
         </div>
@@ -608,35 +626,27 @@
                         <polyline points="13 2 13 9 20 9"></polyline>
                     </svg>
                 </button>
-                <button class="tool-btn" title="Copy">
+                <button class="tool-btn" title="Mail">
                     <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round">
-                        <rect x="9" y="9" width="13" height="13" rx="2" ry="2"></rect>
-                        <path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"></path>
+                        <rect x="2" y="4" width="20" height="16" rx="2"></rect>
+                        <path d="m22 7-8.97 5.7a1.94 1.94 0 0 1-2.06 0L2 7"></path>
                     </svg>
                 </button>
-                <button class="tool-btn" title="Terminal">
-                    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round">
-                        <polyline points="4 17 10 11 4 5"></polyline>
-                        <line x1="12" y1="19" x2="20" y2="19"></line>
-                    </svg>
-                </button>
-                <button class="tool-btn" title="Settings">
+                <button class="tool-btn" title="Emoji">
                     <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round">
                         <circle cx="12" cy="12" r="10"></circle>
-                        <line x1="2" y1="12" x2="22" y2="12"></line>
-                        <path
-                            d="M12 2a15.3 15.3 0 0 1 4 10 15.3 15.3 0 0 1-4 10 15.3 15.3 0 0 1-4-10 15.3 15.3 0 0 1 4-10z">
-                        </path>
+                        <path d="M8 14s1.5 2 4 2 4-2 4-2"></path>
+                        <line x1="9" y1="9" x2="9.01" y2="9"></line>
+                        <line x1="15" y1="9" x2="15.01" y2="9"></line>
                     </svg>
                 </button>
             </div>
             <div class="dock-tools-right">
                 <button class="review-btn" title="Review Changes">
                     <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round">
-                        <path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"></path>
-                        <polyline points="14 2 14 8 20 8"></polyline>
-                        <line x1="12" y1="18" x2="12" y2="12"></line>
-                        <line x1="9" y1="15" x2="15" y2="15"></line>
+                        <line x1="3" y1="6" x2="21" y2="6"></line>
+                        <line x1="3" y1="12" x2="21" y2="12"></line>
+                        <line x1="3" y1="18" x2="21" y2="18"></line>
                     </svg>
                     <span>Review Changes</span>
                 </button>
@@ -673,8 +683,12 @@
                         <line x1="12" y1="19" x2="12" y2="22"></line>
                     </svg>
                 </button>
-                <button id="sendBtn" class="stop-btn" title="Send">
-                    <div class="stop-btn-inner"></div>
+                <button id="sendBtn" class="send-btn" title="Send">
+                    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round"
+                        stroke-linejoin="round">
+                        <line x1="5" y1="12" x2="19" y2="12"></line>
+                        <polyline points="12 5 19 12 12 19"></polyline>
+                    </svg>
                 </button>
             </div>
         </div>
@@ -1114,7 +1128,7 @@
             if (!message) return;
 
             sendBtn.disabled = true;
-            sendBtn.querySelector('.stop-btn-inner').style.opacity = '0.5';
+            sendBtn.style.opacity = '0.5';
 
             try {
                 const res = await fetch('/send', {
@@ -1140,7 +1154,7 @@
                 messageInput.value = '';
                 autoResizeInput(); // Reset to min-height
                 sendBtn.disabled = false;
-                sendBtn.querySelector('.stop-btn-inner').style.opacity = '1';
+                sendBtn.style.opacity = '1';
             }
         }
 
