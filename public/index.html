@@ -251,12 +251,15 @@
             display: flex;
             align-items: center;
             gap: 4px;
+            min-width: 0;
+            overflow: hidden;
         }
 
         .dock-selector-right {
             display: flex;
             align-items: center;
             gap: 4px;
+            flex-shrink: 0;
         }
 
         .add-btn {
@@ -292,6 +295,10 @@
             font-weight: 400;
             transition: background 0.15s;
             white-space: nowrap;
+            overflow: hidden;
+            text-overflow: ellipsis;
+            min-width: 0;
+            max-width: 200px;
         }
 
         .selector-chip:hover {
