@@ -12,12 +12,16 @@
     <title>Antigravity Link</title>
     <style>
         :root {
-            --bg-deep: hsl(240, 10%, 8%);
-            --bg-dock: hsla(240, 10%, 15%, 0.8);
+            --bg-deep: #000000;
+            --bg-surface: #0d0d0d;
+            --bg-dock: #1a1a1a;
+            --bg-input: #2a2a2a;
+            --border: #333333;
+            --border-subtle: #2a2a2a;
             --accent: #3b82f6;
-            --border: hsla(0, 0%, 100%, 0.1);
-            --text-main: #e0e0e0;
-            --text-dim: #999;
+            --text-main: #cccccc;
+            --text-dim: #808080;
+            --text-muted: #666666;
         }
 
         * {
@@ -32,7 +36,6 @@
             height: 100%;
         }
 
-
         body {
             font-family: -apple-system, system-ui, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
             background: var(--bg-deep);
@@ -43,6 +46,65 @@
             overflow: hidden;
         }
 
+        /* --- Antigravity Header Bar --- */
+        .ag-header {
+            background: var(--bg-dock);
+            border-bottom: 1px solid var(--border-subtle);
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            padding: 8px 12px;
+            min-height: 40px;
+            flex-shrink: 0;
+            z-index: 1001;
+        }
+
+        .ag-header-title {
+            font-size: 12px;
+            font-weight: 500;
+            color: var(--text-main);
+            white-space: nowrap;
+            overflow: hidden;
+            text-overflow: ellipsis;
+            flex: 1;
+            padding-left: 4px;
+        }
+
+        .ag-header-actions {
+            display: flex;
+            align-items: center;
+            gap: 2px;
+            flex-shrink: 0;
+        }
+
+        .ag-header-btn {
+            width: 28px;
+            height: 28px;
+            border-radius: 4px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            background: transparent;
+            border: none;
+            cursor: pointer;
+            color: var(--text-dim);
+            font-size: 14px;
+            transition: background 0.15s;
+        }
+
+        .ag-header-btn:hover {
+            background: rgba(255, 255, 255, 0.08);
+        }
+
+        .ag-header-btn:active {
+            background: rgba(255, 255, 255, 0.12);
+        }
+
+        .ag-header-btn svg {
+            width: 14px;
+            height: 14px;
+        }
+
         /* --- Chat Area --- */
         .chat-container {
             flex: 1;
@@ -50,173 +112,240 @@
             position: relative;
             -webkit-overflow-scrolling: touch;
             padding-bottom: 20px;
+            background: var(--bg-deep);
         }
-
 
         .chat-content {
             padding: 16px 16px 0;
             min-height: auto;
         }
 
-        /* --- Unified Bottom Dock --- */
+        /* --- Antigravity Bottom Dock (3 layers) --- */
         .bottom-dock {
             background: var(--bg-dock);
-            backdrop-filter: blur(20px);
-            -webkit-backdrop-filter: blur(20px);
-            border-top: 1px solid var(--border);
+            border-top: 1px solid var(--border-subtle);
             display: flex;
             flex-direction: column;
-            padding-bottom: env(safe-area-inset-bottom, 12px);
+            padding-bottom: env(safe-area-inset-bottom, 8px);
             z-index: 1000;
-        }
-
-        /* Top Layer: Control Chips */
-        .dock-controls {
-            display: flex;
-            align-items: center;
-            gap: 8px;
-            padding: 8px;
-            overflow-x: auto;
-            scrollbar-width: none;
-            border-bottom: 1px solid hsla(0, 0%, 100%, 0.05);
-            width: 100%;
-        }
-
-        .dock-controls::-webkit-scrollbar {
-            display: none;
-        }
-
-        .control-chip {
-            background: hsla(0, 0%, 100%, 0.05);
-            border: 1px solid var(--border);
-            padding: 4px 10px;
-            border-radius: 20px;
-            font-size: 11px;
-            font-weight: 500;
-            color: var(--text-dim);
-            white-space: nowrap;
-            display: flex;
-            align-items: center;
-            gap: 4px;
-            cursor: pointer;
-            transition: all 0.2s;
-        }
-
-        .control-chip:active {
-            transform: scale(0.96);
-            background: hsla(0, 0%, 100%, 0.1);
-        }
-
-        .control-chip .label {
-            font-size: 9px;
-            opacity: 0.5;
-            text-transform: uppercase;
-        }
-
-        .control-chip.active {
-            color: var(--text-main);
-            border-color: hsla(217, 91%, 60%, 0.3);
-            background: hsla(217, 91%, 60%, 0.1);
-        }
-
-        /* Bottom Layer: Input Row */
-        .dock-input-row {
-            padding: 8px;
-            /* Tightening for iPhone SE */
-            display: flex;
-            align-items: stretch;
-            gap: 6px;
-            min-height: 54px;
-            width: 100%;
-            overflow: hidden;
-        }
-
-        .action-stack {
-            display: flex;
-            flex-direction: column;
-            justify-content: flex-end;
-            gap: 4px;
-            padding-bottom: 2px;
             flex-shrink: 0;
         }
 
-        .input-bubble {
-            flex: 1;
-            background: hsla(0, 0%, 0%, 0.3);
-            border: 1px solid var(--border);
-            border-radius: 24px;
+        /* Layer 1: Tool Icons Row */
+        .dock-tools-row {
             display: flex;
             align-items: center;
-            padding: 4px 12px 6px;
-            /* Slightly more balanced vertical padding */
-            transition: border-color 0.2s;
-            min-width: 0;
-            /* Allow flex shrinking */
+            justify-content: space-between;
+            padding: 4px 10px;
+            border-bottom: 1px solid var(--border-subtle);
         }
 
-        .input-bubble:focus-within {
-            border-color: var(--accent);
+        .dock-tools-left {
+            display: flex;
+            align-items: center;
+            gap: 2px;
+        }
+
+        .dock-tools-right {
+            display: flex;
+            align-items: center;
+        }
+
+        .tool-btn {
+            width: 28px;
+            height: 28px;
+            border-radius: 4px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            background: transparent;
+            border: none;
+            cursor: pointer;
+            color: var(--text-dim);
+            transition: background 0.15s;
+        }
+
+        .tool-btn:hover {
+            background: rgba(255, 255, 255, 0.06);
+        }
+
+        .tool-btn:active {
+            background: rgba(255, 255, 255, 0.1);
+        }
+
+        .tool-btn svg {
+            width: 16px;
+            height: 16px;
+        }
+
+        .review-btn {
+            display: flex;
+            align-items: center;
+            gap: 4px;
+            padding: 3px 8px;
+            border-radius: 4px;
+            background: transparent;
+            border: none;
+            cursor: pointer;
+            color: var(--text-dim);
+            font-size: 11px;
+            font-weight: 400;
+            transition: background 0.15s;
+        }
+
+        .review-btn:hover {
+            background: rgba(255, 255, 255, 0.06);
+        }
+
+        .review-btn svg {
+            width: 14px;
+            height: 14px;
+        }
+
+        /* Layer 2: Input Field */
+        .dock-input-row {
+            padding: 6px 10px;
+            display: flex;
+            align-items: flex-end;
+            gap: 0;
+        }
+
+        .input-area {
+            flex: 1;
+            position: relative;
         }
 
         #messageInput {
-            flex: 1;
+            width: 100%;
             background: transparent;
-            border: none;
+            border: 1px solid var(--border);
+            border-radius: 8px;
             outline: none;
-            color: #fff;
-            font-size: 16px;
-            line-height: 22px;
-            padding: 6px 0;
+            color: var(--text-main);
+            font-size: 13px;
+            line-height: 20px;
+            padding: 8px 12px;
             margin: 0;
             resize: none;
             max-height: 160px;
+            font-family: inherit;
         }
 
-        .action-btn {
-            width: 32px;
-            height: 32px;
-            border-radius: 50%;
+        #messageInput::placeholder {
+            color: var(--text-muted);
+        }
+
+        #messageInput:focus {
+            border-color: #555;
+        }
+
+        /* Layer 3: Model/Mode Selector Row */
+        .dock-selector-row {
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            padding: 2px 10px 4px;
+        }
+
+        .dock-selector-left {
+            display: flex;
+            align-items: center;
+            gap: 4px;
+        }
+
+        .dock-selector-right {
+            display: flex;
+            align-items: center;
+            gap: 4px;
+        }
+
+        .add-btn {
+            width: 22px;
+            height: 22px;
+            border-radius: 4px;
             display: flex;
             align-items: center;
             justify-content: center;
-            background: hsla(0, 0%, 100%, 0.05);
+            background: transparent;
             border: 1px solid var(--border);
             cursor: pointer;
-            font-size: 16px;
             color: var(--text-dim);
-            transition: all 0.2s;
-            flex-shrink: 0;
+            font-size: 14px;
+            transition: all 0.15s;
         }
 
-        .action-btn:active {
-            transform: scale(0.9);
-            background: hsla(0, 0%, 100%, 0.1);
+        .add-btn:hover {
+            background: rgba(255, 255, 255, 0.06);
         }
 
-        #sendBtn {
-            background: var(--accent);
-            color: #fff;
-            width: 42px;
-            /* Slightly narrower */
-            border-radius: 18px;
+        .selector-chip {
+            display: flex;
+            align-items: center;
+            gap: 3px;
+            padding: 2px 6px;
+            border-radius: 4px;
+            background: transparent;
             border: none;
             cursor: pointer;
+            color: var(--text-dim);
+            font-size: 11px;
+            font-weight: 400;
+            transition: background 0.15s;
+            white-space: nowrap;
+        }
+
+        .selector-chip:hover {
+            background: rgba(255, 255, 255, 0.06);
+        }
+
+        .selector-chip .chevron {
+            font-size: 8px;
+            opacity: 0.6;
+        }
+
+        .selector-chip.active {
+            color: var(--text-main);
+        }
+
+        .mic-btn,
+        .stop-btn {
+            width: 26px;
+            height: 26px;
+            border-radius: 4px;
             display: flex;
             align-items: center;
             justify-content: center;
-            flex-shrink: 0;
-            transition: all 0.2s;
-            padding: 0;
+            background: transparent;
+            border: none;
+            cursor: pointer;
+            color: var(--text-dim);
+            transition: all 0.15s;
         }
 
-        #sendBtn svg {
-            width: 18px;
-            height: 18px;
+        .mic-btn:hover,
+        .stop-btn:hover {
+            background: rgba(255, 255, 255, 0.06);
         }
 
-        #sendBtn:active {
-            transform: scale(0.95);
-            opacity: 0.9;
+        .mic-btn svg {
+            width: 14px;
+            height: 14px;
+        }
+
+        .stop-btn {
+            color: transparent;
+        }
+
+        .stop-btn-inner {
+            width: 12px;
+            height: 12px;
+            border-radius: 2px;
+            background: #dc2626;
+        }
+
+        /* Hidden legacy elements */
+        .dock-controls {
+            display: none !important;
         }
 
         /* --- Modals & Sheets --- */
@@ -226,7 +355,7 @@
             left: 0;
             right: 0;
             bottom: 0;
-            background: rgba(0, 0, 0, 0.8);
+            background: rgba(0, 0, 0, 0.85);
             backdrop-filter: blur(10px);
             display: none;
             justify-content: center;
@@ -239,9 +368,9 @@
         }
 
         .login-box {
-            background: var(--bg-dock);
+            background: #1e1e1e;
             padding: 24px;
-            border-radius: 20px;
+            border-radius: 12px;
             width: 90%;
             max-width: 340px;
             border: 1px solid var(--border);
@@ -249,22 +378,25 @@
 
         .login-input {
             width: 100%;
-            padding: 14px;
-            background: #000;
+            padding: 12px;
+            background: #0d0d0d;
             border: 1px solid var(--border);
-            border-radius: 12px;
+            border-radius: 8px;
             color: #fff;
             margin: 16px 0;
+            font-size: 14px;
         }
 
         .login-btn {
             width: 100%;
-            padding: 14px;
+            padding: 12px;
             background: var(--accent);
             border: none;
-            border-radius: 12px;
+            border-radius: 8px;
             color: #fff;
-            font-weight: bold;
+            font-weight: 600;
+            font-size: 14px;
+            cursor: pointer;
         }
 
         .bottom-sheet {
@@ -272,16 +404,17 @@
             bottom: 0;
             left: 0;
             right: 0;
-            background: var(--bg-dock);
-            backdrop-filter: blur(20px);
-            border-top-left-radius: 24px;
-            border-top-right-radius: 24px;
+            background: #1e1e1e;
+            border-top-left-radius: 16px;
+            border-top-right-radius: 16px;
             z-index: 2001;
             transform: translateY(100%);
             transition: transform 0.3s cubic-bezier(0.4, 0, 0.2, 1);
             max-height: 70vh;
             display: flex;
             flex-direction: column;
+            border: 1px solid var(--border);
+            border-bottom: none;
         }
 
         .bottom-sheet.show {
@@ -290,7 +423,7 @@
 
         .sheet-header {
             padding: 16px 20px;
-            border-bottom: 1px solid var(--border);
+            border-bottom: 1px solid var(--border-subtle);
             display: flex;
             justify-content: space-between;
             align-items: center;
@@ -302,31 +435,36 @@
         }
 
         .option-item {
-            padding: 16px 20px;
+            padding: 12px 20px;
             color: var(--text-main);
             display: flex;
             align-items: center;
             gap: 12px;
+            font-size: 13px;
+            cursor: pointer;
         }
 
         .option-item:active {
-            background: hsla(0, 0%, 100%, 0.05);
+            background: rgba(255, 255, 255, 0.05);
         }
 
-        /* Helpers */
+        /* Scroll FAB */
         .fab {
             position: fixed;
-            bottom: 140px;
+            bottom: 160px;
             right: 16px;
-            width: 44px;
-            height: 44px;
+            width: 36px;
+            height: 36px;
             border-radius: 50%;
-            background: var(--accent);
-            color: white;
+            background: #333;
+            color: var(--text-dim);
             display: none;
             align-items: center;
             justify-content: center;
             z-index: 100;
+            border: 1px solid var(--border);
+            font-size: 14px;
+            cursor: pointer;
         }
 
         .fab.show {
@@ -336,7 +474,7 @@
         @keyframes ripple {
             0% {
                 transform: translate(-50%, -50%) scale(0);
-                opacity: 0.8;
+                opacity: 0.6;
             }
 
             100% {
@@ -349,60 +487,104 @@
             position: fixed;
             width: 30px;
             height: 30px;
-            background: rgba(255, 255, 255, 0.4);
+            background: rgba(255, 255, 255, 0.3);
             border-radius: 50%;
             pointer-events: none;
             animation: ripple 0.5s ease-out forwards;
             z-index: 9999;
         }
 
+        /* Connectivity Badge - integrated into header */
         #connectivityBadge {
-            position: fixed;
-            top: 16px;
-            left: 16px;
-            z-index: 9999;
-            padding: 8px 12px;
-            border-radius: 20px;
-            background: hsla(0, 0%, 0%, 0.5);
-            backdrop-filter: blur(10px);
-            -webkit-backdrop-filter: blur(10px);
-            border: 1px solid var(--border);
             display: flex;
             align-items: center;
-            gap: 8px;
-            font-size: 11px;
-            font-weight: bold;
-            box-shadow: 0 4px 12px rgba(0, 0, 0, 0.3);
+            gap: 6px;
+            padding: 0 8px;
+            flex-shrink: 0;
+        }
+
+        #connectivityBadge #statusDot {
+            width: 6px !important;
+            height: 6px !important;
+        }
+
+        #connectivityBadge #statusText {
+            font-size: 9px;
+            font-weight: 600;
+            letter-spacing: 0.5px;
         }
 
         .fab-top-right {
-            position: fixed;
-            top: 16px;
-            right: 16px;
-            z-index: 9999;
-            width: 40px;
-            height: 40px;
-            border-radius: 50%;
-            background: hsla(0, 0%, 100%, 0.1);
-            backdrop-filter: blur(10px);
-            -webkit-backdrop-filter: blur(10px);
-            border: 1px solid var(--border);
-            color: var(--text-main);
-            font-size: 18px;
+            display: none;
+        }
+
+        /* Loading state */
+        .loading {
             display: flex;
             align-items: center;
             justify-content: center;
-            cursor: pointer;
-            box-shadow: 0 4px 12px rgba(0, 0, 0, 0.3);
+            gap: 8px;
+            padding: 40px;
+            color: var(--text-muted);
+            font-size: 12px;
         }
 
-        .fab-top-right:active {
-            transform: scale(0.9);
+        .spinner {
+            width: 16px;
+            height: 16px;
+            border: 2px solid var(--border);
+            border-top-color: var(--text-dim);
+            border-radius: 50%;
+            animation: spin 0.8s linear infinite;
+        }
+
+        @keyframes spin {
+            to {
+                transform: rotate(360deg);
+            }
         }
     </style>
 </head>
 
 <body>
+    <!-- Antigravity Header Bar -->
+    <div class="ag-header">
+        <div id="connectivityBadge">
+            <div id="statusDot" style="width:6px; height:6px; border-radius:50%; background:#aaa;"></div>
+            <span id="statusText" style="font-size:9px; font-weight:600; letter-spacing:0.5px;">CONNECTING</span>
+        </div>
+        <div class="ag-header-title" id="chatTitle">Antigravity Link</div>
+        <div class="ag-header-actions">
+            <button class="ag-header-btn" title="New Chat">
+                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round">
+                    <line x1="12" y1="5" x2="12" y2="19"></line>
+                    <line x1="5" y1="12" x2="19" y2="12"></line>
+                </svg>
+            </button>
+            <button class="ag-header-btn" id="instancesBtn" title="Instances">
+                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round">
+                    <circle cx="12" cy="12" r="1"></circle>
+                    <path d="M20 12a8 8 0 1 0-16 0 8 8 0 0 0 16 0Z"></path>
+                    <path d="M12 2v2"></path>
+                    <path d="M12 20v2"></path>
+                    <path d="m4.93 4.93 1.41 1.41"></path>
+                    <path d="m17.66 17.66 1.41 1.41"></path>
+                    <path d="M2 12h2"></path>
+                    <path d="M20 12h2"></path>
+                    <path d="m6.34 17.66-1.41 1.41"></path>
+                    <path d="m19.07 4.93-1.41 1.41"></path>
+                </svg>
+            </button>
+            <button class="ag-header-btn" title="More">
+                <svg viewBox="0 0 24 24" fill="currentColor">
+                    <circle cx="12" cy="5" r="1.5"></circle>
+                    <circle cx="12" cy="12" r="1.5"></circle>
+                    <circle cx="12" cy="19" r="1.5"></circle>
+                </svg>
+            </button>
+        </div>
+    </div>
+
     <div class="chat-container" id="chatContainer">
         <div class="chat-content" id="chatContent">
             <div class="loading">
@@ -412,60 +594,95 @@
         </div>
     </div>
 
-    <!-- Top Navigation -->
-    <div id="connectivityBadge">
-        <div id="statusDot" style="width:8px; height:8px; border-radius:50%; background:#aaa;"></div>
-        <span id="statusText">CONNECTING</span>
-    </div>
-    <button class="fab-top-right" id="instancesBtn">🖥️</button>
+    <!-- Floating Scroll FAB -->
+    <button class="fab" id="scrollToBottom">↓</button>
 
-    <!-- Unified Bottom Dock -->
+    <!-- Antigravity Bottom Dock -->
     <div class="bottom-dock">
-        <!-- Floating Scroll FAB -->
-        <button class="fab" id="scrollToBottom">↓</button>
-
-        <!-- Top Layer: Scrapers (Mode, Model) -->
-        <div class="dock-controls" id="nativeStatusBar">
-            <div id="modeChip" class="control-chip">
-                <span class="label">MODE</span>
-                <span id="modeVal">...</span>
+        <!-- Layer 1: Tool Icons -->
+        <div class="dock-tools-row">
+            <div class="dock-tools-left">
+                <button id="uploadBtn" class="tool-btn" title="Attach File">
+                    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round">
+                        <path d="M13 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V9Z"></path>
+                        <polyline points="13 2 13 9 20 9"></polyline>
+                    </svg>
+                </button>
+                <button class="tool-btn" title="Copy">
+                    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round">
+                        <rect x="9" y="9" width="13" height="13" rx="2" ry="2"></rect>
+                        <path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"></path>
+                    </svg>
+                </button>
+                <button class="tool-btn" title="Terminal">
+                    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round">
+                        <polyline points="4 17 10 11 4 5"></polyline>
+                        <line x1="12" y1="19" x2="20" y2="19"></line>
+                    </svg>
+                </button>
+                <button class="tool-btn" title="Settings">
+                    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round">
+                        <circle cx="12" cy="12" r="10"></circle>
+                        <line x1="2" y1="12" x2="22" y2="12"></line>
+                        <path
+                            d="M12 2a15.3 15.3 0 0 1 4 10 15.3 15.3 0 0 1-4 10 15.3 15.3 0 0 1-4-10 15.3 15.3 0 0 1 4-10z">
+                        </path>
+                    </svg>
+                </button>
             </div>
-            <div id="modelChip" class="control-chip">
-                <span class="label">MODEL</span>
-                <span id="modelVal">...</span>
+            <div class="dock-tools-right">
+                <button class="review-btn" title="Review Changes">
+                    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round">
+                        <path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"></path>
+                        <polyline points="14 2 14 8 20 8"></polyline>
+                        <line x1="12" y1="18" x2="12" y2="12"></line>
+                        <line x1="9" y1="15" x2="15" y2="15"></line>
+                    </svg>
+                    <span>Review Changes</span>
+                </button>
             </div>
         </div>
 
-        <!-- Bottom Layer: Messaging -->
+        <!-- Layer 2: Input Field -->
         <div class="dock-input-row">
-            <div class="action-stack">
-                <button id="uploadBtn" class="action-btn" title="Upload File">
-                    <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"
-                        stroke-linecap="round" stroke-linejoin="round">
-                        <path
-                            d="m21.44 11.05-9.19 9.19a6 6 0 0 1-8.49-8.49l8.57-8.57A4 4 0 1 1 18 8.84l-8.59 8.51a2 2 0 0 1-2.83-2.83l8.49-8.48" />
-                    </svg>
-                </button>
-                <button id="micBtn" class="action-btn" title="Speech to Text">
-                    <svg id="micIcon" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor"
-                        stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round">
-                        <path d="M12 2a3 3 0 0 0-3 3v7a3 3 0 0 0 6 0V5a3 3 0 0 0-3-3Z" />
-                        <path d="M19 10v2a7 7 0 0 1-14 0v-2" />
-                        <line x1="12" y1="19" x2="12" y2="22" />
-                    </svg>
-                </button>
-            </div>
-            <div class="input-bubble">
+            <div class="input-area">
                 <input type="file" id="fileInput" style="display:none">
-                <textarea id="messageInput" placeholder="Message Antigravity..." rows="1"></textarea>
+                <textarea id="messageInput" placeholder="Ask anything, @ to mention, / for workflows"
+                    rows="1"></textarea>
             </div>
-            <button id="sendBtn">
-                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3" stroke-linecap="round"
-                    stroke-linejoin="round">
-                    <line x1="22" y1="2" x2="11" y2="13"></line>
-                    <polygon points="22 2 15 22 11 13 2 9 22 2"></polygon>
-                </svg>
-            </button>
+        </div>
+
+        <!-- Layer 3: Mode / Model Selector -->
+        <div class="dock-selector-row">
+            <div class="dock-selector-left">
+                <button class="add-btn" title="Add context">+</button>
+                <button id="modeChip" class="selector-chip">
+                    <span class="chevron">∧</span>
+                    <span id="modeVal">Fast</span>
+                </button>
+                <button id="modelChip" class="selector-chip">
+                    <span class="chevron">∧</span>
+                    <span id="modelVal">Claude Opus 4.6 (Thinking)</span>
+                </button>
+            </div>
+            <div class="dock-selector-right">
+                <button id="micBtn" class="mic-btn" title="Voice Input">
+                    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round">
+                        <path d="M12 2a3 3 0 0 0-3 3v7a3 3 0 0 0 6 0V5a3 3 0 0 0-3-3Z"></path>
+                        <path d="M19 10v2a7 7 0 0 1-14 0v-2"></path>
+                        <line x1="12" y1="19" x2="12" y2="22"></line>
+                    </svg>
+                </button>
+                <button id="sendBtn" class="stop-btn" title="Send">
+                    <div class="stop-btn-inner"></div>
+                </button>
+            </div>
+        </div>
+
+        <!-- Hidden legacy controls for JS compatibility -->
+        <div class="dock-controls" id="nativeStatusBar" style="display:none">
+            <div class="control-chip"><span class="label">MODE</span><span></span></div>
+            <div class="control-chip"><span class="label">MODEL</span><span></span></div>
         </div>
     </div>
 
@@ -505,7 +722,7 @@
 
     <!-- Debug Log (Hidden) -->
     <div id="debugLog"
-        style="position:fixed; top:60px; left:16px; right:16px; max-height:200px; background:rgba(0,0,0,0.9); border-radius:12px; border:1px solid #444; color:#0f0; font-family:monospace; font-size:10px; padding:8px; overflow-y:auto; z-index:9000; display:none; pointer-events:none;">
+        style="position:fixed; top:48px; left:8px; right:8px; max-height:180px; background:rgba(0,0,0,0.95); border-radius:8px; border:1px solid #333; color:#0f0; font-family:monospace; font-size:9px; padding:6px; overflow-y:auto; z-index:9000; display:none; pointer-events:none;">
     </div>
 
     <script>
@@ -897,7 +1114,7 @@
             if (!message) return;
 
             sendBtn.disabled = true;
-            sendBtn.textContent = '...';
+            sendBtn.querySelector('.stop-btn-inner').style.opacity = '0.5';
 
             try {
                 const res = await fetch('/send', {
@@ -923,6 +1140,7 @@
                 messageInput.value = '';
                 autoResizeInput(); // Reset to min-height
                 sendBtn.disabled = false;
+                sendBtn.querySelector('.stop-btn-inner').style.opacity = '1';
             }
         }
 
