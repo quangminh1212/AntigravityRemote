@@ -1,7 +1,0 @@
-node_modules/
-uploads/
-test/
-.token
-*.log
-*.vsix
-.DS_Store

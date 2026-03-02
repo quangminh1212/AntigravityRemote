@@ -1,9 +1,0 @@
-.git/**
-.gitignore
-server.log
-.token
-*.json.bak
-targets*.json
-portscan*.json
-run.bat
-*.vsix
