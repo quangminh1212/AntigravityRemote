@@ -17,8 +17,7 @@
         "url": "https://github.com/xlab/antigravity-remote-extension"
     },
     "activationEvents": [
-        "onStartupFinished",
-        "onCommand:antigravity-remote.start"
+        "onStartupFinished"
     ],
     "main": "./out/extension.js",
     "contributes": {
