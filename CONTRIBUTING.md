@@ -1,6 +1,6 @@
 # Contributing
 
-Thanks for your interest in improving Antigravity Link. We welcome pull requests and issue reports.
+Thanks for your interest in improving Antigravity Remote. We welcome pull requests and issue reports.
 
 ## Quick start
 

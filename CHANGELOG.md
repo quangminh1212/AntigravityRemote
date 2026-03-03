@@ -20,7 +20,7 @@
 ## 1.0.8
 
 - Fix: Resolved `EROFS: read-only file system` error on macOS by moving SSL certificate storage to the extension directory.
-- Closes [#1](https://github.com/xlab/antigravity-link-extension/issues/1).
+- Closes [#1](https://github.com/xlab/antigravity-remote-extension/issues/1).
 
 
 - Add README badges and repository links.

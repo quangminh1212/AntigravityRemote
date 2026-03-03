@@ -11,30 +11,30 @@ let globalContext: vscode.ExtensionContext;
 
 export async function activate(context: vscode.ExtensionContext) {
     globalContext = context;
-    outputChannel = vscode.window.createOutputChannel("Antigravity Link");
-    outputChannel.appendLine("🚀 Antigravity Link: Activating...");
+    outputChannel = vscode.window.createOutputChannel("Antigravity Remote");
+    outputChannel.appendLine("🚀 Antigravity Remote: Activating...");
 
     // Status Bar Item
     statusBarItem = vscode.window.createStatusBarItem(vscode.StatusBarAlignment.Left, 100);
-    statusBarItem.command = "antigravity-link.showQR";
+    statusBarItem.command = "antigravity-remote.showQR";
     context.subscriptions.push(statusBarItem);
 
     // Register Commands
     context.subscriptions.push(
-        vscode.commands.registerCommand('antigravity-link.start', async () => {
+        vscode.commands.registerCommand('antigravity-remote.start', async () => {
             await startServer(context);
         }),
-        vscode.commands.registerCommand('antigravity-link.stop', async () => {
+        vscode.commands.registerCommand('antigravity-remote.stop', async () => {
             await stopServer();
         }),
-        vscode.commands.registerCommand('antigravity-link.showQR', async () => {
+        vscode.commands.registerCommand('antigravity-remote.showQR', async () => {
             await showQR();
         })
     );
 
-    // Check Auto-Start (Legacy feature)
-    const config = vscode.workspace.getConfiguration('antigravityLink');
-    if (config.get('autoStart', false)) {
+    // Auto-start server on activation
+    const config = vscode.workspace.getConfiguration('antigravityRemote');
+    if (config.get('autoStart', true)) {
         await startServer(context);
     } else {
         updateStatusBar(false);
@@ -43,11 +43,11 @@ export async function activate(context: vscode.ExtensionContext) {
 
 async function startServer(context: vscode.ExtensionContext) {
     if (server) {
-        vscode.window.showInformationMessage("Antigravity Link server is already running.");
+        vscode.window.showInformationMessage("Antigravity Remote server is already running.");
         return;
     }
 
-    const config = vscode.workspace.getConfiguration('antigravityLink');
+    const config = vscode.workspace.getConfiguration('antigravityRemote');
     const port = config.get<number>('port', 3000);
     const useHttps = config.get<boolean>('useHttps', true);
     const workspaceRoot = vscode.workspace.workspaceFolders?.[0]?.uri.fsPath;
@@ -76,14 +76,14 @@ async function startServer(context: vscode.ExtensionContext) {
     } catch (e) {
         server = null;
         outputChannel.appendLine(`❌ Failed to start server: ${e}`);
-        vscode.window.showErrorMessage(`Antigravity Link failed to start: ${e}`);
+        vscode.window.showErrorMessage(`Antigravity Remote failed to start: ${e}`);
         updateStatusBar(false);
     }
 }
 
 async function stopServer() {
     if (!server) {
-        vscode.window.showInformationMessage("Antigravity Link server is not running.");
+        vscode.window.showInformationMessage("Antigravity Remote server is not running.");
         return;
     }
 
@@ -91,7 +91,7 @@ async function stopServer() {
         server.stop();
         server = null;
         outputChannel.appendLine("🛑 Server stopped.");
-        vscode.window.showInformationMessage("Antigravity Link server stopped.");
+        vscode.window.showInformationMessage("Antigravity Remote server stopped.");
         updateStatusBar(false);
     } catch (e) {
         vscode.window.showErrorMessage(`Failed to stop server: ${e}`);
@@ -126,8 +126,8 @@ async function showQR() {
 
         // Create Webview Panel
         const panel = vscode.window.createWebviewPanel(
-            'antigravityLinkQR',
-            'Antigravity Link QR',
+            'antigravityRemoteQR',
+            'Antigravity Remote QR',
             vscode.ViewColumn.One,
             {}
         );
@@ -161,13 +161,13 @@ async function showQR() {
 
 function updateStatusBar(running: boolean, port?: number) {
     if (running) {
-        statusBarItem.text = `$(broadcast) Link: ${port}`;
-        statusBarItem.tooltip = "Antigravity Link Server Running - Click to Show QR";
+        statusBarItem.text = `$(broadcast) Remote: ${port}`;
+        statusBarItem.tooltip = "Antigravity Remote Server Running - Click to Show QR";
         statusBarItem.show();
     } else {
-        statusBarItem.text = `$(broadcast) Link: Off`;
-        statusBarItem.tooltip = "Antigravity Link Server Stopped - Click to Start";
-        statusBarItem.command = "antigravity-link.start";
+        statusBarItem.text = `$(broadcast) Remote: Off`;
+        statusBarItem.tooltip = "Antigravity Remote Server Stopped - Click to Start";
+        statusBarItem.command = "antigravity-remote.start";
         statusBarItem.show();
     }
 }

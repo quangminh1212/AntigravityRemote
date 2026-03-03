@@ -56,7 +56,7 @@ export async function discoverInstances(): Promise<CDPInfo[]> {
                 const lowerTitle = title.toLowerCase();
                 const lowerUrl = url.toLowerCase();
 
-                const isSelf = title === 'Antigravity Link' || title === 'Antigravity-Link';
+                const isSelf = title === 'Antigravity Remote' || title === 'Antigravity-Remote';
                 const isDevtools = lowerTitle.includes('devtools') || lowerUrl.includes('devtools');
                 const isWebview = lowerTitle.includes('vscode-webview') || lowerUrl.includes('vscode-webview');
                 const isServiceWorker = type === 'service_worker';

@@ -1,16 +1,16 @@
 NOTE:  Version 1.16.4 or 1.15.8 should work with this most recent version. You can download them here: https://antigravity.google/releases 
 Google keeps on introducing breaking changes that make developing for these recent targets a fool's errand at the moment.
 
-# Antigravity Link (VS Code Extension)
+# Antigravity Remote (VS Code Extension)
 
-[![Open VSX Version](https://img.shields.io/open-vsx/v/xlab/antigravity-link-extension)](https://open-vsx.org/extension/xlab/antigravity-link-extension)
-[![Open VSX Downloads](https://img.shields.io/open-vsx/dt/xlab/antigravity-link-extension)](https://open-vsx.org/extension/xlab/antigravity-link-extension)
-[![GitHub Stars](https://img.shields.io/github/stars/xlab/antigravity-link-extension)](https://github.com/xlab/antigravity-link-extension/stargazers)
+[![Open VSX Version](https://img.shields.io/open-vsx/v/xlab/antigravity-remote-extension)](https://open-vsx.org/extension/xlab/antigravity-remote-extension)
+[![Open VSX Downloads](https://img.shields.io/open-vsx/dt/xlab/antigravity-remote-extension)](https://open-vsx.org/extension/xlab/antigravity-remote-extension)
+[![GitHub Stars](https://img.shields.io/github/stars/xlab/antigravity-remote-extension)](https://github.com/xlab/antigravity-remote-extension/stargazers)
 [![License: MIT](https://img.shields.io/badge/license-MIT-blue.svg)](LICENSE)
 
-GitHub repo: https://github.com/xlab/antigravity-link-extension
+GitHub repo: https://github.com/xlab/antigravity-remote-extension
 
-Open VSX: https://open-vsx.org/extension/xlab/antigravity-link-extension
+Open VSX: https://open-vsx.org/extension/xlab/antigravity-remote-extension
 
 Bring your Antigravity sessions to your phone. Upload files, dictate prompts, and control multiple active Antigravity chats from a mobile-friendly interface.
 
@@ -31,9 +31,9 @@ Bring your Antigravity sessions to your phone. Upload files, dictate prompts, an
 
 | | | |
 | --- | --- | --- |
-| ![Demo 1](https://raw.githubusercontent.com/xlab/antigravity-link-extension/main/demo_photos/1769391120745-IMG_0857.png) | ![Demo 2](https://raw.githubusercontent.com/xlab/antigravity-link-extension/main/demo_photos/1769391144709-IMG_0856.png) | ![Demo 3](https://raw.githubusercontent.com/xlab/antigravity-link-extension/main/demo_photos/1769391155346-IMG_0855.png) |
-| ![Demo 4](https://raw.githubusercontent.com/xlab/antigravity-link-extension/main/demo_photos/1769391162186-IMG_0854.png) | ![Demo 5](https://raw.githubusercontent.com/xlab/antigravity-link-extension/main/demo_photos/1769391172827-IMG_0853.png) | ![Demo 6](https://raw.githubusercontent.com/xlab/antigravity-link-extension/main/demo_photos/1769391181215-IMG_0852.png) |
-| ![Demo 7](https://raw.githubusercontent.com/xlab/antigravity-link-extension/main/demo_photos/1769391189291-IMG_0851.png) | | |
+| ![Demo 1](https://raw.githubusercontent.com/xlab/antigravity-remote-extension/main/demo_photos/1769391120745-IMG_0857.png) | ![Demo 2](https://raw.githubusercontent.com/xlab/antigravity-remote-extension/main/demo_photos/1769391144709-IMG_0856.png) | ![Demo 3](https://raw.githubusercontent.com/xlab/antigravity-remote-extension/main/demo_photos/1769391155346-IMG_0855.png) |
+| ![Demo 4](https://raw.githubusercontent.com/xlab/antigravity-remote-extension/main/demo_photos/1769391162186-IMG_0854.png) | ![Demo 5](https://raw.githubusercontent.com/xlab/antigravity-remote-extension/main/demo_photos/1769391172827-IMG_0853.png) | ![Demo 6](https://raw.githubusercontent.com/xlab/antigravity-remote-extension/main/demo_photos/1769391181215-IMG_0852.png) |
+| ![Demo 7](https://raw.githubusercontent.com/xlab/antigravity-remote-extension/main/demo_photos/1769391189291-IMG_0851.png) | | |
 
 ## Quick start
 
@@ -46,10 +46,10 @@ Example (Windows, Start Menu shortcut path):
 Replace `<username>` with your Windows username. Multiple Antigravity sessions are supported, but every window must be launched with this command.
 
 2) In VS Code, run:
-`Antigravity Link: Start Server`
+`Antigravity Remote: Start Server`
 
 3) Then run:
-`Antigravity Link: Show QR Code`
+`Antigravity Remote: Show QR Code`
 
 4) Scan the QR code with your phone. Your mobile UI is ready.
 
@@ -59,17 +59,17 @@ Replace `<username>` with your Windows username. Multiple Antigravity sessions a
 
 | Command | Description |
 | --- | --- |
-| Antigravity Link: Start Server | Starts the local bridge server. |
-| Antigravity Link: Stop Server | Stops the server. |
-| Antigravity Link: Show QR Code | Displays the connection QR code. |
+| Antigravity Remote: Start Server | Starts the local bridge server. |
+| Antigravity Remote: Stop Server | Stops the server. |
+| Antigravity Remote: Show QR Code | Displays the connection QR code. |
 
 ## Settings
 
 | Setting | Default | Description |
 | --- | --- | --- |
-| `antigravityLink.port` | `3000` | Port for the local bridge server. |
-| `antigravityLink.autoStart` | `false` | Start the server on VS Code launch. |
-| `antigravityLink.useHttps` | `true` | Serve over HTTPS for mic access. |
+| `antigravityRemote.port` | `3000` | Port for the local bridge server. |
+| `antigravityRemote.autoStart` | `false` | Start the server on VS Code launch. |
+| `antigravityRemote.useHttps` | `true` | Serve over HTTPS for mic access. |
 
 ## Standalone vs workspace assets
 

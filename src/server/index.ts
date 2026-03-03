@@ -111,7 +111,7 @@ export class AntigravityServer {
         const url = (target.url || '').toLowerCase();
         let score = 0;
         if (url.includes('workbench') || url.includes('jetski')) score += 6;
-        if (title.includes('antigravity-link')) score += 6;
+        if (title.includes('antigravity-remote')) score += 6;
         if (title.includes('launchpad')) score += 2; // lower priority than chat
         if (title.includes('antigravity')) score += 2;
         if (title.includes('auth.ts')) score -= 6;
@@ -470,7 +470,7 @@ export class AntigravityServer {
                         cert = fs.readFileSync(certPath);
                         key = fs.readFileSync(keyPath);
                     } else {
-                        const attrs = [{ name: 'commonName', value: 'Antigravity Link Extension' }];
+                        const attrs = [{ name: 'commonName', value: 'Antigravity Remote Extension' }];
                         // @ts-ignore
                         const pems = await selfsigned.generate(attrs, { days: 365 });
                         cert = pems.cert;

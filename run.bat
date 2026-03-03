@@ -2,11 +2,11 @@
 chcp 65001 >nul 2>&1
 setlocal enabledelayedexpansion
 
-title Antigravity Link - Build ^& Launch
+title Antigravity Remote - Build ^& Launch
 cd /d "%~dp0"
 
 echo ============================================
-echo   Antigravity Link - Auto Build ^& Launch
+echo   Antigravity Remote - Auto Build ^& Launch
 echo ============================================
 echo.
 

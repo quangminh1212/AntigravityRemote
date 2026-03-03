@@ -1,7 +1,7 @@
 {
-    "name": "antigravity-link-extension",
-    "displayName": "Antigravity Link",
-    "description": "Mobile upload and voice-to-text bridge for Antigravity",
+    "name": "antigravity-remote-extension",
+    "displayName": "Antigravity Remote",
+    "description": "Mobile remote control bridge for Antigravity",
     "icon": "icon.png",
     "version": "1.0.11",
     "license": "MIT",
@@ -14,45 +14,45 @@
     "publisher": "xlab",
     "repository": {
         "type": "git",
-        "url": "https://github.com/xlab/antigravity-link-extension"
+        "url": "https://github.com/xlab/antigravity-remote-extension"
     },
     "activationEvents": [
         "onStartupFinished",
-        "onCommand:antigravity-link.start"
+        "onCommand:antigravity-remote.start"
     ],
     "main": "./out/extension.js",
     "contributes": {
         "commands": [
             {
-                "command": "antigravity-link.start",
+                "command": "antigravity-remote.start",
                 "title": "Start Server",
-                "category": "Antigravity Link"
+                "category": "Antigravity Remote"
             },
             {
-                "command": "antigravity-link.stop",
+                "command": "antigravity-remote.stop",
                 "title": "Stop Server",
-                "category": "Antigravity Link"
+                "category": "Antigravity Remote"
             },
             {
-                "command": "antigravity-link.showQR",
+                "command": "antigravity-remote.showQR",
                 "title": "Show QR Code",
-                "category": "Antigravity Link"
+                "category": "Antigravity Remote"
             }
         ],
         "configuration": {
-            "title": "Antigravity Link",
+            "title": "Antigravity Remote",
             "properties": {
-                "antigravityLink.port": {
+                "antigravityRemote.port": {
                     "type": "number",
                     "default": 3000,
                     "description": "Port for the local upload server"
                 },
-                "antigravityLink.autoStart": {
+                "antigravityRemote.autoStart": {
                     "type": "boolean",
                     "default": false,
-                    "description": "Start Antigravity Link automatically when VS Code launches"
+                    "description": "Start Antigravity Remote automatically when VS Code launches"
                 },
-                "antigravityLink.useHttps": {
+                "antigravityRemote.useHttps": {
                     "type": "boolean",
                     "default": true,
                     "description": "Serve the mobile bridge over HTTPS with a self-signed certificate"
