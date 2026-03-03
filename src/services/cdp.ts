@@ -40,11 +40,48 @@ function getJson<T>(url: string, timeout = HTTP_TIMEOUT): Promise<T> {
     });
 }
 
+// Try to get Electron BrowserWindow webContents debugger URLs (works inside Antigravity without --remote-debugging-port)
+function discoverElectronTargets(): CDPInfo[] {
+    const results: CDPInfo[] = [];
+    try {
+        // Extension runs inside Electron, so we can access the electron module
+        const electron = require('electron');
+        const remote = electron.remote || (electron as any);
+        const BrowserWindow = remote?.BrowserWindow;
+        if (BrowserWindow && typeof BrowserWindow.getAllWindows === 'function') {
+            const windows = BrowserWindow.getAllWindows();
+            for (const win of windows) {
+                try {
+                    const wc = win.webContents;
+                    if (!wc) continue;
+                    const title = wc.getTitle() || '';
+                    const url = wc.getURL() || '';
+                    // Enable debugger if not already
+                    if (!wc.debugger.isAttached()) {
+                        wc.debugger.attach('1.3');
+                    }
+                    const debuggerUrl = `ws://127.0.0.1:0/devtools/page/${wc.id}`;
+                    results.push({
+                        id: `electron-${wc.id}`,
+                        port: 0,
+                        url: debuggerUrl,
+                        title: title || `Electron Window ${wc.id}`
+                    });
+                } catch { }
+            }
+        }
+    } catch {
+        // Electron API not available (running outside Electron)
+    }
+    return results;
+}
+
 // Find all Antigravity CDP endpoints (with logging to aid target selection)
 export async function discoverInstances(): Promise<CDPInfo[]> {
     const allInstances: CDPInfo[] = [];
     const seen = new Set<string>();
 
+    // 1. Standard CDP port scanning
     for (const port of PORTS) {
         try {
             const list = await getJson<CDPTarget[]>(`http://127.0.0.1:${port}/json/list`);
@@ -56,16 +93,18 @@ export async function discoverInstances(): Promise<CDPInfo[]> {
                 const lowerTitle = title.toLowerCase();
                 const lowerUrl = url.toLowerCase();
 
-                const isSelf = title === 'Antigravity Remote' || title === 'Antigravity-Remote';
+                const isSelf = title === 'Antigravity Remote' || title === 'Antigravity-Remote'
+                    || title === 'Antigravity Link' || title === 'Antigravity-Link';
                 const isDevtools = lowerTitle.includes('devtools') || lowerUrl.includes('devtools');
                 const isWebview = lowerTitle.includes('vscode-webview') || lowerUrl.includes('vscode-webview');
                 const isServiceWorker = type === 'service_worker';
                 const isLaunchpad = lowerTitle.includes('launchpad');
                 const isBlank = title.trim().length === 0 || lowerTitle.startsWith('instance :');
+                const isChrome = lowerUrl.startsWith('chrome://');
                 const looksChat = lowerTitle.includes('antigravity') || lowerUrl.includes('workbench') || lowerUrl.includes('jetski');
 
                 // Keep Antigravity chat/auth/QR pages; skip launchpad/webview/devtools/no-name
-                if (isSelf || isDevtools || isWebview || isServiceWorker || isLaunchpad || isBlank || !looksChat) continue;
+                if (isSelf || isDevtools || isWebview || isServiceWorker || isLaunchpad || isBlank || isChrome || !looksChat) continue;
 
                 if (!t.webSocketDebuggerUrl) continue;
 
@@ -83,6 +122,61 @@ export async function discoverInstances(): Promise<CDPInfo[]> {
         } catch (err) {
             // ignore ports that aren't serving CDP
         }
+    }
+
+    // 2. Dynamic port discovery: scan Antigravity process ports
+    if (allInstances.length === 0) {
+        try {
+            const { execSync } = require('child_process');
+            const netstat = execSync('netstat -ano', { encoding: 'utf8', timeout: 5000 });
+            const antigravityPids = new Set<string>();
+
+            // Find Antigravity PIDs
+            const tasklist = execSync('tasklist /FI "IMAGENAME eq Antigravity.exe" /FO CSV /NH', { encoding: 'utf8', timeout: 5000 });
+            for (const line of tasklist.split('\n')) {
+                const match = line.match(/"Antigravity\.exe","(\d+)"/);
+                if (match) antigravityPids.add(match[1]);
+            }
+
+            // Find listening ports owned by Antigravity
+            const dynamicPorts: number[] = [];
+            for (const line of netstat.split('\n')) {
+                if (!line.includes('LISTENING')) continue;
+                const match = line.match(/127\.0\.0\.1:(\d+)\s+.*LISTENING\s+(\d+)/);
+                if (match && antigravityPids.has(match[2])) {
+                    const port = parseInt(match[1]);
+                    if (!PORTS.includes(port) && port > 1024) {
+                        dynamicPorts.push(port);
+                    }
+                }
+            }
+
+            // Try CDP on dynamic ports
+            for (const port of dynamicPorts) {
+                try {
+                    const list = await getJson<CDPTarget[]>(`http://127.0.0.1:${port}/json/list`, 1000);
+                    for (const t of list) {
+                        if (!t.webSocketDebuggerUrl) continue;
+                        const title = t.title || '';
+                        const url = t.url || '';
+                        const type = (t as any).type || '';
+                        if (type === 'service_worker') continue;
+                        if (url.startsWith('chrome://')) continue;
+
+                        const dedupeKey = t.webSocketDebuggerUrl.toLowerCase();
+                        if (seen.has(dedupeKey)) continue;
+                        seen.add(dedupeKey);
+
+                        allInstances.push({
+                            id: t.id || `${port}-${title}`,
+                            port,
+                            url: t.webSocketDebuggerUrl,
+                            title: title || `Dynamic :${port}`
+                        });
+                    }
+                } catch { }
+            }
+        } catch { }
     }
 
     return allInstances;
