@@ -23,7 +23,7 @@ if not exist "node_modules" (
 )
 
 :: Parse arguments
-set CDP_PORT=9222
+set CDP_PORT=9333
 set PORT=3000
 set AUTO_LAUNCH=1
 

@@ -697,7 +697,7 @@
       </div>
       <div class="connect-hint">
         Đảm bảo Antigravity đang chạy với<br>
-        <code>--remote-debugging-port=9222</code>
+        <code>--remote-debugging-port=9333</code>
       </div>
     </div>
 
@@ -939,7 +939,7 @@
         btn.disabled = false;
         btn.innerHTML = '<span class="material-icons-round">link</span> Kết nối';
         if (!state.connected) {
-          connectError$.textContent = 'Không thể kết nối. Hãy kiểm tra Antigravity đã chạy với --remote-debugging-port=9222';
+          connectError$.textContent = 'Không thể kết nối. Hãy kiểm tra Antigravity đã chạy với --remote-debugging-port=9333';
           connectError$.classList.add('visible');
         }
       }, 5000);

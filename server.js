@@ -9,9 +9,31 @@ const fs = require('fs');
 const { execFile } = require('child_process');
 
 // ─── Configuration ────────────────────────────────────────────
+function detectCdpPort() {
+    // User specified via env
+    if (process.env.CDP_PORT) return parseInt(process.env.CDP_PORT);
+
+    // Auto-detect from Antigravity's DevToolsActivePort file
+    const dtapPaths = [
+        path.join(process.env.APPDATA || '', 'Antigravity', 'DevToolsActivePort'),
+        path.join(process.env.APPDATA || '', 'Windsurf', 'DevToolsActivePort'),
+    ];
+    for (const dtap of dtapPaths) {
+        try {
+            const content = fs.readFileSync(dtap, 'utf8').trim();
+            const port = parseInt(content.split('\n')[0].trim());
+            if (port > 0 && port < 65536) {
+                console.log(`[AUTO-DETECT] Found Antigravity CDP port: ${port} (from ${dtap})`);
+                return port;
+            }
+        } catch (_) { /* file not found - skip */ }
+    }
+    return 9333; // fallback
+}
+
 const CONFIG = {
     port: parseInt(process.env.PORT || '3000'),
-    cdpPort: parseInt(process.env.CDP_PORT || '9222'),
+    cdpPort: detectCdpPort(),
     cdpHost: process.env.CDP_HOST || 'localhost',
     screenshotQuality: parseInt(process.env.QUALITY || '60'),
     maxFPS: parseInt(process.env.MAX_FPS || '15'),
