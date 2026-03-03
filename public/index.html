@@ -994,6 +994,8 @@
         let pendingMessage = null; // Track message waiting for visual confirmation
         let initialScrollDone = false;
         let authToken = localStorage.getItem('ag_auth_token') || '';
+        let snapshotReceived = false;
+        let noSnapshotTimer = null;
 
         // Check URL for token immediately (QR code login)
         const urlParams = new URLSearchParams(window.location.search);
@@ -1246,10 +1248,12 @@
         }
 
         let pollingInterval = null;
+        let http503Count = 0;
         function startHttpPolling() {
             if (pollingInterval) return;
             logToScreen('Switching to HTTP Polling Mode', '#fbbf24');
             updateConnectionUI('http');
+            http503Count = 0;
 
             const poll = async () => {
                 try {
@@ -1265,9 +1269,16 @@
                         return;
                     }
                     if (res.ok) {
+                        http503Count = 0;
+                        snapshotReceived = true;
                         const data = await res.json();
                         renderSnapshot(data);
                         updateControls(data.controlsHtml || data.html);
+                    } else if (res.status === 503) {
+                        http503Count++;
+                        if (http503Count >= 4) {
+                            showNoSnapshotError();
+                        }
                     }
                 } catch (e) {
                     logToScreen(`HTTP Poll Fail: ${e.message}`, '#f87171');
@@ -1276,6 +1287,21 @@
 
             poll();
             pollingInterval = setInterval(poll, 3000);
+        }
+
+        function showNoSnapshotError() {
+            if (snapshotReceived) return; // Already got a snapshot, don't overwrite
+            chatContent.innerHTML = `
+                <div style="display:flex;flex-direction:column;align-items:center;justify-content:center;padding:40px 20px;color:var(--text-muted);text-align:center;">
+                    <div style="font-size:36px;margin-bottom:16px;">⚠️</div>
+                    <div style="font-size:14px;font-weight:600;color:var(--text-main);margin-bottom:8px;">Cannot capture Antigravity UI</div>
+                    <div style="font-size:12px;line-height:1.6;max-width:300px;margin-bottom:16px;">
+                        Antigravity needs to run with <code style="background:rgba(255,255,255,0.1);padding:2px 6px;border-radius:4px;">--remote-debugging-port=9222</code> for the remote bridge to capture the UI.
+                    </div>
+                    <div style="font-size:11px;opacity:0.7;margin-bottom:20px;">Server is running but no CDP target was found.</div>
+                    <button onclick="location.reload()" style="padding:8px 20px;background:var(--accent);border:none;border-radius:6px;color:#fff;font-size:13px;cursor:pointer;">Retry</button>
+                </div>
+            `;
         }
 
         // WebSocket connection
@@ -1324,12 +1350,22 @@
                 }
 
                 ws.send(JSON.stringify({ type: 'request_snapshot' }));
+
+                // Timeout: if no snapshot after 10s, show helpful error
+                if (noSnapshotTimer) clearTimeout(noSnapshotTimer);
+                noSnapshotTimer = setTimeout(() => {
+                    if (!snapshotReceived) {
+                        showNoSnapshotError();
+                    }
+                }, 10000);
             };
 
             ws.onmessage = (event) => {
                 try {
                     const msg = JSON.parse(event.data);
                     if (msg.type === 'snapshot' && msg.data) {
+                        snapshotReceived = true;
+                        if (noSnapshotTimer) { clearTimeout(noSnapshotTimer); noSnapshotTimer = null; }
                         if (!userIsScrolling) {
                             renderSnapshot(msg.data);
                             updateControls(msg.data.controlsHtml || msg.data.html);
