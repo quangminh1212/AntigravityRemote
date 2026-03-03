@@ -93,18 +93,12 @@ export async function discoverInstances(): Promise<CDPInfo[]> {
                 const lowerTitle = title.toLowerCase();
                 const lowerUrl = url.toLowerCase();
 
-                const isSelf = title === 'Antigravity Remote' || title === 'Antigravity-Remote'
-                    || title === 'Antigravity Link' || title === 'Antigravity-Link';
-                const isDevtools = lowerTitle.includes('devtools') || lowerUrl.includes('devtools');
-                const isWebview = lowerTitle.includes('vscode-webview') || lowerUrl.includes('vscode-webview');
+                // Skip non-page targets
                 const isServiceWorker = type === 'service_worker';
-                const isLaunchpad = lowerTitle.includes('launchpad');
-                const isBlank = title.trim().length === 0 || lowerTitle.startsWith('instance :');
                 const isChrome = lowerUrl.startsWith('chrome://');
-                const looksChat = lowerTitle.includes('antigravity') || lowerUrl.includes('workbench') || lowerUrl.includes('jetski');
-
-                // Keep Antigravity chat/auth/QR pages; skip launchpad/webview/devtools/no-name
-                if (isSelf || isDevtools || isWebview || isServiceWorker || isLaunchpad || isBlank || isChrome || !looksChat) continue;
+                const isDevtools = lowerTitle.includes('devtools') || lowerUrl.includes('devtools');
+                const isBlank = title.trim().length === 0;
+                if (isServiceWorker || isChrome || isDevtools || isBlank) continue;
 
                 if (!t.webSocketDebuggerUrl) continue;
 
