@@ -1,8 +1,9 @@
 <!DOCTYPE html>
 <html lang="vi">
+
 <head>
   <meta charset="UTF-8">
-  <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <meta name="apple-mobile-web-app-capable" content="yes">
   <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
   <meta name="mobile-web-app-capable" content="yes">
@@ -14,8 +15,14 @@
   <link href="https://fonts.googleapis.com/icon?family=Material+Icons+Round" rel="stylesheet">
   <style>
     /* ─── Reset & Base ─────────────────────────────── */
-    *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
-    
+    *,
+    *::before,
+    *::after {
+      box-sizing: border-box;
+      margin: 0;
+      padding: 0;
+    }
+
     :root {
       --bg-primary: #1e1e1e;
       --bg-secondary: #252526;
@@ -34,7 +41,7 @@
       --warning: #dcdcaa;
       --error: #f44747;
       --gradient-accent: linear-gradient(135deg, #0078d4 0%, #00b4d8 100%);
-      --shadow-lg: 0 8px 32px rgba(0,0,0,0.4);
+      --shadow-lg: 0 8px 32px rgba(0, 0, 0, 0.4);
       --shadow-glow: 0 0 20px var(--accent-glow);
       --radius: 12px;
       --radius-sm: 8px;
@@ -43,7 +50,8 @@
       --safe-area-bottom: env(safe-area-inset-bottom, 0px);
     }
 
-    html, body {
+    html,
+    body {
       height: 100%;
       overflow: hidden;
       font-family: 'Inter', -apple-system, BlinkMacSystemFont, sans-serif;
@@ -51,6 +59,7 @@
       color: var(--text-primary);
       -webkit-tap-highlight-color: transparent;
       -webkit-touch-callout: none;
+      -webkit-user-select: none;
       user-select: none;
     }
 
@@ -137,6 +146,7 @@
       background: var(--error);
       transition: background 0.3s;
     }
+
     .status-dot.connected {
       background: var(--success);
       box-shadow: 0 0 6px var(--success);
@@ -186,9 +196,20 @@
     }
 
     @keyframes touchPulse {
-      0% { transform: translate(-50%, -50%) scale(0); opacity: 1; }
-      50% { transform: translate(-50%, -50%) scale(1); opacity: 0.7; }
-      100% { transform: translate(-50%, -50%) scale(1.5); opacity: 0; }
+      0% {
+        transform: translate(-50%, -50%) scale(0);
+        opacity: 1;
+      }
+
+      50% {
+        transform: translate(-50%, -50%) scale(1);
+        opacity: 0.7;
+      }
+
+      100% {
+        transform: translate(-50%, -50%) scale(1.5);
+        opacity: 0;
+      }
     }
 
     /* ─── Control Bar ──────────────────────────────── */
@@ -272,8 +293,15 @@
     }
 
     @keyframes float {
-      0%, 100% { transform: translateY(0); }
-      50% { transform: translateY(-8px); }
+
+      0%,
+      100% {
+        transform: translateY(0);
+      }
+
+      50% {
+        transform: translateY(-8px);
+      }
     }
 
     .connect-title {
@@ -362,14 +390,16 @@
     .connect-btn .spinner {
       width: 18px;
       height: 18px;
-      border: 2px solid rgba(255,255,255,0.3);
+      border: 2px solid rgba(255, 255, 255, 0.3);
       border-top-color: white;
       border-radius: 50%;
       animation: spin 0.8s linear infinite;
     }
 
     @keyframes spin {
-      to { transform: rotate(360deg); }
+      to {
+        transform: rotate(360deg);
+      }
     }
 
     .connect-error {
@@ -457,12 +487,10 @@
     .loading-shimmer {
       position: absolute;
       inset: 0;
-      background: linear-gradient(
-        90deg,
-        transparent 0%,
-        rgba(0,120,212,0.1) 50%,
-        transparent 100%
-      );
+      background: linear-gradient(90deg,
+          transparent 0%,
+          rgba(0, 120, 212, 0.1) 50%,
+          transparent 100%);
       background-size: 200% 100%;
       animation: shimmer 2s infinite;
       pointer-events: none;
@@ -475,8 +503,13 @@
     }
 
     @keyframes shimmer {
-      0% { background-position: 200% 0; }
-      100% { background-position: -200% 0; }
+      0% {
+        background-position: 200% 0;
+      }
+
+      100% {
+        background-position: -200% 0;
+      }
     }
 
     /* ─── Toast Notification ───────────────────────── */
@@ -530,7 +563,7 @@
     .settings-backdrop {
       position: absolute;
       inset: 0;
-      background: rgba(0,0,0,0.5);
+      background: rgba(0, 0, 0, 0.5);
       z-index: 55;
       opacity: 0;
       visibility: hidden;
@@ -576,8 +609,16 @@
       font-size: 13px;
       outline: none;
     }
+
+    .btn-reconnect {
+      height: 36px;
+      width: auto;
+      padding: 0 16px;
+      font-size: 13px;
+    }
   </style>
 </head>
+
 <body>
   <div id="app">
     <!-- Header -->
@@ -631,7 +672,8 @@
 
     <!-- Keyboard Overlay -->
     <div class="keyboard-overlay" id="keyboardOverlay">
-      <input type="text" class="keyboard-input" id="keyboardInput" placeholder="Type here..." autocomplete="off" autocapitalize="off" autocorrect="off">
+      <input type="text" class="keyboard-input" id="keyboardInput" placeholder="Type here..." autocomplete="off"
+        autocapitalize="off" autocorrect="off">
       <button class="keyboard-send" id="keyboardSend">
         <span class="material-icons-round">send</span>
       </button>
@@ -665,11 +707,11 @@
       <div class="settings-title">Cài đặt</div>
       <div class="settings-item">
         <label>Chất lượng</label>
-        <input type="range" id="settingQuality" min="20" max="100" value="60">
+        <input type="range" id="settingQuality" min="20" max="100" value="60" title="Chất lượng hình ảnh">
       </div>
       <div class="settings-item">
         <label>FPS tối đa</label>
-        <select id="settingFPS">
+        <select id="settingFPS" title="FPS tối đa">
           <option value="5">5 FPS</option>
           <option value="10">10 FPS</option>
           <option value="15" selected>15 FPS</option>
@@ -679,7 +721,7 @@
       </div>
       <div class="settings-item">
         <label>Reconnect</label>
-        <button class="connect-btn" id="btnReconnect" style="height:36px;width:auto;padding:0 16px;font-size:13px;">
+        <button class="connect-btn btn-reconnect" id="btnReconnect">
           Kết nối lại
         </button>
       </div>
@@ -728,14 +770,14 @@
     function connectWS() {
       const proto = location.protocol === 'https:' ? 'wss' : 'ws';
       const url = `${proto}://${location.host}/ws`;
-      
+
       state.ws = new WebSocket(url);
-      
+
       state.ws.onopen = () => {
         console.log('WebSocket connected');
         showToast('Đã kết nối WebSocket');
       };
-      
+
       state.ws.onmessage = (e) => {
         try {
           const msg = JSON.parse(e.data);
@@ -744,7 +786,7 @@
           console.error('WS parse error:', err);
         }
       };
-      
+
       state.ws.onclose = () => {
         console.log('WebSocket closed');
         state.connected = false;
@@ -752,7 +794,7 @@
         // Auto-reconnect after 3s
         setTimeout(connectWS, 3000);
       };
-      
+
       state.ws.onerror = (err) => {
         console.error('WebSocket error:', err);
       };
@@ -776,7 +818,7 @@
             showToast('✓ Đã kết nối Antigravity');
           }
           break;
-          
+
         case 'frame':
           screen$.src = 'data:image/jpeg;base64,' + msg.data;
           loadingShimmer$.classList.remove('active');
@@ -787,11 +829,11 @@
     // ─── UI Update ──────────────────────────────────
     function updateUI() {
       statusDot$.classList.toggle('connected', state.connected);
-      
+
       if (!state.connected) {
         connectScreen$.classList.remove('hidden');
       }
-      
+
       const streamBtn = $('btnStream');
       streamBtn.classList.toggle('active', state.streaming);
     }
@@ -800,14 +842,14 @@
     function getRemoteCoords(clientX, clientY) {
       const rect = screen$.getBoundingClientRect();
       if (rect.width === 0 || rect.height === 0) return null;
-      
+
       // Map screen coordinates to Antigravity viewport
       const scaleX = state.viewport.width / rect.width;
       const scaleY = state.viewport.height / rect.height;
-      
+
       const x = (clientX - rect.left) * scaleX;
       const y = (clientY - rect.top) * scaleY;
-      
+
       return { x, y };
     }
 
@@ -831,7 +873,7 @@
       touchStart = { x: touch.clientX, y: touch.clientY };
       touchStartTime = Date.now();
       lastTouchMove = null;
-      
+
       const coords = getRemoteCoords(touch.clientX, touch.clientY);
       if (coords) {
         send({ type: 'mousedown', x: coords.x, y: coords.y });
@@ -842,11 +884,11 @@
       e.preventDefault();
       const touch = e.touches[0];
       lastTouchMove = { x: touch.clientX, y: touch.clientY };
-      
+
       if (touchStart) {
         const dx = touch.clientX - touchStart.x;
         const dy = touch.clientY - touchStart.y;
-        
+
         // Scroll if moved significantly
         if (Math.abs(dx) > 10 || Math.abs(dy) > 10) {
           const coords = getRemoteCoords(touch.clientX, touch.clientY);
@@ -862,10 +904,10 @@
       e.preventDefault();
       const duration = Date.now() - touchStartTime;
       const finalPos = lastTouchMove || touchStart;
-      
+
       if (finalPos) {
         const coords = getRemoteCoords(finalPos.x, finalPos.y);
-        
+
         if (duration < 300 && !lastTouchMove) {
           // Tap = click
           if (coords) {
@@ -879,7 +921,7 @@
           }
         }
       }
-      
+
       touchStart = null;
       lastTouchMove = null;
     }, { passive: false });
@@ -889,10 +931,10 @@
       const btn = $('btnConnect');
       btn.disabled = true;
       btn.innerHTML = '<div class="spinner"></div> Đang kết nối...';
-      
+
       send({ type: 'connect' });
       loadingShimmer$.classList.add('active');
-      
+
       setTimeout(() => {
         btn.disabled = false;
         btn.innerHTML = '<span class="material-icons-round">link</span> Kết nối';
@@ -990,4 +1032,5 @@
     connectWS();
   </script>
 </body>
+
 </html>

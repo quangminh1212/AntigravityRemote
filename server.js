@@ -6,6 +6,7 @@ const QRCode = require('qrcode');
 const os = require('os');
 const path = require('path');
 const fs = require('fs');
+const { execFile } = require('child_process');
 
 // ─── Configuration ────────────────────────────────────────────
 const CONFIG = {
@@ -41,23 +42,109 @@ let isConnected = false;
 let lastScreenshot = null;
 let screenshotInProgress = false;
 
+// ─── Antigravity Launcher ─────────────────────────────────────
+let antigravityProcess = null;
+
+async function findAntigravityPath() {
+    const possiblePaths = [
+        path.join(process.env.LOCALAPPDATA || '', 'Programs', 'Antigravity', 'Antigravity.exe'),
+        path.join(process.env.LOCALAPPDATA || '', 'Programs', 'Windsurf', 'Windsurf.exe'),
+        path.join(process.env.PROGRAMFILES || '', 'Antigravity', 'Antigravity.exe'),
+    ];
+    for (const p of possiblePaths) {
+        if (fs.existsSync(p)) return p;
+    }
+    return null;
+}
+
+async function launchAntigravity() {
+    const exePath = await findAntigravityPath();
+    if (!exePath) {
+        log('WARN', 'Antigravity executable not found');
+        return false;
+    }
+
+    log('INFO', `Launching Antigravity from: ${exePath}`);
+    try {
+        antigravityProcess = execFile(exePath, [
+            `--remote-debugging-port=${CONFIG.cdpPort}`,
+        ], { detached: true, stdio: 'ignore' });
+        antigravityProcess.unref();
+
+        // Wait for CDP to become available
+        for (let i = 0; i < 30; i++) {
+            await new Promise(r => setTimeout(r, 1000));
+            try {
+                await CDP.List({ host: CONFIG.cdpHost, port: CONFIG.cdpPort });
+                log('INFO', 'Antigravity CDP is ready');
+                return true;
+            } catch (_) {
+                log('INFO', `Waiting for CDP... (${i + 1}/30)`);
+            }
+        }
+        log('WARN', 'Timeout waiting for Antigravity CDP');
+        return false;
+    } catch (err) {
+        log('ERROR', 'Failed to launch Antigravity:', err.message);
+        return false;
+    }
+}
+
 async function findWorkbenchTarget() {
     try {
         const targets = await CDP.List({ host: CONFIG.cdpHost, port: CONFIG.cdpPort });
         log('INFO', `Found ${targets.length} CDP targets`);
 
-        // Priority: find target with 'workbench' or main page
+        // Priority scoring for targets
         let best = null;
+        let bestScore = -1;
+        const serverUrl = `localhost:${CONFIG.port}`;
+
         for (const t of targets) {
             log('INFO', `  Target: ${t.type} - ${t.title} - ${t.url}`);
-            if (t.type === 'page') {
-                if (t.url && t.url.includes('workbench')) {
-                    return t;
-                }
-                if (!best) best = t;
+            if (t.type !== 'page') continue;
+
+            let score = 0;
+
+            // Skip our own web server pages
+            if (t.url && t.url.includes(serverUrl)) {
+                log('INFO', `    ↳ Skipped (own server)`);
+                continue;
+            }
+
+            // Skip chrome:// internal pages
+            if (t.url && t.url.startsWith('chrome://')) {
+                log('INFO', `    ↳ Skipped (chrome internal)`);
+                continue;
+            }
+
+            // High priority: workbench pages (VS Code / Antigravity main UI)
+            if (t.url && (t.url.includes('workbench.html') || t.url.includes('workbench.desktop'))) {
+                score = 100;
+            }
+            // Medium priority: vscode-file protocol
+            else if (t.url && t.url.includes('vscode-file://')) {
+                score = 80;
+            }
+            // Medium: any page with cascade/antigravity in title
+            else if (t.title && /antigravity|cascade|agent/i.test(t.title)) {
+                score = 70;
+            }
+            // Lower priority: other pages
+            else {
+                score = 10;
+            }
+
+            if (score > bestScore) {
+                bestScore = score;
+                best = t;
             }
         }
-        return best || targets[0];
+
+        if (best) {
+            log('INFO', `  → Selected target (score=${bestScore}): ${best.title || best.url}`);
+        }
+        return best;
     } catch (err) {
         log('ERROR', 'Failed to list CDP targets:', err.message);
         return null;
@@ -67,10 +154,16 @@ async function findWorkbenchTarget() {
 async function connectCDP() {
     if (isConnected) return true;
 
+    // Disconnect old client if any
+    if (cdpClient) {
+        try { await cdpClient.close(); } catch (_) { }
+        cdpClient = null;
+    }
+
     try {
         const target = await findWorkbenchTarget();
         if (!target) {
-            log('WARN', 'No CDP target found');
+            log('WARN', 'No suitable CDP target found');
             return false;
         }
 
@@ -90,6 +183,8 @@ async function connectCDP() {
             log('WARN', 'CDP disconnected');
             isConnected = false;
             cdpClient = null;
+            // Auto-reconnect after 2 seconds
+            setTimeout(() => connectCDP(), 2000);
         });
 
         return true;
@@ -357,6 +452,34 @@ app.get('/api/qr', async (req, res) => {
         res.json({ url, qr });
     } catch (err) {
         res.status(500).json({ error: err.message });
+    }
+});
+
+app.post('/api/launch', async (req, res) => {
+    try {
+        const launched = await launchAntigravity();
+        if (launched) {
+            const connected = await connectCDP();
+            res.json({ success: true, connected });
+        } else {
+            res.json({ success: false, error: 'Failed to launch Antigravity' });
+        }
+    } catch (err) {
+        res.status(500).json({ error: err.message });
+    }
+});
+
+app.get('/api/targets', async (req, res) => {
+    try {
+        const targets = await CDP.List({ host: CONFIG.cdpHost, port: CONFIG.cdpPort });
+        res.json(targets.map(t => ({
+            id: t.id,
+            type: t.type,
+            title: t.title,
+            url: t.url,
+        })));
+    } catch (err) {
+        res.json([]);
     }
 });
 
