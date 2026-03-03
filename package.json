@@ -48,7 +48,7 @@
                 },
                 "antigravityRemote.autoStart": {
                     "type": "boolean",
-                    "default": false,
+                    "default": true,
                     "description": "Start Antigravity Remote automatically when VS Code launches"
                 },
                 "antigravityRemote.useHttps": {
