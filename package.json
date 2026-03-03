@@ -1,0 +1,16 @@
+{
+    "name": "antigravityhub",
+    "version": "1.0.0",
+    "description": "Mobile remote access for Antigravity via Chrome DevTools Protocol",
+    "main": "server.js",
+    "scripts": {
+        "start": "node server.js",
+        "dev": "node server.js"
+    },
+    "dependencies": {
+        "chrome-remote-interface": "^0.33.2",
+        "express": "^4.18.2",
+        "qrcode": "^1.5.3",
+        "ws": "^8.16.0"
+    }
+}
