@@ -6,6 +6,7 @@ import path from 'path';
 import os from 'os';
 import selfsigned from 'selfsigned';
 import { WebSocketServer, WebSocket } from 'ws';
+import { spawn, execSync } from 'child_process';
 import { discoverInstances, connectCDP } from '../services/cdp';
 import { injectFile, injectMessage, captureSnapshot, captureSnapshotDebug, clickElement } from '../services/antigravity';
 import { CDPConnection, Snapshot } from '../types';
@@ -16,6 +17,8 @@ import { securityMiddleware } from '../middleware/security';
 const MAX_UPLOAD_SIZE_MB = 50;
 const POLL_INTERVAL = 3000;
 const HTTP_TIMEOUT = 2000;
+const CDP_DEBUG_PORT = 9000;
+const CDP_LAUNCH_RETRY_INTERVAL = 30000; // 30s between auto-launch retries
 
 const TOKEN_FILENAME = '.token';
 const CERT_FILENAME = 'cert.pem';
@@ -30,6 +33,8 @@ interface State {
     snapshotCache: Map<number, Snapshot>;
     wssRef: WebSocketServer | null;
     pollInterval: NodeJS.Timeout | null;
+    cdpLaunchAttempted: boolean;
+    lastLaunchAttempt: number;
 }
 
 export class AntigravityServer {
@@ -66,7 +71,9 @@ export class AntigravityServer {
             activeTargetId: null,
             snapshotCache: new Map(),
             wssRef: null,
-            pollInterval: null
+            pollInterval: null,
+            cdpLaunchAttempted: false,
+            lastLaunchAttempt: 0
         };
         this.useAuth = true;
         this.authToken = this.loadOrCreateToken(extensionPath);
@@ -181,6 +188,76 @@ export class AntigravityServer {
         }
 
         await this.updateSnapshot();
+    }
+
+    // Find Antigravity CLI executable
+    private findAntigravityCLI(): string | null {
+        try {
+            const result = execSync('where antigravity', { encoding: 'utf8', timeout: 3000 });
+            const first = result.trim().split('\n')[0]?.trim();
+            if (first && fs.existsSync(first)) return first;
+        } catch { }
+        // Fallback to default install path
+        const defaultPath = path.join(process.env.LOCALAPPDATA || '', 'Programs', 'Antigravity', 'bin', 'antigravity.cmd');
+        if (fs.existsSync(defaultPath)) return defaultPath;
+        return null;
+    }
+
+    // Auto-launch Antigravity with remote debugging port if no CDP targets found
+    private async ensureCDPAvailable(): Promise<boolean> {
+        const instances = await discoverInstances();
+        if (instances.length > 0) return true;
+
+        // Rate-limit launch attempts (min 30s between attempts)
+        const now = Date.now();
+        if (now - this.state.lastLaunchAttempt < CDP_LAUNCH_RETRY_INTERVAL) {
+            return false;
+        }
+        this.state.lastLaunchAttempt = now;
+
+        const agCli = this.findAntigravityCLI();
+        if (!agCli) {
+            console.log('⚠️ Antigravity CLI not found. Cannot auto-launch with debugging.');
+            return false;
+        }
+
+        console.log(`🚀 No CDP targets found. Launching Antigravity with --remote-debugging-port=${CDP_DEBUG_PORT}...`);
+
+        try {
+            // Build launch args
+            const args = [`--remote-debugging-port=${CDP_DEBUG_PORT}`];
+
+            // Reuse current workspace folder if available
+            const workspaceRoot = this.extensionPath ? path.dirname(this.extensionPath) : undefined;
+            // Note: we don't add workspace arg - the new instance will open clean,
+            // which is fine since we just need the workbench CDP target
+
+            const child = spawn(agCli, args, {
+                detached: true,
+                stdio: 'ignore',
+                shell: true,
+                windowsHide: false
+            });
+            child.unref();
+
+            // Wait for CDP to become available (up to 20s)
+            for (let i = 0; i < 20; i++) {
+                await new Promise(r => setTimeout(r, 1000));
+                try {
+                    const retry = await discoverInstances();
+                    if (retry.length > 0) {
+                        console.log(`✅ Antigravity CDP available after ${i + 1}s (${retry.length} targets)`);
+                        this.state.cdpLaunchAttempted = true;
+                        return true;
+                    }
+                } catch { }
+            }
+
+            console.log('⚠️ Antigravity launched but CDP still not available after 20s');
+        } catch (err) {
+            console.error('❌ Failed to launch Antigravity:', (err as Error).message);
+        }
+        return false;
     }
 
     private async updateSnapshot(): Promise<boolean> {
@@ -544,11 +621,34 @@ export class AntigravityServer {
 
                     try {
                         await this.initCDP();
+                        // If no valid targets found, try auto-launching Antigravity with debug port
+                        if (this.state.cdpConnections.length === 0) {
+                            console.log('⚠️ No CDP connections after initCDP. Trying auto-launch...');
+                            const launched = await this.ensureCDPAvailable();
+                            if (launched) {
+                                await this.initCDP();
+                            }
+                        }
                     } catch (err) {
-                        console.log('⚠️ Initial CDP connection failed, will keep polling...');
+                        console.log('⚠️ Initial CDP connection failed, trying auto-launch...');
+                        try {
+                            const launched = await this.ensureCDPAvailable();
+                            if (launched) await this.initCDP();
+                        } catch { }
                     }
 
-                    this.state.pollInterval = setInterval(() => this.updateSnapshot(), POLL_INTERVAL);
+                    // Smart polling: retry CDP discovery if not connected
+                    this.state.pollInterval = setInterval(async () => {
+                        if (this.state.cdpConnections.length === 0) {
+                            // No connections - try to discover/launch
+                            try {
+                                const launched = await this.ensureCDPAvailable();
+                                if (launched) await this.initCDP();
+                            } catch { }
+                        } else {
+                            await this.updateSnapshot();
+                        }
+                    }, POLL_INTERVAL);
 
                     resolve({
                         localUrl: this._localUrl,

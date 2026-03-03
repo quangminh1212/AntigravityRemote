@@ -65,6 +65,7 @@ async function startServer(context: vscode.ExtensionContext) {
         outputChannel.appendLine(`✅ Server running!`);
         outputChannel.appendLine(`   Local:  ${urls.localUrl}`);
         outputChannel.appendLine(`   Secure: ${urls.secureUrl}`);
+        outputChannel.appendLine(`   Auto-launch: Will launch Antigravity with debug port if needed`);
 
         // Store URLs for QR generation
         context.workspaceState.update('ag_urls', urls);
