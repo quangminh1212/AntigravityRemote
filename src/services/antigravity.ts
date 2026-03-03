@@ -43,6 +43,29 @@ const CAPTURE_SCRIPT = `(() => {
         const rootStyles = window.getComputedStyle(document.documentElement);
         const bodyStyles = window.getComputedStyle(document.body);
 
+        // Extract conversation title from Antigravity UI
+        let chatTitle = '';
+        const titleSelectors = [
+            '.cascade-bar .truncate',
+            '.titlebar .truncate',
+            '[class*="conversation-title"]',
+            '[class*="chat-title"]',
+            'h1.truncate',
+            '.cascade-bar h1'
+        ];
+        for (const sel of titleSelectors) {
+            const el = document.querySelector(sel);
+            if (el && el.textContent && el.textContent.trim().length > 0) {
+                chatTitle = el.textContent.trim();
+                break;
+            }
+        }
+        // Fallback: try document.title
+        if (!chatTitle && document.title) {
+            const t = document.title.replace(/- Visual Studio Code.*$/, '').trim();
+            if (t && t.length > 0 && t.length < 100) chatTitle = t;
+        }
+
         return {
             html: cleanHtml,
             controlsHtml: fullBodyHtml,
@@ -54,7 +77,8 @@ const CAPTURE_SCRIPT = `(() => {
             themeAttr: document.documentElement.getAttribute('data-theme') || '',
             colorScheme: rootStyles.colorScheme || 'dark',
             bodyBg: bodyStyles.backgroundColor,
-            bodyColor: bodyStyles.color
+            bodyColor: bodyStyles.color,
+            chatTitle: chatTitle
         };
     } catch (e) {
         const err = (() => {
