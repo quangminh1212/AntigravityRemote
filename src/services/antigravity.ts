@@ -158,6 +158,8 @@ function formatException(details: any): string {
 async function captureSnapshotInternal(cdp: CDPConnection): Promise<SnapshotDebugResult> {
     const errors: string[] = [];
     const contexts: SnapshotDebugContext[] = [];
+    let cascadeSnapshot: Snapshot | null = null;
+    let fallbackSnapshot: Snapshot | null = null;
 
     for (const ctx of cdp.contexts) {
         const ctxDiag: SnapshotDebugContext = { id: ctx.id };
@@ -199,7 +201,15 @@ async function captureSnapshotInternal(cdp: CDPConnection): Promise<SnapshotDebu
                 snapshot.html = convertVsCodeIcons(snapshot.html);
                 snapshot.css = convertVsCodeIcons(snapshot.css);
                 contexts.push(ctxDiag);
-                return { snapshot, errors, contexts };
+
+                // Check if this context has #cascade (Antigravity chat workbench)
+                const hasCascade = snapshot.html.includes('id="cascade"') || snapshot.html.includes("id='cascade'") || snapshot.html.includes('class="cascade');
+                if (hasCascade && !cascadeSnapshot) {
+                    cascadeSnapshot = snapshot;
+                } else if (!fallbackSnapshot) {
+                    fallbackSnapshot = snapshot;
+                }
+                continue;
             }
 
             if (result.result) {
@@ -225,6 +235,14 @@ async function captureSnapshotInternal(cdp: CDPConnection): Promise<SnapshotDebu
         } finally {
             contexts.push(ctxDiag);
         }
+    }
+
+    // Prefer cascade snapshot (Antigravity chat), fallback to any valid snapshot
+    if (cascadeSnapshot) {
+        return { snapshot: cascadeSnapshot, errors, contexts };
+    }
+    if (fallbackSnapshot) {
+        return { snapshot: fallbackSnapshot, errors, contexts };
     }
 
     // Fallback: try main world without contextId
