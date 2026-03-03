@@ -61,6 +61,7 @@ export interface Snapshot {
     colorScheme: string;
     bodyBg: string;
     bodyColor: string;
+    chatTitle?: string;
     error?: unknown;
 }
 
