@@ -111,22 +111,28 @@ export class AntigravityServer {
         const url = (target.url || '').toLowerCase();
         let score = 0;
         if (url.includes('workbench') || url.includes('jetski')) score += 6;
-        if (title.includes('antigravity-remote')) score += 6;
         if (title.includes('launchpad')) score += 2; // lower priority than chat
-        if (title.includes('antigravity')) score += 2;
+        if (title.includes('antigravity') && !title.includes('antigravity remote')) score += 2;
+        // Penalize our own Remote page and other non-workbench targets
+        if (title === 'antigravity remote') score -= 10;
+        if (url.includes(':3000')) score -= 10;
         if (title.includes('auth.ts')) score -= 6;
         if (title.includes('qr')) score -= 6;
         if (url.includes('devtools') || title.includes('visual studio code')) score -= 8;
         if (title.includes('vscode-webview')) score -= 8;
+        if (url.startsWith('chrome://') || url.startsWith('chrome-extension://')) score -= 10;
         return score;
     }
 
     private isWorkbenchTarget(target: { title?: string; url?: string }): boolean {
         const title = (target.title || '').toLowerCase();
         const url = (target.url || '').toLowerCase();
+        // Exclude our own Remote page
+        if (title === 'antigravity remote') return false;
+        if (url.includes(':3000')) return false;
         return url.includes('workbench') ||
             url.includes('jetski') ||
-            title.includes('antigravity') ||
+            (title.includes('antigravity') && !title.includes('antigravity remote')) ||
             title.includes('launchpad');
     }
 

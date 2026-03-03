@@ -95,10 +95,12 @@ export async function discoverInstances(): Promise<CDPInfo[]> {
 
                 // Skip non-page targets
                 const isServiceWorker = type === 'service_worker';
-                const isChrome = lowerUrl.startsWith('chrome://');
+                const isChrome = lowerUrl.startsWith('chrome://') || lowerUrl.startsWith('chrome-extension://');
                 const isDevtools = lowerTitle.includes('devtools') || lowerUrl.includes('devtools');
                 const isBlank = title.trim().length === 0;
-                if (isServiceWorker || isChrome || isDevtools || isBlank) continue;
+                // Skip our own Remote page (self-reference causes mirror effect)
+                const isSelfRemote = lowerTitle === 'antigravity remote' || lowerUrl.includes(':3000');
+                if (isServiceWorker || isChrome || isDevtools || isBlank || isSelfRemote) continue;
 
                 if (!t.webSocketDebuggerUrl) continue;
 
