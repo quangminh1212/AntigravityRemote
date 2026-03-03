@@ -18,7 +18,6 @@ const MAX_UPLOAD_SIZE_MB = 50;
 const POLL_INTERVAL = 3000;
 const HTTP_TIMEOUT = 2000;
 const CDP_DEBUG_PORT = 9000;
-const CDP_LAUNCH_RETRY_INTERVAL = 30000; // 30s between auto-launch retries
 
 const TOKEN_FILENAME = '.token';
 const CERT_FILENAME = 'cert.pem';
@@ -33,8 +32,6 @@ interface State {
     snapshotCache: Map<number, Snapshot>;
     wssRef: WebSocketServer | null;
     pollInterval: NodeJS.Timeout | null;
-    cdpLaunchAttempted: boolean;
-    lastLaunchAttempt: number;
 }
 
 export class AntigravityServer {
@@ -71,9 +68,7 @@ export class AntigravityServer {
             activeTargetId: null,
             snapshotCache: new Map(),
             wssRef: null,
-            pollInterval: null,
-            cdpLaunchAttempted: false,
-            lastLaunchAttempt: 0
+            pollInterval: null
         };
         this.useAuth = true;
         this.authToken = this.loadOrCreateToken(extensionPath);
@@ -190,79 +185,42 @@ export class AntigravityServer {
         await this.updateSnapshot();
     }
 
-    // Find Antigravity GUI executable (NOT the CLI wrapper antigravity.cmd)
-    // The CLI wrapper uses ELECTRON_RUN_AS_NODE=1 which doesn't support --remote-debugging-port
-    private findAntigravityExe(): string | null {
-        const basePaths = [
-            path.join(process.env.LOCALAPPDATA || '', 'Programs', 'Antigravity'),
-            path.join(process.env.PROGRAMFILES || '', 'Antigravity'),
-        ];
-        for (const base of basePaths) {
-            const exe = path.join(base, 'Antigravity.exe');
-            if (fs.existsSync(exe)) return exe;
+    // Ensure argv.json has remote-debugging-port configured
+    // Antigravity reads ~/.antigravity/argv.json on startup for persistent CLI args
+    private ensureArgvDebugPort(): boolean {
+        const argvPath = path.join(process.env.HOME || process.env.USERPROFILE || '', '.antigravity', 'argv.json');
+        if (!fs.existsSync(argvPath)) {
+            console.log(`⚠️ argv.json not found at ${argvPath}`);
+            return false;
         }
-        // Try to derive from CLI wrapper location
         try {
-            const result = execSync('where antigravity', { encoding: 'utf8', timeout: 3000 });
-            const cmdPath = result.trim().split('\n')[0]?.trim();
-            if (cmdPath) {
-                // antigravity.cmd is in bin/, exe is in parent dir
-                const exePath = path.join(path.dirname(cmdPath), '..', 'Antigravity.exe');
-                if (fs.existsSync(exePath)) return exePath;
+            const raw = fs.readFileSync(argvPath, 'utf8');
+            // Check if already configured (search raw text to handle jsonc comments)
+            if (raw.includes('"remote-debugging-port"')) {
+                console.log('✅ argv.json already has remote-debugging-port configured');
+                return true; // Already configured, just needs restart
             }
-        } catch { }
-        return null;
+            // Add remote-debugging-port before closing brace
+            const insertPos = raw.lastIndexOf('}');
+            if (insertPos === -1) return false;
+            const comma = raw.substring(0, insertPos).trim().endsWith(',') ? '' : ',';
+            const newContent = raw.substring(0, insertPos).trimEnd() + comma + '\n\t// Enable remote debugging for Antigravity Remote extension\n\t"remote-debugging-port": ' + CDP_DEBUG_PORT + '\n}\n';
+            fs.writeFileSync(argvPath, newContent, 'utf8');
+            console.log(`✅ Added remote-debugging-port=${CDP_DEBUG_PORT} to argv.json`);
+            return true;
+        } catch (err) {
+            console.error('❌ Failed to update argv.json:', (err as Error).message);
+        }
+        return false;
     }
 
-    // Auto-launch Antigravity with remote debugging port if no CDP targets found
+    // Check CDP availability, configure argv.json if needed
     private async ensureCDPAvailable(): Promise<boolean> {
         const instances = await discoverInstances();
         if (instances.length > 0) return true;
-
-        // Rate-limit launch attempts (min 60s between attempts)
-        const now = Date.now();
-        if (now - this.state.lastLaunchAttempt < CDP_LAUNCH_RETRY_INTERVAL) {
-            return false;
-        }
-        this.state.lastLaunchAttempt = now;
-
-        const agExe = this.findAntigravityExe();
-        if (!agExe) {
-            console.log('⚠️ Antigravity.exe not found. Cannot auto-launch with debugging.');
-            return false;
-        }
-
-        console.log(`🚀 No CDP targets. Creating restart script...`);
-
-        try {
-            // Create a detached batch script that outlives this process:
-            // 1. Kill all Antigravity processes (including this one)
-            // 2. Wait for exit
-            // 3. Launch fresh with --remote-debugging-port
-            const scriptPath = path.join(this.extensionPath, '.restart-debug.bat');
-            const agExeEscaped = agExe.replace(/\//g, '\\');
-            const content = [
-                '@echo off',
-                'timeout /t 2 /nobreak >nul',
-                'taskkill /F /IM Antigravity.exe /T >nul 2>&1',
-                'timeout /t 3 /nobreak >nul',
-                `start "" "${agExeEscaped}" --remote-debugging-port=${CDP_DEBUG_PORT}`,
-                'del "%~f0" >nul 2>&1',
-            ].join('\r\n');
-            fs.writeFileSync(scriptPath, content);
-
-            const child = spawn('cmd.exe', ['/c', scriptPath], {
-                detached: true,
-                stdio: 'ignore',
-                windowsHide: true
-            });
-            child.unref();
-
-            console.log('📋 Restart script launched. Antigravity will restart with debug port in ~5s.');
-            return false; // We'll be killed, new instance will pick up CDP
-        } catch (err) {
-            console.error('❌ Failed to create restart script:', (err as Error).message);
-        }
+        // No targets - ensure argv.json is configured for next restart
+        this.ensureArgvDebugPort();
+        console.log('ℹ️ No CDP targets. Restart Antigravity once to enable remote debugging.');
         return false;
     }
 
