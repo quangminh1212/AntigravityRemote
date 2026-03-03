@@ -1174,7 +1174,14 @@
                     #chatContent div:has(> div[role="button"][aria-haspopup="dialog"]),
                     #chatContent div:has(> input[type="file"]),
                     #chatContent div.outline-solid.relative.z-20,
-                    #chatContent div:has(> div:contains("Ask anything")) {
+                    #chatContent div:has(> div:contains("Ask anything")),
+                    /* Prevent mirror effect: hide self-referencing Remote page elements */
+                    #chatContent .ag-header,
+                    #chatContent .bottom-dock,
+                    #chatContent .modal-overlay,
+                    #chatContent .fab,
+                    #chatContent .debug-log,
+                    #chatContent #connectivityBadge {
                         display: none !important;
                     }
                 </style>
