@@ -219,7 +219,7 @@ export class AntigravityServer {
         const instances = await discoverInstances();
         if (instances.length > 0) return true;
 
-        // Rate-limit launch attempts (min 30s between attempts)
+        // Rate-limit launch attempts (min 60s between attempts)
         const now = Date.now();
         if (now - this.state.lastLaunchAttempt < CDP_LAUNCH_RETRY_INTERVAL) {
             return false;
@@ -232,35 +232,36 @@ export class AntigravityServer {
             return false;
         }
 
-        console.log(`🚀 No CDP targets found. Launching ${agExe} with --remote-debugging-port=${CDP_DEBUG_PORT}...`);
+        console.log(`🚀 No CDP targets. Creating restart script...`);
 
         try {
-            // Build launch args - use exe directly (not CLI wrapper)
-            const args = [`--remote-debugging-port=${CDP_DEBUG_PORT}`];
+            // Create a detached batch script that outlives this process:
+            // 1. Kill all Antigravity processes (including this one)
+            // 2. Wait for exit
+            // 3. Launch fresh with --remote-debugging-port
+            const scriptPath = path.join(this.extensionPath, '.restart-debug.bat');
+            const agExeEscaped = agExe.replace(/\//g, '\\');
+            const content = [
+                '@echo off',
+                'timeout /t 2 /nobreak >nul',
+                'taskkill /F /IM Antigravity.exe /T >nul 2>&1',
+                'timeout /t 3 /nobreak >nul',
+                `start "" "${agExeEscaped}" --remote-debugging-port=${CDP_DEBUG_PORT}`,
+                'del "%~f0" >nul 2>&1',
+            ].join('\r\n');
+            fs.writeFileSync(scriptPath, content);
 
-            const child = spawn(agExe, args, {
+            const child = spawn('cmd.exe', ['/c', scriptPath], {
                 detached: true,
                 stdio: 'ignore',
-                windowsHide: false
+                windowsHide: true
             });
             child.unref();
 
-            // Wait for CDP to become available (up to 20s)
-            for (let i = 0; i < 20; i++) {
-                await new Promise(r => setTimeout(r, 1000));
-                try {
-                    const retry = await discoverInstances();
-                    if (retry.length > 0) {
-                        console.log(`✅ Antigravity CDP available after ${i + 1}s (${retry.length} targets)`);
-                        this.state.cdpLaunchAttempted = true;
-                        return true;
-                    }
-                } catch { }
-            }
-
-            console.log('⚠️ Antigravity launched but CDP still not available after 20s');
+            console.log('📋 Restart script launched. Antigravity will restart with debug port in ~5s.');
+            return false; // We'll be killed, new instance will pick up CDP
         } catch (err) {
-            console.error('❌ Failed to launch Antigravity:', (err as Error).message);
+            console.error('❌ Failed to create restart script:', (err as Error).message);
         }
         return false;
     }
