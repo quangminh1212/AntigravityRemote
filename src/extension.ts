@@ -49,7 +49,7 @@ async function startServer(context: vscode.ExtensionContext) {
 
     const config = vscode.workspace.getConfiguration('antigravityRemote');
     const port = config.get<number>('port', 3000);
-    const useHttps = config.get<boolean>('useHttps', true);
+    const useHttps = config.get<boolean>('useHttps', false);
     const workspaceRoot = vscode.workspace.workspaceFolders?.[0]?.uri.fsPath;
 
     // Start the server

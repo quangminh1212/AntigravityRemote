@@ -53,8 +53,8 @@
                 },
                 "antigravityRemote.useHttps": {
                     "type": "boolean",
-                    "default": true,
-                    "description": "Serve the mobile bridge over HTTPS with a self-signed certificate"
+                    "default": false,
+                    "description": "Serve the mobile bridge over HTTPS with a self-signed certificate (disable for LAN to avoid browser SSL warnings)"
                 }
             }
         }
