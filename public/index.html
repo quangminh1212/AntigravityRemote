@@ -1,0 +1,993 @@
+<!DOCTYPE html>
+<html lang="vi">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+  <meta name="apple-mobile-web-app-capable" content="yes">
+  <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+  <meta name="mobile-web-app-capable" content="yes">
+  <meta name="theme-color" content="#1e1e1e">
+  <meta name="description" content="AntigravityHub - Mobile Remote Access for Antigravity AI">
+  <title>AntigravityHub Remote</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&display=swap" rel="stylesheet">
+  <link href="https://fonts.googleapis.com/icon?family=Material+Icons+Round" rel="stylesheet">
+  <style>
+    /* ─── Reset & Base ─────────────────────────────── */
+    *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+    
+    :root {
+      --bg-primary: #1e1e1e;
+      --bg-secondary: #252526;
+      --bg-tertiary: #2d2d2d;
+      --bg-hover: #3a3a3a;
+      --bg-active: #094771;
+      --text-primary: #cccccc;
+      --text-secondary: #969696;
+      --text-bright: #e0e0e0;
+      --accent: #0078d4;
+      --accent-hover: #1a8cf0;
+      --accent-glow: rgba(0, 120, 212, 0.3);
+      --border: #3c3c3c;
+      --border-light: #4a4a4a;
+      --success: #4ec9b0;
+      --warning: #dcdcaa;
+      --error: #f44747;
+      --gradient-accent: linear-gradient(135deg, #0078d4 0%, #00b4d8 100%);
+      --shadow-lg: 0 8px 32px rgba(0,0,0,0.4);
+      --shadow-glow: 0 0 20px var(--accent-glow);
+      --radius: 12px;
+      --radius-sm: 8px;
+      --radius-xs: 6px;
+      --safe-area-top: env(safe-area-inset-top, 0px);
+      --safe-area-bottom: env(safe-area-inset-bottom, 0px);
+    }
+
+    html, body {
+      height: 100%;
+      overflow: hidden;
+      font-family: 'Inter', -apple-system, BlinkMacSystemFont, sans-serif;
+      background: var(--bg-primary);
+      color: var(--text-primary);
+      -webkit-tap-highlight-color: transparent;
+      -webkit-touch-callout: none;
+      user-select: none;
+    }
+
+    /* ─── App Container ────────────────────────────── */
+    #app {
+      display: flex;
+      flex-direction: column;
+      height: 100vh;
+      height: 100dvh;
+      padding-top: var(--safe-area-top);
+      padding-bottom: var(--safe-area-bottom);
+    }
+
+    /* ─── Header ───────────────────────────────────── */
+    .header {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      padding: 10px 16px;
+      background: var(--bg-secondary);
+      border-bottom: 1px solid var(--border);
+      min-height: 48px;
+      z-index: 100;
+    }
+
+    .header-left {
+      display: flex;
+      align-items: center;
+      gap: 10px;
+    }
+
+    .header-logo {
+      width: 28px;
+      height: 28px;
+      border-radius: 6px;
+      background: var(--gradient-accent);
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      font-size: 14px;
+      font-weight: 700;
+      color: white;
+      box-shadow: var(--shadow-glow);
+    }
+
+    .header-title {
+      font-size: 15px;
+      font-weight: 600;
+      color: var(--text-bright);
+      letter-spacing: -0.3px;
+    }
+
+    .header-right {
+      display: flex;
+      align-items: center;
+      gap: 4px;
+    }
+
+    .header-btn {
+      width: 36px;
+      height: 36px;
+      border-radius: var(--radius-sm);
+      border: none;
+      background: transparent;
+      color: var(--text-secondary);
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      cursor: pointer;
+      transition: all 0.2s;
+      font-size: 20px;
+    }
+
+    .header-btn:active {
+      background: var(--bg-hover);
+      color: var(--text-bright);
+      transform: scale(0.92);
+    }
+
+    .status-dot {
+      width: 8px;
+      height: 8px;
+      border-radius: 50%;
+      background: var(--error);
+      transition: background 0.3s;
+    }
+    .status-dot.connected {
+      background: var(--success);
+      box-shadow: 0 0 6px var(--success);
+    }
+
+    /* ─── Screen View ──────────────────────────────── */
+    .screen-container {
+      flex: 1;
+      position: relative;
+      overflow: hidden;
+      background: #000;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+    }
+
+    #remoteScreen {
+      max-width: 100%;
+      max-height: 100%;
+      object-fit: contain;
+      touch-action: none;
+      image-rendering: -webkit-optimize-contrast;
+    }
+
+    .screen-overlay {
+      position: absolute;
+      top: 0;
+      left: 0;
+      right: 0;
+      bottom: 0;
+      touch-action: none;
+      z-index: 10;
+    }
+
+    /* Touch indicator */
+    .touch-indicator {
+      position: absolute;
+      width: 40px;
+      height: 40px;
+      border-radius: 50%;
+      border: 2px solid var(--accent);
+      background: var(--accent-glow);
+      transform: translate(-50%, -50%) scale(0);
+      pointer-events: none;
+      z-index: 20;
+      animation: touchPulse 0.4s ease-out forwards;
+    }
+
+    @keyframes touchPulse {
+      0% { transform: translate(-50%, -50%) scale(0); opacity: 1; }
+      50% { transform: translate(-50%, -50%) scale(1); opacity: 0.7; }
+      100% { transform: translate(-50%, -50%) scale(1.5); opacity: 0; }
+    }
+
+    /* ─── Control Bar ──────────────────────────────── */
+    .control-bar {
+      display: flex;
+      align-items: center;
+      justify-content: space-around;
+      padding: 8px 12px;
+      background: var(--bg-secondary);
+      border-top: 1px solid var(--border);
+      min-height: 52px;
+      gap: 4px;
+    }
+
+    .ctrl-btn {
+      flex: 1;
+      max-width: 64px;
+      height: 40px;
+      border-radius: var(--radius-sm);
+      border: 1px solid var(--border);
+      background: var(--bg-tertiary);
+      color: var(--text-secondary);
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      cursor: pointer;
+      transition: all 0.2s;
+      font-size: 18px;
+    }
+
+    .ctrl-btn:active {
+      background: var(--accent);
+      border-color: var(--accent);
+      color: white;
+      transform: scale(0.93);
+    }
+
+    .ctrl-btn.active {
+      background: var(--accent);
+      border-color: var(--accent);
+      color: white;
+    }
+
+    .ctrl-btn .material-icons-round {
+      font-size: 20px;
+    }
+
+    /* ─── Connect Screen ───────────────────────────── */
+    .connect-screen {
+      position: absolute;
+      inset: 0;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      justify-content: center;
+      background: var(--bg-primary);
+      z-index: 50;
+      padding: 24px;
+      gap: 24px;
+      transition: opacity 0.4s, visibility 0.4s;
+    }
+
+    .connect-screen.hidden {
+      opacity: 0;
+      visibility: hidden;
+      pointer-events: none;
+    }
+
+    .connect-icon {
+      width: 80px;
+      height: 80px;
+      border-radius: 24px;
+      background: var(--gradient-accent);
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      font-size: 36px;
+      color: white;
+      box-shadow: var(--shadow-glow);
+      animation: float 3s ease-in-out infinite;
+    }
+
+    @keyframes float {
+      0%, 100% { transform: translateY(0); }
+      50% { transform: translateY(-8px); }
+    }
+
+    .connect-title {
+      font-size: 22px;
+      font-weight: 700;
+      color: var(--text-bright);
+      letter-spacing: -0.5px;
+    }
+
+    .connect-subtitle {
+      font-size: 14px;
+      color: var(--text-secondary);
+      text-align: center;
+      line-height: 1.5;
+      max-width: 280px;
+    }
+
+    .connect-form {
+      display: flex;
+      flex-direction: column;
+      gap: 12px;
+      width: 100%;
+      max-width: 320px;
+    }
+
+    .input-group {
+      display: flex;
+      flex-direction: column;
+      gap: 6px;
+    }
+
+    .input-group label {
+      font-size: 12px;
+      font-weight: 500;
+      color: var(--text-secondary);
+      text-transform: uppercase;
+      letter-spacing: 0.5px;
+    }
+
+    .input-group input {
+      width: 100%;
+      height: 44px;
+      padding: 0 14px;
+      border-radius: var(--radius-sm);
+      border: 1px solid var(--border);
+      background: var(--bg-tertiary);
+      color: var(--text-bright);
+      font-size: 15px;
+      font-family: 'Inter', sans-serif;
+      outline: none;
+      transition: border-color 0.2s;
+    }
+
+    .input-group input:focus {
+      border-color: var(--accent);
+      box-shadow: 0 0 0 3px var(--accent-glow);
+    }
+
+    .connect-btn {
+      width: 100%;
+      height: 48px;
+      border-radius: var(--radius);
+      border: none;
+      background: var(--gradient-accent);
+      color: white;
+      font-size: 15px;
+      font-weight: 600;
+      font-family: 'Inter', sans-serif;
+      cursor: pointer;
+      transition: all 0.2s;
+      box-shadow: var(--shadow-glow);
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      gap: 8px;
+    }
+
+    .connect-btn:active {
+      transform: scale(0.97);
+    }
+
+    .connect-btn:disabled {
+      opacity: 0.5;
+    }
+
+    .connect-btn .spinner {
+      width: 18px;
+      height: 18px;
+      border: 2px solid rgba(255,255,255,0.3);
+      border-top-color: white;
+      border-radius: 50%;
+      animation: spin 0.8s linear infinite;
+    }
+
+    @keyframes spin {
+      to { transform: rotate(360deg); }
+    }
+
+    .connect-error {
+      padding: 10px 14px;
+      border-radius: var(--radius-sm);
+      background: rgba(244, 71, 71, 0.15);
+      border: 1px solid rgba(244, 71, 71, 0.3);
+      color: var(--error);
+      font-size: 13px;
+      text-align: center;
+      display: none;
+    }
+
+    .connect-error.visible {
+      display: block;
+    }
+
+    .connect-hint {
+      font-size: 12px;
+      color: var(--text-secondary);
+      text-align: center;
+      line-height: 1.5;
+      opacity: 0.7;
+    }
+
+    .connect-hint code {
+      background: var(--bg-tertiary);
+      padding: 2px 6px;
+      border-radius: 4px;
+      font-size: 11px;
+      color: var(--warning);
+    }
+
+    /* ─── Keyboard Input Overlay ───────────────────── */
+    .keyboard-overlay {
+      position: absolute;
+      bottom: 0;
+      left: 0;
+      right: 0;
+      background: var(--bg-secondary);
+      border-top: 1px solid var(--border);
+      padding: 8px 12px;
+      z-index: 30;
+      display: none;
+    }
+
+    .keyboard-overlay.visible {
+      display: flex;
+      gap: 8px;
+      align-items: center;
+    }
+
+    .keyboard-input {
+      flex: 1;
+      height: 40px;
+      padding: 0 12px;
+      border-radius: var(--radius-sm);
+      border: 1px solid var(--border);
+      background: var(--bg-tertiary);
+      color: var(--text-bright);
+      font-size: 15px;
+      font-family: 'Inter', sans-serif;
+      outline: none;
+    }
+
+    .keyboard-input:focus {
+      border-color: var(--accent);
+    }
+
+    .keyboard-send {
+      width: 40px;
+      height: 40px;
+      border-radius: 50%;
+      border: none;
+      background: var(--accent);
+      color: white;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      cursor: pointer;
+      font-size: 18px;
+    }
+
+    /* ─── Loading Shimmer ──────────────────────────── */
+    .loading-shimmer {
+      position: absolute;
+      inset: 0;
+      background: linear-gradient(
+        90deg,
+        transparent 0%,
+        rgba(0,120,212,0.1) 50%,
+        transparent 100%
+      );
+      background-size: 200% 100%;
+      animation: shimmer 2s infinite;
+      pointer-events: none;
+      z-index: 5;
+      display: none;
+    }
+
+    .loading-shimmer.active {
+      display: block;
+    }
+
+    @keyframes shimmer {
+      0% { background-position: 200% 0; }
+      100% { background-position: -200% 0; }
+    }
+
+    /* ─── Toast Notification ───────────────────────── */
+    .toast {
+      position: fixed;
+      top: calc(var(--safe-area-top) + 56px);
+      left: 50%;
+      transform: translateX(-50%) translateY(-20px);
+      padding: 10px 20px;
+      border-radius: var(--radius);
+      background: var(--bg-tertiary);
+      border: 1px solid var(--border);
+      color: var(--text-bright);
+      font-size: 13px;
+      font-weight: 500;
+      box-shadow: var(--shadow-lg);
+      z-index: 200;
+      opacity: 0;
+      visibility: hidden;
+      transition: all 0.3s;
+    }
+
+    .toast.visible {
+      opacity: 1;
+      visibility: visible;
+      transform: translateX(-50%) translateY(0);
+    }
+
+    /* ─── Settings Panel ───────────────────────────── */
+    .settings-panel {
+      position: absolute;
+      top: 0;
+      right: -300px;
+      bottom: 0;
+      width: 280px;
+      background: var(--bg-secondary);
+      border-left: 1px solid var(--border);
+      z-index: 60;
+      padding: 16px;
+      transition: right 0.3s ease;
+      display: flex;
+      flex-direction: column;
+      gap: 16px;
+      overflow-y: auto;
+    }
+
+    .settings-panel.visible {
+      right: 0;
+    }
+
+    .settings-backdrop {
+      position: absolute;
+      inset: 0;
+      background: rgba(0,0,0,0.5);
+      z-index: 55;
+      opacity: 0;
+      visibility: hidden;
+      transition: all 0.3s;
+    }
+
+    .settings-backdrop.visible {
+      opacity: 1;
+      visibility: visible;
+    }
+
+    .settings-title {
+      font-size: 16px;
+      font-weight: 600;
+      color: var(--text-bright);
+      padding-bottom: 12px;
+      border-bottom: 1px solid var(--border);
+    }
+
+    .settings-item {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      padding: 8px 0;
+    }
+
+    .settings-item label {
+      font-size: 13px;
+      color: var(--text-primary);
+    }
+
+    .settings-item input[type="range"] {
+      width: 100px;
+      accent-color: var(--accent);
+    }
+
+    .settings-item select {
+      padding: 6px 10px;
+      border-radius: var(--radius-xs);
+      border: 1px solid var(--border);
+      background: var(--bg-tertiary);
+      color: var(--text-bright);
+      font-size: 13px;
+      outline: none;
+    }
+  </style>
+</head>
+<body>
+  <div id="app">
+    <!-- Header -->
+    <div class="header">
+      <div class="header-left">
+        <div class="header-logo">A</div>
+        <span class="header-title">AntigravityHub</span>
+        <div class="status-dot" id="statusDot"></div>
+      </div>
+      <div class="header-right">
+        <button class="header-btn" id="btnRefresh" title="Refresh">
+          <span class="material-icons-round">refresh</span>
+        </button>
+        <button class="header-btn" id="btnKeyboard" title="Keyboard">
+          <span class="material-icons-round">keyboard</span>
+        </button>
+        <button class="header-btn" id="btnSettings" title="Settings">
+          <span class="material-icons-round">settings</span>
+        </button>
+      </div>
+    </div>
+
+    <!-- Screen View -->
+    <div class="screen-container" id="screenContainer">
+      <img id="remoteScreen" alt="Remote Screen" />
+      <div class="screen-overlay" id="screenOverlay"></div>
+      <div class="loading-shimmer" id="loadingShimmer"></div>
+    </div>
+
+    <!-- Control Bar -->
+    <div class="control-bar">
+      <button class="ctrl-btn" id="btnStream" title="Live Stream">
+        <span class="material-icons-round">videocam</span>
+      </button>
+      <button class="ctrl-btn" id="btnBack" title="Back (Escape)">
+        <span class="material-icons-round">arrow_back</span>
+      </button>
+      <button class="ctrl-btn" id="btnHome" title="Home">
+        <span class="material-icons-round">home</span>
+      </button>
+      <button class="ctrl-btn" id="btnTab" title="Tab">
+        <span class="material-icons-round">tab</span>
+      </button>
+      <button class="ctrl-btn" id="btnEnter" title="Enter">
+        <span class="material-icons-round">keyboard_return</span>
+      </button>
+      <button class="ctrl-btn" id="btnCtrlZ" title="Undo (Ctrl+Z)">
+        <span class="material-icons-round">undo</span>
+      </button>
+    </div>
+
+    <!-- Keyboard Overlay -->
+    <div class="keyboard-overlay" id="keyboardOverlay">
+      <input type="text" class="keyboard-input" id="keyboardInput" placeholder="Type here..." autocomplete="off" autocapitalize="off" autocorrect="off">
+      <button class="keyboard-send" id="keyboardSend">
+        <span class="material-icons-round">send</span>
+      </button>
+    </div>
+
+    <!-- Connect Screen -->
+    <div class="connect-screen" id="connectScreen">
+      <div class="connect-icon">
+        <span class="material-icons-round">cast_connected</span>
+      </div>
+      <div class="connect-title">AntigravityHub</div>
+      <div class="connect-subtitle">
+        Remote access Antigravity từ điện thoại của bạn
+      </div>
+      <div class="connect-form">
+        <div class="connect-error" id="connectError"></div>
+        <button class="connect-btn" id="btnConnect">
+          <span class="material-icons-round">link</span>
+          Kết nối
+        </button>
+      </div>
+      <div class="connect-hint">
+        Đảm bảo Antigravity đang chạy với<br>
+        <code>--remote-debugging-port=9222</code>
+      </div>
+    </div>
+
+    <!-- Settings Panel -->
+    <div class="settings-backdrop" id="settingsBackdrop"></div>
+    <div class="settings-panel" id="settingsPanel">
+      <div class="settings-title">Cài đặt</div>
+      <div class="settings-item">
+        <label>Chất lượng</label>
+        <input type="range" id="settingQuality" min="20" max="100" value="60">
+      </div>
+      <div class="settings-item">
+        <label>FPS tối đa</label>
+        <select id="settingFPS">
+          <option value="5">5 FPS</option>
+          <option value="10">10 FPS</option>
+          <option value="15" selected>15 FPS</option>
+          <option value="24">24 FPS</option>
+          <option value="30">30 FPS</option>
+        </select>
+      </div>
+      <div class="settings-item">
+        <label>Reconnect</label>
+        <button class="connect-btn" id="btnReconnect" style="height:36px;width:auto;padding:0 16px;font-size:13px;">
+          Kết nối lại
+        </button>
+      </div>
+    </div>
+
+    <!-- Toast -->
+    <div class="toast" id="toast"></div>
+  </div>
+
+  <script>
+    // ─── App State ──────────────────────────────────
+    const state = {
+      ws: null,
+      connected: false,
+      streaming: false,
+      viewport: { width: 1280, height: 800 },
+      keyboardVisible: false,
+      settingsVisible: false,
+    };
+
+    // ─── DOM Elements ───────────────────────────────
+    const $ = (s) => document.getElementById(s);
+    const screen$ = $('remoteScreen');
+    const overlay$ = $('screenOverlay');
+    const container$ = $('screenContainer');
+    const statusDot$ = $('statusDot');
+    const connectScreen$ = $('connectScreen');
+    const connectError$ = $('connectError');
+    const loadingShimmer$ = $('loadingShimmer');
+    const toast$ = $('toast');
+    const keyboardOverlay$ = $('keyboardOverlay');
+    const keyboardInput$ = $('keyboardInput');
+    const settingsPanel$ = $('settingsPanel');
+    const settingsBackdrop$ = $('settingsBackdrop');
+
+    // ─── Toast ──────────────────────────────────────
+    let toastTimer = null;
+    function showToast(msg, duration = 2000) {
+      toast$.textContent = msg;
+      toast$.classList.add('visible');
+      if (toastTimer) clearTimeout(toastTimer);
+      toastTimer = setTimeout(() => toast$.classList.remove('visible'), duration);
+    }
+
+    // ─── WebSocket Connection ───────────────────────
+    function connectWS() {
+      const proto = location.protocol === 'https:' ? 'wss' : 'ws';
+      const url = `${proto}://${location.host}/ws`;
+      
+      state.ws = new WebSocket(url);
+      
+      state.ws.onopen = () => {
+        console.log('WebSocket connected');
+        showToast('Đã kết nối WebSocket');
+      };
+      
+      state.ws.onmessage = (e) => {
+        try {
+          const msg = JSON.parse(e.data);
+          handleMessage(msg);
+        } catch (err) {
+          console.error('WS parse error:', err);
+        }
+      };
+      
+      state.ws.onclose = () => {
+        console.log('WebSocket closed');
+        state.connected = false;
+        updateUI();
+        // Auto-reconnect after 3s
+        setTimeout(connectWS, 3000);
+      };
+      
+      state.ws.onerror = (err) => {
+        console.error('WebSocket error:', err);
+      };
+    }
+
+    function send(data) {
+      if (state.ws && state.ws.readyState === WebSocket.OPEN) {
+        state.ws.send(JSON.stringify(data));
+      }
+    }
+
+    // ─── Message Handler ────────────────────────────
+    function handleMessage(msg) {
+      switch (msg.type) {
+        case 'status':
+          state.connected = msg.connected;
+          if (msg.viewport) state.viewport = msg.viewport;
+          updateUI();
+          if (msg.connected) {
+            connectScreen$.classList.add('hidden');
+            showToast('✓ Đã kết nối Antigravity');
+          }
+          break;
+          
+        case 'frame':
+          screen$.src = 'data:image/jpeg;base64,' + msg.data;
+          loadingShimmer$.classList.remove('active');
+          break;
+      }
+    }
+
+    // ─── UI Update ──────────────────────────────────
+    function updateUI() {
+      statusDot$.classList.toggle('connected', state.connected);
+      
+      if (!state.connected) {
+        connectScreen$.classList.remove('hidden');
+      }
+      
+      const streamBtn = $('btnStream');
+      streamBtn.classList.toggle('active', state.streaming);
+    }
+
+    // ─── Touch/Click Handling ───────────────────────
+    function getRemoteCoords(clientX, clientY) {
+      const rect = screen$.getBoundingClientRect();
+      if (rect.width === 0 || rect.height === 0) return null;
+      
+      // Map screen coordinates to Antigravity viewport
+      const scaleX = state.viewport.width / rect.width;
+      const scaleY = state.viewport.height / rect.height;
+      
+      const x = (clientX - rect.left) * scaleX;
+      const y = (clientY - rect.top) * scaleY;
+      
+      return { x, y };
+    }
+
+    function showTouchIndicator(clientX, clientY) {
+      const indicator = document.createElement('div');
+      indicator.className = 'touch-indicator';
+      indicator.style.left = clientX + 'px';
+      indicator.style.top = clientY + 'px';
+      container$.appendChild(indicator);
+      setTimeout(() => indicator.remove(), 400);
+    }
+
+    // Touch events
+    let touchStart = null;
+    let touchStartTime = 0;
+    let lastTouchMove = null;
+
+    overlay$.addEventListener('touchstart', (e) => {
+      e.preventDefault();
+      const touch = e.touches[0];
+      touchStart = { x: touch.clientX, y: touch.clientY };
+      touchStartTime = Date.now();
+      lastTouchMove = null;
+      
+      const coords = getRemoteCoords(touch.clientX, touch.clientY);
+      if (coords) {
+        send({ type: 'mousedown', x: coords.x, y: coords.y });
+      }
+    }, { passive: false });
+
+    overlay$.addEventListener('touchmove', (e) => {
+      e.preventDefault();
+      const touch = e.touches[0];
+      lastTouchMove = { x: touch.clientX, y: touch.clientY };
+      
+      if (touchStart) {
+        const dx = touch.clientX - touchStart.x;
+        const dy = touch.clientY - touchStart.y;
+        
+        // Scroll if moved significantly
+        if (Math.abs(dx) > 10 || Math.abs(dy) > 10) {
+          const coords = getRemoteCoords(touch.clientX, touch.clientY);
+          if (coords) {
+            send({ type: 'scroll', x: coords.x, y: coords.y, deltaX: -dx * 2, deltaY: -dy * 2 });
+            touchStart = { x: touch.clientX, y: touch.clientY };
+          }
+        }
+      }
+    }, { passive: false });
+
+    overlay$.addEventListener('touchend', (e) => {
+      e.preventDefault();
+      const duration = Date.now() - touchStartTime;
+      const finalPos = lastTouchMove || touchStart;
+      
+      if (finalPos) {
+        const coords = getRemoteCoords(finalPos.x, finalPos.y);
+        
+        if (duration < 300 && !lastTouchMove) {
+          // Tap = click
+          if (coords) {
+            showTouchIndicator(finalPos.x, finalPos.y);
+            send({ type: 'click', x: coords.x, y: coords.y });
+          }
+        } else {
+          // Release after drag
+          if (coords) {
+            send({ type: 'mouseup', x: coords.x, y: coords.y });
+          }
+        }
+      }
+      
+      touchStart = null;
+      lastTouchMove = null;
+    }, { passive: false });
+
+    // ─── Controls ───────────────────────────────────
+    $('btnConnect').addEventListener('click', () => {
+      const btn = $('btnConnect');
+      btn.disabled = true;
+      btn.innerHTML = '<div class="spinner"></div> Đang kết nối...';
+      
+      send({ type: 'connect' });
+      loadingShimmer$.classList.add('active');
+      
+      setTimeout(() => {
+        btn.disabled = false;
+        btn.innerHTML = '<span class="material-icons-round">link</span> Kết nối';
+        if (!state.connected) {
+          connectError$.textContent = 'Không thể kết nối. Hãy kiểm tra Antigravity đã chạy với --remote-debugging-port=9222';
+          connectError$.classList.add('visible');
+        }
+      }, 5000);
+    });
+
+    $('btnRefresh').addEventListener('click', () => {
+      send({ type: 'refresh' });
+      loadingShimmer$.classList.add('active');
+      showToast('Đang làm mới...');
+    });
+
+    $('btnStream').addEventListener('click', () => {
+      state.streaming = !state.streaming;
+      send({ type: state.streaming ? 'stream-start' : 'stream-stop' });
+      updateUI();
+      showToast(state.streaming ? '▶ Live Stream ON' : '⏸ Live Stream OFF');
+    });
+
+    $('btnBack').addEventListener('click', () => {
+      send({ type: 'key', key: 'Escape', code: 'Escape' });
+    });
+
+    $('btnHome').addEventListener('click', () => {
+      // Ctrl+Shift+P - Command Palette
+      send({ type: 'key', key: 'p', code: 'KeyP', modifiers: 6 }); // Ctrl+Shift
+    });
+
+    $('btnTab').addEventListener('click', () => {
+      send({ type: 'key', key: 'Tab', code: 'Tab' });
+    });
+
+    $('btnEnter').addEventListener('click', () => {
+      send({ type: 'key', key: 'Enter', code: 'Enter' });
+    });
+
+    $('btnCtrlZ').addEventListener('click', () => {
+      send({ type: 'key', key: 'z', code: 'KeyZ', modifiers: 2 }); // Ctrl
+    });
+
+    // ─── Keyboard ───────────────────────────────────
+    $('btnKeyboard').addEventListener('click', () => {
+      state.keyboardVisible = !state.keyboardVisible;
+      keyboardOverlay$.classList.toggle('visible', state.keyboardVisible);
+      if (state.keyboardVisible) {
+        keyboardInput$.focus();
+      }
+    });
+
+    keyboardInput$.addEventListener('keydown', (e) => {
+      if (e.key === 'Enter') {
+        e.preventDefault();
+        const text = keyboardInput$.value;
+        if (text) {
+          send({ type: 'key', text });
+          keyboardInput$.value = '';
+        }
+        send({ type: 'key', key: 'Enter', code: 'Enter' });
+      }
+    });
+
+    $('keyboardSend').addEventListener('click', () => {
+      const text = keyboardInput$.value;
+      if (text) {
+        send({ type: 'key', text });
+        keyboardInput$.value = '';
+        showToast('Đã gửi text');
+      }
+    });
+
+    // ─── Settings ───────────────────────────────────
+    $('btnSettings').addEventListener('click', () => {
+      state.settingsVisible = !state.settingsVisible;
+      settingsPanel$.classList.toggle('visible', state.settingsVisible);
+      settingsBackdrop$.classList.toggle('visible', state.settingsVisible);
+    });
+
+    settingsBackdrop$.addEventListener('click', () => {
+      state.settingsVisible = false;
+      settingsPanel$.classList.remove('visible');
+      settingsBackdrop$.classList.remove('visible');
+    });
+
+    $('btnReconnect').addEventListener('click', () => {
+      send({ type: 'connect' });
+      loadingShimmer$.classList.add('active');
+      showToast('Đang kết nối lại...');
+    });
+
+    // ─── Initialize ─────────────────────────────────
+    connectWS();
+  </script>
+</body>
+</html>
