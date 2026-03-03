@@ -190,16 +190,27 @@ export class AntigravityServer {
         await this.updateSnapshot();
     }
 
-    // Find Antigravity CLI executable
-    private findAntigravityCLI(): string | null {
+    // Find Antigravity GUI executable (NOT the CLI wrapper antigravity.cmd)
+    // The CLI wrapper uses ELECTRON_RUN_AS_NODE=1 which doesn't support --remote-debugging-port
+    private findAntigravityExe(): string | null {
+        const basePaths = [
+            path.join(process.env.LOCALAPPDATA || '', 'Programs', 'Antigravity'),
+            path.join(process.env.PROGRAMFILES || '', 'Antigravity'),
+        ];
+        for (const base of basePaths) {
+            const exe = path.join(base, 'Antigravity.exe');
+            if (fs.existsSync(exe)) return exe;
+        }
+        // Try to derive from CLI wrapper location
         try {
             const result = execSync('where antigravity', { encoding: 'utf8', timeout: 3000 });
-            const first = result.trim().split('\n')[0]?.trim();
-            if (first && fs.existsSync(first)) return first;
+            const cmdPath = result.trim().split('\n')[0]?.trim();
+            if (cmdPath) {
+                // antigravity.cmd is in bin/, exe is in parent dir
+                const exePath = path.join(path.dirname(cmdPath), '..', 'Antigravity.exe');
+                if (fs.existsSync(exePath)) return exePath;
+            }
         } catch { }
-        // Fallback to default install path
-        const defaultPath = path.join(process.env.LOCALAPPDATA || '', 'Programs', 'Antigravity', 'bin', 'antigravity.cmd');
-        if (fs.existsSync(defaultPath)) return defaultPath;
         return null;
     }
 
@@ -215,27 +226,21 @@ export class AntigravityServer {
         }
         this.state.lastLaunchAttempt = now;
 
-        const agCli = this.findAntigravityCLI();
-        if (!agCli) {
-            console.log('⚠️ Antigravity CLI not found. Cannot auto-launch with debugging.');
+        const agExe = this.findAntigravityExe();
+        if (!agExe) {
+            console.log('⚠️ Antigravity.exe not found. Cannot auto-launch with debugging.');
             return false;
         }
 
-        console.log(`🚀 No CDP targets found. Launching Antigravity with --remote-debugging-port=${CDP_DEBUG_PORT}...`);
+        console.log(`🚀 No CDP targets found. Launching ${agExe} with --remote-debugging-port=${CDP_DEBUG_PORT}...`);
 
         try {
-            // Build launch args
+            // Build launch args - use exe directly (not CLI wrapper)
             const args = [`--remote-debugging-port=${CDP_DEBUG_PORT}`];
 
-            // Reuse current workspace folder if available
-            const workspaceRoot = this.extensionPath ? path.dirname(this.extensionPath) : undefined;
-            // Note: we don't add workspace arg - the new instance will open clean,
-            // which is fine since we just need the workbench CDP target
-
-            const child = spawn(agCli, args, {
+            const child = spawn(agExe, args, {
                 detached: true,
                 stdio: 'ignore',
-                shell: true,
                 windowsHide: false
             });
             child.unref();
