@@ -232,11 +232,11 @@ async function findWorkbenchTarget(preferAgent = false) {
                 continue;
             }
 
-            // Highest priority: jetski-agent (the agent panel - chat target)
+            // Highest priority: jetski-agent (agent chat panel only)
             if (t.url && t.url.includes('jetski-agent')) {
-                score = 120; // Always highest - this is the chat panel
+                score = 120; // Agent panel — the primary remote target
             }
-            // High priority: workbench pages (VS Code / Antigravity main UI)
+            // Secondary: workbench (full IDE)
             else if (t.url && (t.url.includes('workbench.html') || t.url.includes('workbench.desktop'))) {
                 score = 100;
             }
@@ -545,323 +545,23 @@ wss.on('connection', async (ws) => {
                     }
                     break;
 
-                case 'chat':
-                    if (!isConnected || !cdpClient) {
-                        ws.send(JSON.stringify({ type: 'chat-error', error: 'CDP chưa kết nối. Hãy kết nối Antigravity trước.' }));
-                        break;
-                    }
-                    try {
-                        const chatText = msg.text || '';
-                        log('INFO', `Chat message: ${chatText.substring(0, 50)}...`);
-                        addToHistory('user', chatText);
-
-                        ws.send(JSON.stringify({ type: 'chat-status', text: 'Đang tìm Agent chat input...', status: 'info' }));
-
-                        // ───────────────────────────────────────────────────────
-                        // Atomic expression: Find → Focus → Clear → Insert text
-                        // Uses execCommand('insertText') which properly triggers
-                        // React/framework state updates (textContent does NOT work)
-                        // ───────────────────────────────────────────────────────
-                        const buildChatExpr = (text) => `
-                            (function() {
-                                function findChatInput() {
-                                    // Strategy 1: contenteditable with known Antigravity classes
-                                    const ceEls = document.querySelectorAll('[contenteditable="true"]');
-                                    for (const el of ceEls) {
-                                        const rect = el.getBoundingClientRect();
-                                        if (rect.width < 50 || rect.height < 10) continue;
-                                        const cls = el.className || '';
-                                        if (cls.includes('cursor-text') || cls.includes('overflow-y-auto') || cls.includes('outline-none')) {
-                                            return { el, type: 'contenteditable', cls: cls.substring(0,80) };
-                                        }
-                                    }
-                                    // Strategy 2: Any visible contenteditable
-                                    for (const el of ceEls) {
-                                        const rect = el.getBoundingClientRect();
-                                        if (rect.width > 50 && rect.height > 10) {
-                                            return { el, type: 'contenteditable-generic', cls: (el.className||'').substring(0,80) };
-                                        }
-                                    }
-                                    // Strategy 3: textarea fallback
-                                    const tas = document.querySelectorAll('textarea');
-                                    for (const ta of tas) {
-                                        const rect = ta.getBoundingClientRect();
-                                        if (rect.width > 50 && rect.height > 10) {
-                                            return { el: ta, type: 'textarea', cls: (ta.className||'').substring(0,80) };
-                                        }
-                                    }
-                                    return null;
-                                }
-
-                                const found = findChatInput();
-                                if (!found) return { ok: false, error: 'no chat input found' };
-
-                                const { el, type, cls } = found;
-                                const text = ${JSON.stringify(text)};
-
-                                // Focus the element
-                                el.focus();
-                                el.click();
-
-                                if (type === 'textarea') {
-                                    // Textarea: set value + native input setter for React
-                                    const nativeSetter = Object.getOwnPropertyDescriptor(
-                                        window.HTMLTextAreaElement.prototype, 'value'
-                                    ).set;
-                                    nativeSetter.call(el, text);
-                                    el.dispatchEvent(new Event('input', { bubbles: true }));
-                                    el.dispatchEvent(new Event('change', { bubbles: true }));
-                                    return { ok: true, type, cls };
-                                }
-
-                                // Contenteditable: use Selection + execCommand
-                                // Step 1: Select ALL existing content to replace it
-                                const sel = window.getSelection();
-                                const range = document.createRange();
-                                range.selectNodeContents(el);
-                                sel.removeAllRanges();
-                                sel.addRange(range);
-
-                                // Step 2: Delete existing content
-                                document.execCommand('delete', false, null);
-
-                                // Step 3: Insert new text via execCommand (framework-compatible!)
-                                document.execCommand('insertText', false, text);
-
-                                return { ok: true, type, cls, textLength: text.length };
-                            })()
-                        `;
-
-                        // Build list of candidate targets (workbench first)
-                        let targets = [];
-                        try {
-                            targets = await CDP.List({ host: CONFIG.cdpHost, port: CONFIG.cdpPort });
-                        } catch (_) { }
-
-                        const candidateTargets = targets.filter(t =>
-                            (t.type === 'page' || t.type === 'iframe') &&
-                            !t.url?.includes(`localhost:${CONFIG.port}`)
-                        );
-                        candidateTargets.sort((a, b) => {
-                            const score = (t) => {
-                                if (t.url?.includes('workbench.html') || t.url?.includes('workbench.desktop')) return 10;
-                                if (t.url?.includes('jetski-agent')) return 8;
-                                if (t.url?.includes('vscode-file://')) return 6;
-                                if (t.type === 'iframe' && t.url?.includes('vscode-webview')) return 3;
-                                return 1;
-                            };
-                            return score(b) - score(a);
-                        });
-
-                        let chatSent = false;
-                        let chatTargetClient = null; // Keep reference for Enter key
-
-                        for (const target of candidateTargets) {
-                            if (chatSent) break;
-                            log('INFO', `Trying target: ${target.title} (${target.url?.substring(0, 80)})`);
-                            ws.send(JSON.stringify({ type: 'chat-status', text: `Thử target: ${target.title || 'unknown'}...`, status: 'info' }));
-
-                            let tempClient = null;
-                            try {
-                                tempClient = await CDP({ host: CONFIG.cdpHost, port: CONFIG.cdpPort, target });
-                                await tempClient.Runtime.enable();
-
-                                // Atomic: find + focus + clear + insert text
-                                const result = await tempClient.Runtime.evaluate({
-                                    expression: buildChatExpr(chatText),
-                                    returnByValue: true,
-                                    awaitPromise: false,
-                                });
-
-                                const val = result.result && result.result.value;
-                                if (val && val.ok) {
-                                    log('INFO', `✓ Text inserted via ${val.type} on "${target.title}" (class: ${val.cls})`);
-                                    ws.send(JSON.stringify({ type: 'chat-status', text: `✅ Text inserted: ${target.title} (${val.type})`, status: 'success' }));
-
-                                    // Wait for framework to process the input
-                                    await new Promise(r => setTimeout(r, 300));
-
-                                    // Verify text was actually inserted
-                                    const verifyResult = await tempClient.Runtime.evaluate({
-                                        expression: `
-                                            (function() {
-                                                const el = document.querySelector('[contenteditable="true"]');
-                                                if (el) return { text: (el.textContent || '').substring(0, 100), len: (el.textContent || '').length };
-                                                const ta = document.querySelector('textarea');
-                                                if (ta) return { text: (ta.value || '').substring(0, 100), len: (ta.value || '').length };
-                                                return { text: '', len: 0 };
-                                            })()
-                                        `,
-                                        returnByValue: true,
-                                    });
-                                    const verifyVal = verifyResult.result && verifyResult.result.value;
-                                    log('INFO', `Verify input content: "${verifyVal?.text}" (len=${verifyVal?.len})`);
-
-                                    if (verifyVal && verifyVal.len > 0) {
-                                        // Text is confirmed in the input - now press Enter
-                                        await tempClient.Input.dispatchKeyEvent({
-                                            type: 'rawKeyDown',
-                                            key: 'Enter',
-                                            code: 'Enter',
-                                            windowsVirtualKeyCode: 13,
-                                            nativeVirtualKeyCode: 13,
-                                        });
-                                        await new Promise(r => setTimeout(r, 50));
-                                        await tempClient.Input.dispatchKeyEvent({
-                                            type: 'char',
-                                            key: 'Enter',
-                                            code: 'Enter',
-                                            text: '\r',
-                                            windowsVirtualKeyCode: 13,
-                                            nativeVirtualKeyCode: 13,
-                                        });
-                                        await new Promise(r => setTimeout(r, 50));
-                                        await tempClient.Input.dispatchKeyEvent({
-                                            type: 'keyUp',
-                                            key: 'Enter',
-                                            code: 'Enter',
-                                            windowsVirtualKeyCode: 13,
-                                            nativeVirtualKeyCode: 13,
-                                        });
-
-                                        chatSent = true;
-                                        chatTargetClient = tempClient;
-                                        tempClient = null; // Don't close immediately
-                                        log('INFO', 'Chat message sent successfully!');
-                                        ws.send(JSON.stringify({ type: 'chat-status', text: '✅ Tin nhắn đã gửi! Đang chờ phản hồi...', status: 'success' }));
-                                    } else {
-                                        log('WARN', `Text insertion verified but content is empty — framework may have rejected it`);
-                                        // Fallback: try typing char by char via Input.dispatchKeyEvent
-                                        ws.send(JSON.stringify({ type: 'chat-status', text: '⚠️ execCommand failed, thử gõ từng ký tự...', status: 'info' }));
-
-                                        // Focus the input element first
-                                        await tempClient.Runtime.evaluate({
-                                            expression: `(function(){
-                                                const el = document.querySelector('[contenteditable="true"]');
-                                                if (el) { el.focus(); el.click(); }
-                                            })()`,
-                                        });
-                                        await new Promise(r => setTimeout(r, 100));
-
-                                        // Type each character
-                                        for (const char of chatText) {
-                                            await tempClient.Input.dispatchKeyEvent({
-                                                type: 'keyDown',
-                                                key: char,
-                                                text: char,
-                                                unmodifiedText: char,
-                                            });
-                                            await tempClient.Input.dispatchKeyEvent({
-                                                type: 'char',
-                                                key: char,
-                                                text: char,
-                                                unmodifiedText: char,
-                                            });
-                                            await tempClient.Input.dispatchKeyEvent({
-                                                type: 'keyUp',
-                                                key: char,
-                                            });
-                                            await new Promise(r => setTimeout(r, 20));
-                                        }
-
-                                        await new Promise(r => setTimeout(r, 300));
-
-                                        // Press Enter
-                                        await tempClient.Input.dispatchKeyEvent({
-                                            type: 'rawKeyDown', key: 'Enter', code: 'Enter',
-                                            windowsVirtualKeyCode: 13, nativeVirtualKeyCode: 13,
-                                        });
-                                        await tempClient.Input.dispatchKeyEvent({
-                                            type: 'char', key: 'Enter', code: 'Enter', text: '\r',
-                                            windowsVirtualKeyCode: 13, nativeVirtualKeyCode: 13,
-                                        });
-                                        await tempClient.Input.dispatchKeyEvent({
-                                            type: 'keyUp', key: 'Enter', code: 'Enter',
-                                            windowsVirtualKeyCode: 13, nativeVirtualKeyCode: 13,
-                                        });
-
-                                        chatSent = true;
-                                        chatTargetClient = tempClient;
-                                        tempClient = null;
-                                        log('INFO', 'Chat sent via char-by-char fallback');
-                                    }
-                                } else {
-                                    log('WARN', `No chat input found on "${target.title}": ${val?.error || 'not found'}`);
-                                }
-                            } catch (err) {
-                                log('WARN', `Failed target "${target.title}": ${err.message}`);
-                            } finally {
-                                // Only close if not kept for Enter key
-                                if (tempClient) {
-                                    try { await tempClient.close(); } catch (_) { }
-                                }
-                            }
-                        }
-
-                        if (chatSent) {
-                            // ─── Live sync: stream screenshots of Antigravity agent panel ───
-                            // Instead of fragile DOM reading, show the user what's happening
-                            // via live screenshots from the workbench
-                            ws.send(JSON.stringify({ type: 'chat-response', text: '✅ Tin nhắn đã gửi thành công! Đang stream trạng thái agent...' }));
-
-                            // Stream screenshots for ~20s so user can SEE the agent working  
-                            const streamClient = chatTargetClient || cdpClient;
-                            try { await streamClient.Page.enable(); } catch (_) { }
-                            let lastScreenData = null;
-                            for (let i = 0; i < 10; i++) {
-                                await new Promise(r => setTimeout(r, 2000));
-                                try {
-                                    if (ws.readyState !== 1) break;
-                                    // Capture screenshot from workbench target
-                                    const ssResult = await streamClient.Page.captureScreenshot({
-                                        format: 'jpeg',
-                                        quality: 50,
-                                        fromSurface: true,
-                                    });
-                                    if (ssResult && ssResult.data && ssResult.data !== lastScreenData) {
-                                        lastScreenData = ssResult.data;
-                                        ws.send(JSON.stringify({ type: 'agent-sync', data: ssResult.data, frame: i + 1 }));
-                                    }
-                                } catch (ssErr) {
-                                    log('WARN', `Sync screenshot ${i + 1} failed: ${ssErr.message}`);
-                                    break;
-                                }
-                            }
-
-                            // Clean up chatTargetClient
-                            if (chatTargetClient) {
-                                setTimeout(async () => { try { await chatTargetClient.close(); } catch (_) { } }, 2000);
-                            }
-                        } else {
-                            log('WARN', `Chat input not found in any of ${candidateTargets.length} targets`);
-                            ws.send(JSON.stringify({
-                                type: 'chat-response',
-                                text: `Không tìm thấy chat input trong ${candidateTargets.length} CDP targets.\n\n🔧 Hãy đảm bảo:\n1. Agent panel đang mở trong Antigravity\n2. Antigravity đã khởi chạy với --remote-debugging-port\n3. Thử nhấn Reconnect CDP`
-                            }));
-                        }
-                    } catch (chatErr) {
-                        log('ERROR', 'Chat error:', chatErr.message);
-                        ws.send(JSON.stringify({ type: 'chat-error', error: chatErr.message }));
-                    }
+                case 'viewport':
+                    // Client requests current viewport size
+                    const vpSize = await getViewportSize();
+                    ws.send(JSON.stringify({ type: 'viewport', viewport: vpSize }));
                     break;
 
                 case 'list-targets':
                     try {
-                        const targets = await CDP.List({ host: CONFIG.cdpHost, port: CONFIG.cdpPort });
+                        const tgts = await CDP.List({ host: CONFIG.cdpHost, port: CONFIG.cdpPort });
                         ws.send(JSON.stringify({
                             type: 'targets-list',
-                            targets: targets.map(t => ({
-                                id: t.id,
-                                type: t.type,
-                                title: t.title,
-                                url: t.url,
+                            targets: tgts.map(t => ({
+                                id: t.id, type: t.type, title: t.title, url: t.url,
                             }))
                         }));
                     } catch (err) {
-                        ws.send(JSON.stringify({
-                            type: 'chat-error',
-                            error: `Không thể lấy CDP targets: ${err.message}`
-                        }));
+                        log('WARN', 'List targets error:', err.message);
                     }
                     break;
 

@@ -3,14 +3,12 @@
 
 <head>
   <meta charset="UTF-8">
-  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
   <meta name="apple-mobile-web-app-capable" content="yes">
   <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
-  <meta name="mobile-web-app-capable" content="yes">
-  <meta name="description" content="AntigravityHub — Remote Agent Chat">
-  <title>AntigravityHub Remote</title>
-  <link rel="preconnect" href="https://fonts.googleapis.com">
-  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&display=swap" rel="stylesheet">
+  <title>Antigravity Remote</title>
+  <link rel="icon" type="image/png" href="/image.png">
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600&display=swap" rel="stylesheet">
   <link href="https://fonts.googleapis.com/icon?family=Material+Icons+Round" rel="stylesheet">
   <style>
     *,
@@ -22,1306 +20,594 @@
     }
 
     :root {
-      --bg: #181818;
-      --bg-secondary: #1e1e1e;
-      --bg-input: #2a2a2a;
-      --bg-hover: #2e2e2e;
-      --bg-msg: #2a2a2a;
-      --text: #d4d4d4;
-      --text-secondary: #888;
-      --text-muted: #555;
-      --text-bright: #e8e8e8;
-      --accent: #3b8eea;
-      --accent-green: #3fb950;
-      --accent-red: #f85149;
-      --border: #2e2e2e;
-      --scrollbar: #c8a832;
+      --bg: #0d1117;
+      --bg2: #161b22;
+      --bg3: #21262d;
+      --border: #30363d;
+      --text: #c9d1d9;
+      --text2: #8b949e;
+      --accent: #58a6ff;
+      --green: #3fb950;
+      --red: #f85149;
+      --safe-top: env(safe-area-inset-top, 0px);
+      --safe-bottom: env(safe-area-inset-bottom, 0px);
     }
 
     html,
     body {
       height: 100%;
       overflow: hidden;
-      font-family: 'Inter', -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
       background: var(--bg);
       color: var(--text);
-      -webkit-tap-highlight-color: transparent;
-      font-size: 14px;
+      font-family: 'Inter', sans-serif;
     }
 
-    .hidden {
-      display: none !important;
-    }
-
-    #app {
+    /* ═══ Layout ═══ */
+    .app {
       display: flex;
       flex-direction: column;
       height: 100vh;
       height: 100dvh;
+      padding-top: var(--safe-top);
     }
 
-    /* ═══ Header ═══ */
-    .header {
+    .toolbar {
       display: flex;
       align-items: center;
       justify-content: space-between;
-      padding: 10px 14px;
-      background: var(--bg-secondary);
+      padding: 6px 12px;
+      background: var(--bg2);
       border-bottom: 1px solid var(--border);
-      min-height: 42px;
+      flex-shrink: 0;
+      z-index: 10;
+      min-height: 40px;
     }
 
-    .header-left {
+    .toolbar-left {
       display: flex;
       align-items: center;
       gap: 8px;
     }
 
-    .header-title {
-      font-size: 13px;
-      font-weight: 600;
-      color: var(--text-bright);
+    .toolbar-right {
+      display: flex;
+      align-items: center;
+      gap: 4px;
     }
 
     .status-dot {
-      width: 7px;
-      height: 7px;
+      width: 8px;
+      height: 8px;
       border-radius: 50%;
-      background: var(--accent-red);
-      transition: background 0.3s;
+      background: var(--red);
+      transition: 0.3s;
     }
 
-    .status-dot.connected {
-      background: var(--accent-green);
-      box-shadow: 0 0 6px rgba(63, 185, 80, 0.5);
+    .status-dot.ok {
+      background: var(--green);
     }
 
-    .header-actions {
-      display: flex;
-      align-items: center;
-      gap: 4px;
-    }
-
-    .header-btn {
-      width: 28px;
-      height: 28px;
-      border-radius: 4px;
-      border: none;
-      background: transparent;
-      color: var(--text-secondary);
-      cursor: pointer;
-      display: flex;
-      align-items: center;
-      justify-content: center;
-      transition: background 0.1s;
-    }
-
-    .header-btn:hover {
-      background: var(--bg-hover);
-      color: var(--text-bright);
-    }
-
-    .header-btn .material-icons-round {
-      font-size: 16px;
-    }
-
-    /* ═══ Connection Banner ═══ */
-    .conn-banner {
-      display: none;
-      padding: 8px 16px;
-      font-size: 12px;
-      text-align: center;
-      background: rgba(248, 81, 73, 0.1);
-      border-bottom: 1px solid rgba(248, 81, 73, 0.2);
-      color: var(--accent-red);
-      cursor: pointer;
-      transition: background 0.15s;
-    }
-
-    .conn-banner:hover {
-      background: rgba(248, 81, 73, 0.15);
-    }
-
-    .conn-banner.show {
-      display: block;
-    }
-
-    .conn-banner.ok {
-      background: rgba(63, 185, 80, 0.08);
-      border-color: rgba(63, 185, 80, 0.15);
-      color: var(--accent-green);
-    }
-
-    /* ═══ Main Content ═══ */
-    .main {
-      flex: 1;
-      display: flex;
-      flex-direction: column;
-      overflow: hidden;
-      position: relative;
-    }
-
-    /* ═══ Chat Messages ═══ */
-    .chat-scroll {
-      flex: 1;
-      overflow-y: auto;
-      padding: 0;
-    }
-
-    .chat-scroll::-webkit-scrollbar {
-      width: 4px;
-    }
-
-    .chat-scroll::-webkit-scrollbar-track {
-      background: transparent;
-    }
-
-    .chat-scroll::-webkit-scrollbar-thumb {
-      background: var(--scrollbar);
-      border-radius: 2px;
-    }
-
-    .chat-messages {
-      display: flex;
-      flex-direction: column;
-      min-height: 100%;
-      justify-content: flex-end;
-      padding: 16px 20px;
-      gap: 16px;
-    }
-
-    /* Welcome state */
-    .welcome {
-      display: flex;
-      flex-direction: column;
-      align-items: flex-start;
-      padding: 20px 0;
-    }
-
-    .welcome-title {
-      font-size: 16px;
-      font-weight: 700;
-      color: var(--text-bright);
-    }
-
-    .welcome-subtitle {
-      font-size: 13px;
-      color: var(--text-secondary);
-      margin-top: 4px;
-    }
-
-    /* User message */
-    .msg-user {
-      background: var(--bg-msg);
-      border: 1px solid var(--border);
-      border-radius: 10px;
-      padding: 12px 16px;
-      font-size: 14px;
-      line-height: 1.6;
-      color: var(--text-bright);
-    }
-
-    /* Assistant message */
-    .msg-assistant {
-      display: flex;
-      flex-direction: column;
-      gap: 4px;
-    }
-
-    .msg-assistant-header {
+    .toolbar-title {
       font-size: 13px;
       font-weight: 600;
-      color: var(--text-bright);
     }
 
-    .msg-assistant-body {
-      font-size: 14px;
-      line-height: 1.7;
-      color: var(--text);
-      word-break: break-word;
-    }
-
-    .msg-assistant-body code {
-      background: var(--bg-input);
-      padding: 1px 5px;
-      border-radius: 4px;
-      font-size: 12px;
-      color: #dcdcaa;
-      font-family: 'Consolas', 'Fira Code', monospace;
-    }
-
-    .msg-assistant-body pre {
-      background: var(--bg-input);
-      border: 1px solid var(--border);
-      border-radius: 8px;
-      padding: 12px;
-      margin: 8px 0;
-      overflow-x: auto;
-      font-size: 12px;
-      line-height: 1.5;
-      font-family: 'Consolas', 'Fira Code', monospace;
-    }
-
-    .msg-status {
-      font-size: 12px;
-      color: var(--text-muted);
-      padding: 4px 0;
-      display: flex;
-      align-items: center;
-      gap: 6px;
-    }
-
-    .msg-status .material-icons-round {
-      font-size: 14px;
-    }
-
-    .msg-status.success {
-      color: var(--accent-green);
-    }
-
-    .msg-status.error {
-      color: var(--accent-red);
-    }
-
-    .msg-typing {
-      display: flex;
-      align-items: center;
-      gap: 6px;
-      font-size: 12px;
-      color: var(--text-secondary);
-    }
-
-    .typing-dot {
-      width: 5px;
-      height: 5px;
-      border-radius: 50%;
-      background: var(--text-secondary);
-      animation: typing-blink 1.4s ease-in-out infinite;
-    }
-
-    .typing-dot:nth-child(2) {
-      animation-delay: 0.2s;
-    }
-
-    .typing-dot:nth-child(3) {
-      animation-delay: 0.4s;
-    }
-
-    @keyframes typing-blink {
-
-      0%,
-      100% {
-        opacity: 0.3;
-      }
-
-      50% {
-        opacity: 1;
-      }
-    }
-
-    /* ═══ Input Area ═══ */
-    .input-area {
-      padding: 12px 16px 6px;
-    }
-
-    .input-box {
-      display: flex;
-      align-items: flex-end;
-      background: var(--bg-input);
-      border: 1px solid var(--border);
-      border-radius: 10px;
-      padding: 10px 12px;
-      gap: 8px;
-      transition: border-color 0.15s;
-    }
-
-    .input-box:focus-within {
-      border-color: #444;
-    }
-
-    .input-textarea {
-      flex: 1;
+    .toolbar-btn {
+      width: 32px;
+      height: 32px;
+      border-radius: 6px;
       border: none;
       background: transparent;
-      color: var(--text-bright);
-      font-size: 14px;
-      font-family: 'Inter', sans-serif;
-      resize: none;
-      outline: none;
-      min-height: 20px;
-      max-height: 120px;
-      line-height: 1.5;
-    }
-
-    .input-textarea::placeholder {
-      color: var(--text-muted);
-    }
-
-    .input-icons {
-      display: flex;
-      align-items: center;
-      gap: 6px;
-      flex-shrink: 0;
-    }
-
-    .input-icon-btn {
-      width: 28px;
-      height: 28px;
-      border-radius: 50%;
-      border: none;
-      background: transparent;
-      color: var(--text-secondary);
+      color: var(--text2);
       cursor: pointer;
       display: flex;
       align-items: center;
       justify-content: center;
-      transition: color 0.1s;
+      transition: 0.15s;
     }
 
-    .input-icon-btn:hover {
-      color: var(--text-bright);
-    }
-
-    .input-icon-btn .material-icons-round {
-      font-size: 18px;
-    }
-
-    .input-send {
-      width: 28px;
-      height: 28px;
-      border-radius: 50%;
-      border: none;
-      cursor: pointer;
-      display: flex;
-      align-items: center;
-      justify-content: center;
-      background: var(--accent);
-      color: white;
-      transition: opacity 0.15s;
-    }
-
-    .input-send:disabled {
-      opacity: 0.4;
-      cursor: default;
-    }
-
-    .input-send .material-icons-round {
-      font-size: 16px;
-    }
-
-    /* Controls under input */
-    .input-controls {
-      display: flex;
-      align-items: center;
-      gap: 2px;
-      padding: 6px 4px 0;
-      position: relative;
-    }
-
-    .ctrl-pill {
-      height: 26px;
-      padding: 0 8px;
-      border-radius: 4px;
-      border: none;
-      background: transparent;
-      color: var(--text-secondary);
-      font-size: 12px;
-      font-family: 'Inter', sans-serif;
-      cursor: pointer;
-      display: flex;
-      align-items: center;
-      gap: 3px;
-      transition: background 0.1s;
-    }
-
-    .ctrl-pill:hover {
-      background: var(--bg-hover);
+    .toolbar-btn:hover {
+      background: var(--bg3);
       color: var(--text);
     }
 
-    .ctrl-pill .material-icons-round {
-      font-size: 14px;
-    }
-
-    .ctrl-pill.model-pill {
-      color: var(--text-secondary);
-    }
-
-    /* ═══ Divider ═══ */
-    .divider {
-      height: 1px;
-      background: var(--border);
-      margin: 0;
-    }
-
-    /* ═══ Recent Actions ═══ */
-    .recent-section {
-      padding: 4px 0;
-    }
-
-    .action-row {
-      display: flex;
-      justify-content: space-between;
-      align-items: center;
-      padding: 8px 20px;
-      cursor: pointer;
-      transition: background 0.1s;
-    }
-
-    .action-row:hover {
-      background: var(--bg-hover);
-    }
-
-    .action-name {
-      font-size: 13px;
+    .toolbar-btn.active {
+      background: rgba(88, 166, 255, 0.15);
       color: var(--accent);
-      font-weight: 500;
     }
 
-    .action-time {
-      font-size: 12px;
-      color: var(--text-secondary);
-    }
-
-    .action-see-all {
-      padding: 8px 20px;
-      font-size: 12px;
-      color: var(--text-muted);
-      cursor: pointer;
-    }
-
-    .action-see-all:hover {
-      color: var(--text-secondary);
-    }
-
-    /* ═══ Footer ═══ */
-    .footer {
-      padding: 10px 20px;
-      text-align: center;
-      font-size: 11px;
-      color: var(--text-muted);
-    }
-
-    /* ═══ Bottom bar ═══ */
-    .bottom-bar {
-      display: flex;
-      align-items: center;
-      justify-content: space-between;
-      padding: 4px 12px;
-      background: var(--bg-secondary);
-      border-top: 1px solid var(--border);
-      gap: 8px;
-    }
-
-    .bottom-left {
-      display: flex;
-      align-items: center;
-      gap: 6px;
-      font-size: 11px;
-      color: var(--text-muted);
-    }
-
-    .bottom-right {
-      display: flex;
-      align-items: center;
-      gap: 8px;
-    }
-
-    .bottom-icon {
-      width: 20px;
-      height: 20px;
-      border-radius: 50%;
+    /* ═══ Remote View ═══ */
+    .remote-container {
+      flex: 1;
       display: flex;
       align-items: center;
       justify-content: center;
-      color: var(--text-secondary);
-      font-size: 13px;
-      cursor: pointer;
+      overflow: hidden;
+      position: relative;
+      background: #000;
+      touch-action: none;
+      /* Prevent browser gestures */
     }
 
-    .bottom-icon:hover {
-      color: var(--text);
-    }
-
-    .bottom-icon .material-icons-round {
-      font-size: 14px;
-    }
-
-    /* ═══ Animations ═══ */
-    @keyframes fadeIn {
-      from {
-        opacity: 0;
-        transform: translateY(4px);
-      }
-
-      to {
-        opacity: 1;
-        transform: translateY(0);
-      }
-    }
-
-    .animate-in {
-      animation: fadeIn 0.2s ease;
-    }
-
-    @keyframes pulse-glow {
-
-      0%,
-      100% {
-        opacity: 1;
-      }
-
-      50% {
-        opacity: 0.5;
-      }
-    }
-
-    .pulse {
-      animation: pulse-glow 2s ease-in-out infinite;
-    }
-
-    /* ═══ Mode Selector ═══ */
-    .mode-selector {
+    #remoteScreen {
+      max-width: 100%;
+      max-height: 100%;
+      object-fit: contain;
+      image-rendering: auto;
+      cursor: crosshair;
       display: none;
-      position: absolute;
-      bottom: 100%;
-      left: 0;
-      background: var(--bg-secondary);
-      border: 1px solid var(--border);
-      border-radius: 8px;
-      padding: 4px;
-      margin-bottom: 4px;
-      z-index: 10;
-      min-width: 180px;
-      box-shadow: 0 4px 16px rgba(0, 0, 0, 0.4);
+      touch-action: none;
+      user-select: none;
+      -webkit-user-select: none;
     }
 
-    .mode-selector.show {
+    .placeholder {
+      text-align: center;
+      color: var(--text2);
+      padding: 20px;
+    }
+
+    .placeholder .material-icons-round {
+      font-size: 48px;
+      margin-bottom: 12px;
       display: block;
+      color: var(--accent);
+      opacity: 0.5;
     }
 
-    .mode-option {
+    .placeholder p {
+      font-size: 13px;
+      margin: 4px 0;
+    }
+
+    /* ═══ Keyboard Input Bar ═══ */
+    .input-bar {
       display: flex;
       align-items: center;
       gap: 8px;
       padding: 8px 12px;
-      border-radius: 6px;
-      cursor: pointer;
-      font-size: 13px;
+      background: var(--bg2);
+      border-top: 1px solid var(--border);
+      flex-shrink: 0;
+      padding-bottom: max(8px, var(--safe-bottom));
+    }
+
+    .input-field {
+      flex: 1;
+      background: var(--bg3);
+      border: 1px solid var(--border);
+      border-radius: 8px;
+      padding: 8px 12px;
       color: var(--text);
-      transition: background 0.1s;
+      font-size: 14px;
+      font-family: 'Inter', sans-serif;
+      outline: none;
+      caret-color: var(--accent);
     }
 
-    .mode-option:hover {
-      background: var(--bg-hover);
+    .input-field:focus {
+      border-color: var(--accent);
     }
 
-    .mode-option.active {
-      color: var(--text-bright);
-      background: var(--bg-hover);
+    .input-field::placeholder {
+      color: var(--text2);
     }
 
-    .mode-option .material-icons-round {
-      font-size: 16px;
-      color: var(--accent);
-    }
-
-    /* ═══ History Panel ═══ */
-    .history-overlay {
-      display: none;
-      position: fixed;
-      top: 0;
-      left: 0;
-      right: 0;
-      bottom: 0;
-      z-index: 100;
-      background: rgba(0, 0, 0, 0.5);
-    }
-
-    .history-overlay.show {
-      display: block;
-    }
-
-    .history-panel {
-      position: absolute;
-      top: 0;
-      right: 0;
-      width: min(360px, 90vw);
-      height: 100%;
-      background: var(--bg-secondary);
-      border-left: 1px solid var(--border);
-      display: flex;
-      flex-direction: column;
-      animation: slideIn 0.2s ease;
-    }
-
-    @keyframes slideIn {
-      from {
-        transform: translateX(100%);
-      }
-
-      to {
-        transform: translateX(0);
-      }
-    }
-
-    .history-header {
+    /* ═══ Status Bar ═══ */
+    .statusbar {
       display: flex;
       align-items: center;
       justify-content: space-between;
-      padding: 12px 16px;
-      border-bottom: 1px solid var(--border);
-    }
-
-    .history-header-title {
-      font-size: 14px;
-      font-weight: 600;
-      color: var(--text-bright);
-    }
-
-    .history-header-actions {
-      display: flex;
-      gap: 4px;
-    }
-
-    .history-list {
-      flex: 1;
-      overflow-y: auto;
-      padding: 8px 0;
-    }
-
-    .history-list::-webkit-scrollbar {
-      width: 4px;
-    }
-
-    .history-list::-webkit-scrollbar-thumb {
-      background: var(--scrollbar);
-      border-radius: 2px;
-    }
-
-    .history-item {
-      padding: 10px 16px;
-      cursor: default;
-      border-bottom: 1px solid rgba(255, 255, 255, 0.03);
-    }
-
-    .history-item:hover {
-      background: var(--bg-hover);
-    }
-
-    .history-item-role {
+      padding: 4px 12px;
+      background: var(--bg2);
+      border-top: 1px solid var(--border);
       font-size: 11px;
+      color: var(--text2);
+      flex-shrink: 0;
+    }
+
+    .fps-badge {
+      color: var(--green);
       font-weight: 600;
-      color: var(--text-secondary);
-      margin-bottom: 2px;
-      display: flex;
-      justify-content: space-between;
     }
 
-    .history-item-role .time {
-      font-weight: 400;
-      color: var(--text-muted);
-    }
-
-    .history-item-text {
-      font-size: 13px;
+    /* ═══ Overlay ═══ */
+    .toast {
+      position: fixed;
+      top: 60px;
+      left: 50%;
+      transform: translateX(-50%);
+      background: var(--bg3);
+      border: 1px solid var(--border);
+      border-radius: 10px;
+      padding: 8px 16px;
+      font-size: 12px;
       color: var(--text);
-      line-height: 1.4;
-      overflow: hidden;
-      display: -webkit-box;
-      -webkit-line-clamp: 3;
-      -webkit-box-orient: vertical;
+      z-index: 100;
+      opacity: 0;
+      transition: opacity 0.3s;
+      pointer-events: none;
     }
 
-    .history-item.user .history-item-role {
-      color: var(--accent);
+    .toast.show {
+      opacity: 1;
     }
 
-    .history-empty {
-      padding: 40px 20px;
-      text-align: center;
-      color: var(--text-muted);
-      font-size: 13px;
+    /* ═══ Cursor indicator ═══ */
+    .cursor-dot {
+      position: absolute;
+      width: 12px;
+      height: 12px;
+      border-radius: 50%;
+      background: rgba(88, 166, 255, 0.6);
+      border: 2px solid rgba(88, 166, 255, 0.9);
+      transform: translate(-50%, -50%);
+      pointer-events: none;
+      z-index: 5;
+      display: none;
+      transition: opacity 0.2s;
+    }
+
+    @keyframes tapPulse {
+      0% {
+        transform: translate(-50%, -50%) scale(1);
+        opacity: 1;
+      }
+
+      100% {
+        transform: translate(-50%, -50%) scale(2.5);
+        opacity: 0;
+      }
+    }
+
+    .tap-ring {
+      position: absolute;
+      width: 20px;
+      height: 20px;
+      border-radius: 50%;
+      border: 2px solid var(--accent);
+      pointer-events: none;
+      z-index: 5;
+      animation: tapPulse 0.4s ease-out forwards;
     }
   </style>
 </head>
 
 <body>
-  <div id="app">
-    <!-- Header -->
-    <div class="header">
-      <div class="header-left">
-        <span class="header-title">Agent</span>
-        <div class="status-dot" id="statusDot" title="CDP disconnected"></div>
+  <div class="app">
+    <!-- Toolbar -->
+    <div class="toolbar">
+      <div class="toolbar-left">
+        <div class="status-dot" id="statusDot"></div>
+        <span class="toolbar-title">Antigravity Remote</span>
       </div>
-      <div class="header-actions">
-        <button class="header-btn" id="btnNew" title="New chat">
-          <span class="material-icons-round">add</span>
+      <div class="toolbar-right">
+        <button class="toolbar-btn" id="btnStream" title="Bật/tắt stream">
+          <span class="material-icons-round" style="font-size:20px">play_arrow</span>
         </button>
-        <button class="header-btn" id="btnHistory" title="History">
-          <span class="material-icons-round">schedule</span>
+        <button class="toolbar-btn" id="btnRefresh" title="Refresh screenshot">
+          <span class="material-icons-round" style="font-size:20px">refresh</span>
         </button>
-        <button class="header-btn" id="btnMenu" title="Menu">
-          <span class="material-icons-round">more_horiz</span>
+        <button class="toolbar-btn" id="btnKeyboard" title="Bàn phím">
+          <span class="material-icons-round" style="font-size:20px">keyboard</span>
+        </button>
+        <button class="toolbar-btn" id="btnReconnect" title="Reconnect CDP">
+          <span class="material-icons-round" style="font-size:20px">sync</span>
         </button>
       </div>
     </div>
 
-    <!-- Connection Banner -->
-    <div class="conn-banner" id="connBanner">
-      <span id="connBannerText">⚡ Đang kết nối đến Antigravity...</span>
-    </div>
-
-    <!-- History Panel -->
-    <div class="history-overlay" id="historyOverlay">
-      <div class="history-panel">
-        <div class="history-header">
-          <span class="history-header-title">Lịch sử Chat</span>
-          <div class="history-header-actions">
-            <button class="header-btn" id="btnClearHistory" title="Xóa lịch sử">
-              <span class="material-icons-round">delete_outline</span>
-            </button>
-            <button class="header-btn" id="btnCloseHistory" title="Đóng">
-              <span class="material-icons-round">close</span>
-            </button>
-          </div>
-        </div>
-        <div class="history-list" id="historyList">
-          <div class="history-empty">Chưa có lịch sử chat nào</div>
-        </div>
+    <!-- Remote Desktop View -->
+    <div class="remote-container" id="remoteContainer">
+      <img id="remoteScreen" alt="Remote Screen">
+      <div class="cursor-dot" id="cursorDot"></div>
+      <div class="placeholder" id="placeholder">
+        <span class="material-icons-round">connected_tv</span>
+        <p><strong>Antigravity Remote Desktop</strong></p>
+        <p>Đang kết nối CDP...</p>
       </div>
     </div>
 
-    <!-- Main content -->
-    <div class="main">
-      <div class="chat-scroll" id="chatScroll">
-        <div class="chat-messages" id="chatMessages">
-          <!-- Welcome -->
-          <div class="welcome" id="welcome">
-            <div class="welcome-title">AntigravityHub</div>
-            <div class="welcome-subtitle">Remote Agent Chat — Gửi tin nhắn để điều khiển Antigravity từ xa</div>
-          </div>
-        </div>
-      </div>
-
-      <!-- Input -->
-      <div class="input-area">
-        <div class="input-box">
-          <textarea class="input-textarea" id="chatInput" rows="1"
-            placeholder="Nhập tin nhắn gửi đến Antigravity Agent..."></textarea>
-          <div class="input-icons">
-            <button class="input-icon-btn" id="btnMic" title="Voice">
-              <span class="material-icons-round">mic</span>
-            </button>
-            <button class="input-send" id="btnSend" title="Send" disabled>
-              <span class="material-icons-round">arrow_forward</span>
-            </button>
-          </div>
-        </div>
-        <div class="input-controls">
-          <button class="ctrl-pill" id="btnAttach">
-            <span class="material-icons-round">add</span>
-          </button>
-          <button class="ctrl-pill" id="btnMode">
-            <span class="material-icons-round">expand_more</span> <span id="modeLabel">Fast</span>
-          </button>
-          <button class="ctrl-pill model-pill">
-            <span class="material-icons-round">expand_more</span> Claude Opus 4.8 (Thinking)
-          </button>
-
-          <!-- Mode Selector Dropdown -->
-          <div class="mode-selector" id="modeSelector">
-            <div class="mode-option active" data-mode="chat">
-              <span class="material-icons-round">chat</span>
-              Chat — Gửi tin nhắn đến Agent
-            </div>
-            <div class="mode-option" data-mode="screen">
-              <span class="material-icons-round">monitor</span>
-              Screen — Xem &amp; điều khiển màn hình
-            </div>
-          </div>
-        </div>
-      </div>
+    <!-- Keyboard Input -->
+    <div class="input-bar">
+      <input type="text" class="input-field" id="keyInput" placeholder="Gõ ở đây để nhập vào Antigravity..."
+        autocomplete="off" autocapitalize="off" autocorrect="off" spellcheck="false">
+      <button class="toolbar-btn" id="btnEnter" title="Enter">
+        <span class="material-icons-round" style="font-size:20px;color:var(--accent)">send</span>
+      </button>
     </div>
 
-    <!-- Divider -->
-    <div class="divider hidden"></div>
-
-    <!-- Recent Actions (hidden) -->
-    <div class="recent-section hidden" id="recentSection">
-      <div class="action-row" data-action="reconnect">
-        <span class="action-name">Reconnect CDP</span>
-      </div>
-      <div class="action-row" data-action="restart-cdp">
-        <span class="action-name">Restart Antigravity CDP</span>
-      </div>
-      <div class="action-row" data-action="screenshot">
-        <span class="action-name">Capture Screenshot</span>
-      </div>
-      <div class="action-row" data-action="targets">
-        <span class="action-name">List CDP Targets</span>
-      </div>
-      <div class="action-see-all" id="seeAll">See all</div>
-    </div>
-
-    <!-- Footer -->
-    <div class="footer">AI may make mistakes. Double-check all generated code.</div>
-
-    <!-- Bottom bar -->
-    <div class="bottom-bar">
-      <div class="bottom-left">
-        <span id="cdpInfo">CDP: ---</span>
-      </div>
-      <div class="bottom-right">
-        <div class="bottom-icon" id="btnNotif" title="Notifications">
-          <span class="material-icons-round">notifications_none</span>
-        </div>
-        <div class="bottom-icon" id="btnSettings" title="Settings">
-          <span class="material-icons-round">settings</span>
-        </div>
-      </div>
+    <!-- Status Bar -->
+    <div class="statusbar">
+      <span id="statusText">Đang kết nối...</span>
+      <span><span class="fps-badge" id="fpsText">0 FPS</span> · <span id="cdpInfo">CDP: --</span></span>
     </div>
   </div>
 
+  <div class="toast" id="toast"></div>
+
   <script>
-    // ─── State ──────────────────────────────────────
-    const state = {
-      ws: null,
-      connected: false,
-      cdpConnected: false,
-      cdpPort: 9333,
-      messages: [],
-      waiting: false,
-      mode: 'chat', // 'chat' | 'screen'
-      historyOpen: false,
-    };
+    (function () {
+      'use strict';
 
-    // ─── DOM ────────────────────────────────────────
-    const chatMessages$ = document.getElementById('chatMessages');
-    const chatScroll$ = document.getElementById('chatScroll');
-    const welcome$ = document.getElementById('welcome');
-    const chatInput$ = document.getElementById('chatInput');
-    const btnSend$ = document.getElementById('btnSend');
-    const statusDot$ = document.getElementById('statusDot');
-    const connBanner$ = document.getElementById('connBanner');
-    const connBannerText$ = document.getElementById('connBannerText');
-    const cdpInfo$ = document.getElementById('cdpInfo');
-    const modeSelector$ = document.getElementById('modeSelector');
-    const modeLabel$ = document.getElementById('modeLabel');
-    const historyOverlay$ = document.getElementById('historyOverlay');
-    const historyList$ = document.getElementById('historyList');
-
-    // ─── Auto-resize textarea ───────────────────────
-    chatInput$.addEventListener('input', () => {
-      chatInput$.style.height = 'auto';
-      chatInput$.style.height = Math.min(chatInput$.scrollHeight, 120) + 'px';
-      btnSend$.disabled = !chatInput$.value.trim();
-    });
-
-    chatInput$.addEventListener('keydown', (e) => {
-      if (e.key === 'Enter' && !e.shiftKey) {
-        e.preventDefault();
-        sendMessage();
-      }
-    });
-
-    btnSend$.addEventListener('click', sendMessage);
-
-    // ─── Mode Selector ──────────────────────────────
-    document.getElementById('btnMode').addEventListener('click', (e) => {
-      e.stopPropagation();
-      modeSelector$.classList.toggle('show');
-    });
-
-    document.addEventListener('click', () => {
-      modeSelector$.classList.remove('show');
-    });
-
-    modeSelector$.querySelectorAll('.mode-option').forEach(opt => {
-      opt.addEventListener('click', () => {
-        const mode = opt.dataset.mode;
-        state.mode = mode;
-        modeSelector$.querySelectorAll('.mode-option').forEach(o => o.classList.remove('active'));
-        opt.classList.add('active');
-        modeLabel$.textContent = mode === 'chat' ? 'Fast' : 'Screen';
-        modeSelector$.classList.remove('show');
-      });
-    });
-
-    // ─── History Panel ──────────────────────────────
-    document.getElementById('btnHistory').addEventListener('click', () => {
-      state.historyOpen = true;
-      historyOverlay$.classList.add('show');
-      loadHistoryFromServer();
-    });
-
-    document.getElementById('btnCloseHistory').addEventListener('click', closeHistory);
-
-    historyOverlay$.addEventListener('click', (e) => {
-      if (e.target === historyOverlay$) closeHistory();
-    });
-
-    document.getElementById('btnClearHistory').addEventListener('click', async () => {
-      if (!confirm('Xóa toàn bộ lịch sử?')) return;
-      try {
-        await fetch('/api/history/clear', { method: 'POST' });
-        renderHistory([]);
-      } catch (_) { }
-    });
-
-    function closeHistory() {
-      state.historyOpen = false;
-      historyOverlay$.classList.remove('show');
-    }
-
-    async function loadHistoryFromServer() {
-      try {
-        const res = await fetch('/api/history');
-        const history = await res.json();
-        renderHistory(history);
-      } catch (_) {
-        renderHistory([]);
-      }
-    }
-
-    function renderHistory(items) {
-      if (!items || items.length === 0) {
-        historyList$.innerHTML = '<div class="history-empty">Chưa có lịch sử chat nào</div>';
-        return;
-      }
-      historyList$.innerHTML = items.map(item => {
-        const isUser = item.role === 'user';
-        const roleName = isUser ? 'Bạn' : 'AntigravityHub';
-        const timeStr = formatRelativeTime(item.ts);
-        const text = (item.text || '').substring(0, 200);
-        return `
-          <div class="history-item ${isUser ? 'user' : 'assistant'}">
-            <div class="history-item-role">
-              <span>${roleName}</span>
-              <span class="time">${timeStr}</span>
-            </div>
-            <div class="history-item-text">${escapeHtml(text)}</div>
-          </div>
-        `;
-      }).reverse().join('');
-    }
-
-    function formatRelativeTime(ts) {
-      const diff = Date.now() - ts;
-      const mins = Math.floor(diff / 60000);
-      if (mins < 1) return 'vừa xong';
-      if (mins < 60) return `${mins}m`;
-      const hours = Math.floor(mins / 60);
-      if (hours < 24) return `${hours}h`;
-      const days = Math.floor(hours / 24);
-      return `${days}d`;
-    }
-
-    // ─── WebSocket ──────────────────────────────────
-    function connectWS() {
-      const proto = location.protocol === 'https:' ? 'wss' : 'ws';
-      state.ws = new WebSocket(`${proto}://${location.host}/ws`);
-
-      state.ws.onopen = () => {
-        state.connected = true;
-        updateConnectionUI();
+      // ─── State ───
+      const state = {
+        connected: false,
+        streaming: false,
+        viewport: { width: 1920, height: 1080 },
+        frameCount: 0,
+        lastFpsUpdate: Date.now(),
+        fps: 0,
       };
 
-      state.ws.onmessage = (e) => {
-        try { handleMessage(JSON.parse(e.data)); }
-        catch (err) { console.error('Parse error:', err); }
-      };
+      // ─── DOM ───
+      const img = document.getElementById('remoteScreen');
+      const container = document.getElementById('remoteContainer');
+      const placeholder = document.getElementById('placeholder');
+      const statusDot = document.getElementById('statusDot');
+      const statusText = document.getElementById('statusText');
+      const fpsText = document.getElementById('fpsText');
+      const cdpInfo = document.getElementById('cdpInfo');
+      const keyInput = document.getElementById('keyInput');
+      const cursorDot = document.getElementById('cursorDot');
+      const toast = document.getElementById('toast');
 
-      state.ws.onclose = () => {
-        state.connected = false;
-        state.cdpConnected = false;
-        updateConnectionUI();
-        setTimeout(connectWS, 3000);
-      };
+      // ─── WebSocket ───
+      const wsUrl = `ws://${location.host}/ws`;
+      let ws = null;
 
-      state.ws.onerror = () => { };
-    }
-
-    function send(data) {
-      if (state.ws && state.ws.readyState === WebSocket.OPEN) {
-        state.ws.send(JSON.stringify(data));
-      }
-    }
-
-    // ─── Connection UI ──────────────────────────────
-    function updateConnectionUI() {
-      if (state.cdpConnected) {
-        statusDot$.classList.add('connected');
-        statusDot$.title = 'CDP connected';
-        connBanner$.classList.remove('show');
-        cdpInfo$.textContent = `CDP: ${state.cdpPort} ✓`;
-      } else if (state.connected) {
-        statusDot$.classList.remove('connected');
-        statusDot$.title = 'CDP disconnected';
-        connBanner$.classList.add('show');
-        connBannerText$.textContent = '⚡ CDP chưa kết nối — Nhấn để thử lại';
-        cdpInfo$.textContent = `CDP: ${state.cdpPort} ✗`;
-      } else {
-        statusDot$.classList.remove('connected');
-        statusDot$.title = 'Disconnected';
-        connBanner$.classList.add('show');
-        connBannerText$.textContent = '🔌 Mất kết nối server — Đang thử lại...';
-        cdpInfo$.textContent = 'CDP: ---';
-      }
-    }
-
-    connBanner$.addEventListener('click', () => {
-      send({ type: 'connect' });
-      connBannerText$.textContent = '⏳ Đang kết nối lại CDP...';
-    });
-
-    // ─── Message Handler ────────────────────────────
-    function handleMessage(msg) {
-      switch (msg.type) {
-        case 'status':
-          state.cdpConnected = msg.connected;
-          if (msg.viewport) state.viewport = msg.viewport;
-          updateConnectionUI();
-          break;
-
-        case 'chat-response':
-          removeTyping();
-          addAssistantMsg(msg.text);
-          state.waiting = false;
-          break;
-
-        case 'chat-error':
-          removeTyping();
-          addAssistantMsg('⚠️ ' + (msg.error || 'Lỗi không xác định'));
-          state.waiting = false;
-          break;
-
-        case 'chat-status':
-          addStatusMsg(msg.text, msg.status || 'info');
-          break;
-
-        case 'agent-sync':
-          // Live screenshot from Antigravity agent — update in-place
-          removeTyping();
-          updateAgentSync(msg.data, msg.frame);
-          break;
-
-        case 'frame':
-          if (state.mode === 'screen') {
-            removeTyping();
-            addScreenshot(msg.data);
-            state.waiting = false;
-          }
-          break;
-
-        case 'targets-list':
-          removeTyping();
-          if (msg.targets && msg.targets.length) {
-            let text = `📋 **${msg.targets.length} CDP targets:**\n\n`;
-            msg.targets.forEach((t, i) => {
-              text += `${i + 1}. [${t.type}] ${t.title}\n   ${t.url}\n\n`;
-            });
-            addAssistantMsg(text);
-          } else {
-            addAssistantMsg('Không tìm thấy CDP target nào.');
-          }
-          state.waiting = false;
-          break;
-
-        case 'history':
-          renderHistory(msg.messages || []);
-          break;
-      }
-    }
-
-    // ─── Send Message ───────────────────────────────
-    function sendMessage() {
-      const text = chatInput$.value.trim();
-      if (!text || state.waiting) return;
-
-      welcome$.style.display = 'none';
-      addUserMsg(text);
-      chatInput$.value = '';
-      chatInput$.style.height = 'auto';
-      btnSend$.disabled = true;
-      state.waiting = true;
-
-      showTyping();
-
-      if (state.mode === 'screen') {
-        send({ type: 'key', text });
-      } else {
-        send({ type: 'chat', text });
-      }
-    }
-
-    // ─── Render Messages ────────────────────────────
-    function addUserMsg(text) {
-      const div = document.createElement('div');
-      div.className = 'msg-user animate-in';
-      div.textContent = text;
-      chatMessages$.appendChild(div);
-      scrollToBottom();
-    }
-
-    function addAssistantMsg(text) {
-      const div = document.createElement('div');
-      div.className = 'msg-assistant animate-in';
-      div.innerHTML = `
-        <div class="msg-assistant-header">AntigravityHub</div>
-        <div class="msg-assistant-body">${formatText(text)}</div>
-      `;
-      chatMessages$.appendChild(div);
-      scrollToBottom();
-    }
-
-    function addStatusMsg(text, status) {
-      const div = document.createElement('div');
-      div.className = `msg-status animate-in ${status}`;
-      const icon = status === 'success' ? 'check_circle' : status === 'error' ? 'error' : 'info';
-      div.innerHTML = `<span class="material-icons-round">${icon}</span> ${escapeHtml(text)}`;
-      chatMessages$.appendChild(div);
-      scrollToBottom();
-    }
-
-    function addScreenshot(base64) {
-      const div = document.createElement('div');
-      div.className = 'msg-assistant animate-in';
-      div.innerHTML = `
-        <div class="msg-assistant-header">AntigravityHub</div>
-        <div class="msg-assistant-body">
-          <img src="data:image/jpeg;base64,${base64}" style="max-width:100%;border-radius:8px;border:1px solid var(--border);" />
-        </div>
-      `;
-      chatMessages$.appendChild(div);
-      scrollToBottom();
-    }
-
-    function showTyping() {
-      const div = document.createElement('div');
-      div.className = 'msg-assistant';
-      div.id = 'typingIndicator';
-      div.innerHTML = `
-        <div class="msg-assistant-header">AntigravityHub</div>
-        <div class="msg-typing">
-          <div class="typing-dot"></div>
-          <div class="typing-dot"></div>
-          <div class="typing-dot"></div>
-        </div>
-      `;
-      chatMessages$.appendChild(div);
-      scrollToBottom();
-    }
-
-    function removeTyping() {
-      const el = document.getElementById('typingIndicator');
-      if (el) el.remove();
-    }
-
-    // ─── Agent Sync: Live screenshot from Antigravity ───
-    function updateAgentSync(base64, frameNum) {
-      let syncEl = document.getElementById('agentSyncView');
-      if (!syncEl) {
-        syncEl = document.createElement('div');
-        syncEl.id = 'agentSyncView';
-        syncEl.className = 'msg-assistant animate-in';
-        syncEl.innerHTML = `
-          <div class="msg-assistant-header">🔴 Live — Antigravity Agent</div>
-          <div class="msg-assistant-body">
-            <img id="agentSyncImg" style="max-width:100%;border-radius:8px;border:1px solid var(--border);" />
-            <div id="agentSyncInfo" style="font-size:11px;color:var(--text-muted);margin-top:4px;"></div>
-          </div>
-        `;
-        chatMessages$.appendChild(syncEl);
-      }
-      const img = document.getElementById('agentSyncImg');
-      const info = document.getElementById('agentSyncInfo');
-      if (img) img.src = 'data:image/jpeg;base64,' + base64;
-      if (info) info.textContent = `Frame ${frameNum}/10 — ${new Date().toLocaleTimeString()}`;
-      scrollToBottom();
-      state.waiting = false;
-    }
-
-    function scrollToBottom() {
-      requestAnimationFrame(() => {
-        chatScroll$.scrollTop = chatScroll$.scrollHeight;
-      });
-    }
-
-    function escapeHtml(text) {
-      const d = document.createElement('div');
-      d.textContent = text;
-      return d.innerHTML;
-    }
-
-    function formatText(text) {
-      return escapeHtml(text)
-        .replace(/\*\*([^*]+)\*\*/g, '<strong>$1</strong>')
-        .replace(/`([^`]+)`/g, '<code>$1</code>')
-        .replace(/\n/g, '<br>');
-    }
-
-    // ─── Actions ────────────────────────────────────
-    document.querySelectorAll('.action-row').forEach(row => {
-      row.addEventListener('click', () => {
-        const action = row.dataset.action;
-        switch (action) {
-          case 'reconnect':
-            send({ type: 'connect' });
-            addStatusMsg('Đang kết nối lại CDP...', 'info');
-            break;
-          case 'restart-cdp':
-            addStatusMsg('Đang restart Antigravity với CDP...', 'info');
-            fetch('/api/launch', {
-              method: 'POST',
-              headers: { 'Content-Type': 'application/json' },
-              body: JSON.stringify({ restart: true })
-            }).then(r => r.json()).then(data => {
-              if (data.success) {
-                addStatusMsg('✅ Antigravity đã restart với CDP!', 'success');
-                send({ type: 'connect' });
-                fetchConfig();
-              } else {
-                addStatusMsg('❌ Restart thất bại: ' + (data.error || 'unknown'), 'error');
+      function connect() {
+        ws = new WebSocket(wsUrl);
+        ws.onopen = () => {
+          ws.send(JSON.stringify({ type: 'connect' }));
+          showToast('Đang kết nối CDP...');
+        };
+        ws.onmessage = (e) => {
+          const msg = JSON.parse(e.data);
+          switch (msg.type) {
+            case 'status':
+              state.connected = msg.connected;
+              state.viewport = msg.viewport || state.viewport;
+              statusDot.className = 'status-dot' + (msg.connected ? ' ok' : '');
+              statusText.textContent = msg.connected ? 'Đã kết nối' : 'Chưa kết nối';
+              cdpInfo.textContent = 'CDP: ' + (msg.connected ? '✓' : '✗');
+              if (msg.connected) {
+                showToast('✅ Kết nối thành công!');
+                // Auto-start streaming
+                if (!state.streaming) toggleStream();
               }
-            }).catch(err => addStatusMsg('❌ Lỗi: ' + err.message, 'error'));
-            break;
-          case 'screenshot':
-            send({ type: 'refresh' });
-            showTyping();
-            state.waiting = true;
-            state.mode = 'screen';
-            break;
-          case 'targets':
-            send({ type: 'list-targets' });
-            showTyping();
-            state.waiting = true;
-            break;
+              break;
+
+            case 'frame':
+              img.src = 'data:image/jpeg;base64,' + msg.data;
+              img.style.display = 'block';
+              placeholder.style.display = 'none';
+              // FPS counter
+              state.frameCount++;
+              const now = Date.now();
+              if (now - state.lastFpsUpdate > 1000) {
+                state.fps = Math.round(state.frameCount * 1000 / (now - state.lastFpsUpdate));
+                fpsText.textContent = state.fps + ' FPS';
+                state.frameCount = 0;
+                state.lastFpsUpdate = now;
+              }
+              break;
+
+            case 'viewport':
+              state.viewport = msg.viewport || state.viewport;
+              break;
+          }
+        };
+        ws.onclose = () => {
+          state.connected = false;
+          state.streaming = false;
+          statusDot.className = 'status-dot';
+          statusText.textContent = 'Mất kết nối...';
+          showToast('⚠️ Mất kết nối, đang thử lại...');
+          setTimeout(connect, 3000);
+        };
+      }
+
+      // ─── Coordinate mapping ───
+      function mapCoords(clientX, clientY) {
+        const rect = img.getBoundingClientRect();
+        const scaleX = state.viewport.width / rect.width;
+        const scaleY = state.viewport.height / rect.height;
+        return {
+          x: Math.round((clientX - rect.left) * scaleX),
+          y: Math.round((clientY - rect.top) * scaleY),
+        };
+      }
+
+      function isOnImage(clientX, clientY) {
+        const rect = img.getBoundingClientRect();
+        return clientX >= rect.left && clientX <= rect.right &&
+          clientY >= rect.top && clientY <= rect.bottom;
+      }
+
+      // ─── Mouse/Touch Events ───
+      // Desktop: click
+      img.addEventListener('click', (e) => {
+        e.preventDefault();
+        const { x, y } = mapCoords(e.clientX, e.clientY);
+        send({ type: 'click', x, y });
+        showTapRing(e.clientX, e.clientY);
+      });
+
+      // Desktop: scroll
+      container.addEventListener('wheel', (e) => {
+        e.preventDefault();
+        if (!isOnImage(e.clientX, e.clientY)) return;
+        const { x, y } = mapCoords(e.clientX, e.clientY);
+        send({ type: 'scroll', x, y, deltaX: e.deltaX, deltaY: e.deltaY });
+      }, { passive: false });
+
+      // Touch: tap, drag
+      let touchStartTime = 0;
+      let touchStartPos = null;
+      let isTouchDrag = false;
+
+      container.addEventListener('touchstart', (e) => {
+        e.preventDefault();
+        if (e.touches.length !== 1) return;
+        const t = e.touches[0];
+        if (!isOnImage(t.clientX, t.clientY)) return;
+        touchStartTime = Date.now();
+        touchStartPos = { x: t.clientX, y: t.clientY };
+        isTouchDrag = false;
+        const { x, y } = mapCoords(t.clientX, t.clientY);
+        send({ type: 'mousedown', x, y });
+        showCursor(t.clientX, t.clientY);
+      }, { passive: false });
+
+      container.addEventListener('touchmove', (e) => {
+        e.preventDefault();
+        if (e.touches.length !== 1 || !touchStartPos) return;
+        const t = e.touches[0];
+        const dx = t.clientX - touchStartPos.x;
+        const dy = t.clientY - touchStartPos.y;
+        if (Math.abs(dx) > 5 || Math.abs(dy) > 5) isTouchDrag = true;
+
+        if (isTouchDrag) {
+          // Scroll mode: translate touch movement to scroll
+          const { x, y } = mapCoords(t.clientX, t.clientY);
+          send({ type: 'scroll', x, y, deltaX: -dx * 2, deltaY: -dy * 2 });
+          touchStartPos = { x: t.clientX, y: t.clientY };
+        }
+        showCursor(t.clientX, t.clientY);
+      }, { passive: false });
+
+      container.addEventListener('touchend', (e) => {
+        e.preventDefault();
+        if (!touchStartPos) return;
+        const duration = Date.now() - touchStartTime;
+        if (!isTouchDrag && duration < 300) {
+          // Quick tap → click
+          const { x, y } = mapCoords(touchStartPos.x, touchStartPos.y);
+          send({ type: 'click', x, y });
+          showTapRing(touchStartPos.x, touchStartPos.y);
+        } else {
+          const ct = e.changedTouches[0];
+          const { x, y } = mapCoords(ct.clientX, ct.clientY);
+          send({ type: 'mouseup', x, y });
+        }
+        hideCursor();
+        touchStartPos = null;
+      }, { passive: false });
+
+      // ─── Keyboard Input ───
+      keyInput.addEventListener('input', (e) => {
+        const text = e.target.value;
+        if (text.length > 0) {
+          // Send each new character
+          const lastChar = text.slice(-1);
+          send({ type: 'key', text: lastChar });
         }
       });
-    });
 
-    document.getElementById('btnNew').addEventListener('click', () => {
-      chatMessages$.innerHTML = '';
-      chatMessages$.appendChild(welcome$);
-      welcome$.style.display = 'flex';
-      state.messages = [];
-      state.waiting = false;
-    });
+      keyInput.addEventListener('keydown', (e) => {
+        if (e.key === 'Enter') {
+          e.preventDefault();
+          // Send Enter key
+          send({ type: 'key', key: 'Enter', code: 'Enter' });
+          keyInput.value = '';
+        } else if (e.key === 'Backspace') {
+          e.preventDefault();
+          send({ type: 'key', key: 'Backspace', code: 'Backspace' });
+          // Remove last char from input
+          keyInput.value = keyInput.value.slice(0, -1);
+        } else if (e.key === 'Escape') {
+          e.preventDefault();
+          send({ type: 'key', key: 'Escape', code: 'Escape' });
+          keyInput.blur();
+        } else if (e.key === 'Tab') {
+          e.preventDefault();
+          send({ type: 'key', key: 'Tab', code: 'Tab' });
+        } else if (e.key.startsWith('Arrow')) {
+          e.preventDefault();
+          send({ type: 'key', key: e.key, code: e.code });
+        }
+      });
 
-    // ─── Config & Init ──────────────────────────────
-    async function fetchConfig() {
-      try {
-        const res = await fetch('/api/config');
-        const cfg = await res.json();
-        state.cdpPort = cfg.cdpPort;
-        state.cdpConnected = cfg.connected;
-        updateConnectionUI();
-      } catch (_) { }
-    }
+      // ─── Toolbar Buttons ───
+      document.getElementById('btnStream').addEventListener('click', toggleStream);
+      document.getElementById('btnRefresh').addEventListener('click', () => {
+        send({ type: 'refresh' });
+        showToast('📸 Screenshot');
+      });
+      document.getElementById('btnKeyboard').addEventListener('click', () => {
+        keyInput.focus();
+        showToast('⌨️ Bàn phím');
+      });
+      document.getElementById('btnReconnect').addEventListener('click', () => {
+        send({ type: 'connect' });
+        showToast('🔄 Reconnecting...');
+      });
+      document.getElementById('btnEnter').addEventListener('click', () => {
+        const text = keyInput.value.trim();
+        if (text) {
+          send({ type: 'key', text });
+          send({ type: 'key', key: 'Enter', code: 'Enter' });
+          keyInput.value = '';
+        } else {
+          send({ type: 'key', key: 'Enter', code: 'Enter' });
+        }
+      });
 
-    fetchConfig();
-    connectWS();
+      function toggleStream() {
+        state.streaming = !state.streaming;
+        const btn = document.getElementById('btnStream');
+        if (state.streaming) {
+          send({ type: 'stream-start' });
+          btn.classList.add('active');
+          btn.querySelector('.material-icons-round').textContent = 'stop';
+          showToast('▶ Stream bắt đầu');
+        } else {
+          send({ type: 'stream-stop' });
+          btn.classList.remove('active');
+          btn.querySelector('.material-icons-round').textContent = 'play_arrow';
+          showToast('⏹ Stream dừng');
+        }
+      }
+
+      // ─── Helpers ───
+      function send(obj) {
+        if (ws && ws.readyState === 1) ws.send(JSON.stringify(obj));
+      }
+
+      function showCursor(x, y) {
+        const rect = container.getBoundingClientRect();
+        cursorDot.style.left = (x - rect.left) + 'px';
+        cursorDot.style.top = (y - rect.top) + 'px';
+        cursorDot.style.display = 'block';
+      }
+
+      function hideCursor() {
+        cursorDot.style.display = 'none';
+      }
+
+      function showTapRing(x, y) {
+        const rect = container.getBoundingClientRect();
+        const ring = document.createElement('div');
+        ring.className = 'tap-ring';
+        ring.style.left = (x - rect.left) + 'px';
+        ring.style.top = (y - rect.top) + 'px';
+        container.appendChild(ring);
+        setTimeout(() => ring.remove(), 500);
+      }
+
+      let toastTimer = null;
+      function showToast(text) {
+        const el = document.getElementById('toast');
+        el.textContent = text;
+        el.classList.add('show');
+        clearTimeout(toastTimer);
+        toastTimer = setTimeout(() => el.classList.remove('show'), 2000);
+      }
+
+      // ─── Start ───
+      connect();
+    })();
   </script>
 </body>
 
