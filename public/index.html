@@ -7,14 +7,12 @@
   <meta name="apple-mobile-web-app-capable" content="yes">
   <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
   <meta name="mobile-web-app-capable" content="yes">
-
-  <meta name="description" content="AntigravityHub - Mobile Remote Access for Antigravity AI">
+  <meta name="description" content="AntigravityHub — Remote Agent Chat">
   <title>AntigravityHub Remote</title>
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&display=swap" rel="stylesheet">
   <link href="https://fonts.googleapis.com/icon?family=Material+Icons+Round" rel="stylesheet">
   <style>
-    /* ─── Reset & Base ─────────────────────────────── */
     *,
     *::before,
     *::after {
@@ -24,53 +22,51 @@
     }
 
     :root {
-      --bg-primary: #1e1e1e;
-      --bg-secondary: #252526;
-      --bg-tertiary: #2d2d2d;
+      --bg-primary: #1a1a1a;
+      --bg-secondary: #242424;
+      --bg-tertiary: #2e2e2e;
+      --bg-input: #333333;
       --bg-hover: #3a3a3a;
-      --bg-active: #094771;
-      --text-primary: #cccccc;
-      --text-secondary: #969696;
-      --text-bright: #e0e0e0;
-      --accent: #0078d4;
-      --accent-hover: #1a8cf0;
-      --accent-glow: rgba(0, 120, 212, 0.3);
-      --border: #3c3c3c;
-      --border-light: #4a4a4a;
+      --bg-user-msg: #2a2a2a;
+      --text-primary: #e0e0e0;
+      --text-secondary: #8a8a8a;
+      --text-bright: #f5f5f5;
+      --text-muted: #555555;
+      --accent: #4a9eff;
+      --accent-hover: #5aadff;
+      --accent-bg: #2a5a8a;
+      --border: #333333;
+      --border-light: #444444;
       --success: #4ec9b0;
-      --warning: #dcdcaa;
       --error: #f44747;
-      --gradient-accent: linear-gradient(135deg, #0078d4 0%, #00b4d8 100%);
-      --shadow-lg: 0 8px 32px rgba(0, 0, 0, 0.4);
-      --shadow-glow: 0 0 20px var(--accent-glow);
+      --warning: #dcdcaa;
       --radius: 12px;
       --radius-sm: 8px;
       --radius-xs: 6px;
-      --safe-area-top: env(safe-area-inset-top, 0px);
-      --safe-area-bottom: env(safe-area-inset-bottom, 0px);
+      --radius-full: 50px;
+      --safe-top: env(safe-area-inset-top, 0px);
+      --safe-bottom: env(safe-area-inset-bottom, 0px);
     }
 
     html,
     body {
       height: 100%;
       overflow: hidden;
-      font-family: 'Inter', -apple-system, BlinkMacSystemFont, sans-serif;
+      font-family: 'Inter', -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
       background: var(--bg-primary);
       color: var(--text-primary);
       -webkit-tap-highlight-color: transparent;
-      -webkit-touch-callout: none;
-      -webkit-user-select: none;
-      user-select: none;
+      font-size: 14px;
     }
 
-    /* ─── App Container ────────────────────────────── */
+    /* ─── App Layout ───────────────────────────────── */
     #app {
       display: flex;
       flex-direction: column;
       height: 100vh;
       height: 100dvh;
-      padding-top: var(--safe-area-top);
-      padding-bottom: var(--safe-area-bottom);
+      padding-top: var(--safe-top);
+      padding-bottom: var(--safe-bottom);
     }
 
     /* ─── Header ───────────────────────────────────── */
@@ -78,322 +74,372 @@
       display: flex;
       align-items: center;
       justify-content: space-between;
-      padding: 10px 16px;
+      padding: 8px 12px;
       background: var(--bg-secondary);
       border-bottom: 1px solid var(--border);
-      min-height: 48px;
-      z-index: 100;
-    }
-
-    .header-left {
-      display: flex;
-      align-items: center;
-      gap: 10px;
-    }
-
-    .header-logo {
-      width: 28px;
-      height: 28px;
-      border-radius: 6px;
-      background: var(--gradient-accent);
-      display: flex;
-      align-items: center;
-      justify-content: center;
-      font-size: 14px;
-      font-weight: 700;
-      color: white;
-      box-shadow: var(--shadow-glow);
+      min-height: 44px;
     }
 
     .header-title {
-      font-size: 15px;
+      font-size: 14px;
       font-weight: 600;
       color: var(--text-bright);
-      letter-spacing: -0.3px;
     }
 
-    .header-right {
+    .header-actions {
       display: flex;
       align-items: center;
-      gap: 4px;
+      gap: 2px;
     }
 
     .header-btn {
-      width: 36px;
-      height: 36px;
-      border-radius: var(--radius-sm);
+      width: 32px;
+      height: 32px;
+      border-radius: var(--radius-xs);
       border: none;
       background: transparent;
       color: var(--text-secondary);
+      cursor: pointer;
       display: flex;
       align-items: center;
       justify-content: center;
-      cursor: pointer;
-      transition: all 0.2s;
-      font-size: 20px;
+      transition: all 0.15s;
     }
 
-    .header-btn:active {
+    .header-btn:hover {
       background: var(--bg-hover);
       color: var(--text-bright);
-      transform: scale(0.92);
     }
 
-    .status-dot {
-      width: 8px;
-      height: 8px;
-      border-radius: 50%;
-      background: var(--error);
-      transition: background 0.3s;
-    }
-
-    .status-dot.connected {
-      background: var(--success);
-      box-shadow: 0 0 6px var(--success);
-    }
-
-    /* ─── Screen View ──────────────────────────────── */
-    .screen-container {
-      flex: 1;
-      position: relative;
-      overflow: hidden;
-      background: #000;
-      display: flex;
-      align-items: center;
-      justify-content: center;
-    }
-
-    #remoteScreen {
-      max-width: 100%;
-      max-height: 100%;
-      object-fit: contain;
-      touch-action: none;
-      image-rendering: -webkit-optimize-contrast;
-    }
-
-    .screen-overlay {
-      position: absolute;
-      top: 0;
-      left: 0;
-      right: 0;
-      bottom: 0;
-      touch-action: none;
-      z-index: 10;
-    }
-
-    /* Touch indicator */
-    .touch-indicator {
-      position: absolute;
-      width: 40px;
-      height: 40px;
-      border-radius: 50%;
-      border: 2px solid var(--accent);
-      background: var(--accent-glow);
-      transform: translate(-50%, -50%) scale(0);
-      pointer-events: none;
-      z-index: 20;
-      animation: touchPulse 0.4s ease-out forwards;
-    }
-
-    @keyframes touchPulse {
-      0% {
-        transform: translate(-50%, -50%) scale(0);
-        opacity: 1;
-      }
-
-      50% {
-        transform: translate(-50%, -50%) scale(1);
-        opacity: 0.7;
-      }
-
-      100% {
-        transform: translate(-50%, -50%) scale(1.5);
-        opacity: 0;
-      }
-    }
-
-    /* ─── Control Bar ──────────────────────────────── */
-    .control-bar {
-      display: flex;
-      align-items: center;
-      justify-content: space-around;
-      padding: 8px 12px;
-      background: var(--bg-secondary);
-      border-top: 1px solid var(--border);
-      min-height: 52px;
-      gap: 4px;
-    }
-
-    .ctrl-btn {
-      flex: 1;
-      max-width: 64px;
-      height: 40px;
-      border-radius: var(--radius-sm);
-      border: 1px solid var(--border);
-      background: var(--bg-tertiary);
-      color: var(--text-secondary);
-      display: flex;
-      align-items: center;
-      justify-content: center;
-      cursor: pointer;
-      transition: all 0.2s;
+    .header-btn .material-icons-round {
       font-size: 18px;
     }
 
-    .ctrl-btn:active {
-      background: var(--accent);
-      border-color: var(--accent);
-      color: white;
-      transform: scale(0.93);
+    /* ─── Chat Area ────────────────────────────────── */
+    .chat-area {
+      flex: 1;
+      overflow-y: auto;
+      padding: 16px;
+      display: flex;
+      flex-direction: column;
+      gap: 16px;
     }
 
-    .ctrl-btn.active {
-      background: var(--accent);
-      border-color: var(--accent);
-      color: white;
+    .chat-area::-webkit-scrollbar {
+      width: 4px;
     }
 
-    .ctrl-btn .material-icons-round {
-      font-size: 20px;
+    .chat-area::-webkit-scrollbar-track {
+      background: transparent;
     }
 
-    /* ─── Connect Screen ───────────────────────────── */
-    .connect-screen {
-      position: absolute;
-      inset: 0;
+    .chat-area::-webkit-scrollbar-thumb {
+      background: var(--text-muted);
+      border-radius: 4px;
+    }
+
+    /* Welcome/empty state */
+    .chat-welcome {
+      flex: 1;
       display: flex;
       flex-direction: column;
       align-items: center;
       justify-content: center;
-      background: var(--bg-primary);
-      z-index: 50;
+      gap: 12px;
       padding: 24px;
-      gap: 24px;
-      transition: opacity 0.4s, visibility 0.4s;
     }
 
-    .connect-screen.hidden {
-      opacity: 0;
-      visibility: hidden;
-      pointer-events: none;
-    }
-
-    .connect-icon {
-      width: 80px;
-      height: 80px;
-      border-radius: 24px;
-      background: var(--gradient-accent);
-      display: flex;
-      align-items: center;
-      justify-content: center;
-      font-size: 36px;
-      color: white;
-      box-shadow: var(--shadow-glow);
-      animation: float 3s ease-in-out infinite;
-    }
-
-    @keyframes float {
-
-      0%,
-      100% {
-        transform: translateY(0);
-      }
-
-      50% {
-        transform: translateY(-8px);
-      }
-    }
-
-    .connect-title {
-      font-size: 22px;
+    .chat-welcome-title {
+      font-size: 18px;
       font-weight: 700;
       color: var(--text-bright);
-      letter-spacing: -0.5px;
     }
 
-    .connect-subtitle {
-      font-size: 14px;
+    .chat-welcome-subtitle {
+      font-size: 13px;
       color: var(--text-secondary);
       text-align: center;
       line-height: 1.5;
-      max-width: 280px;
     }
 
-    .connect-form {
-      display: flex;
-      flex-direction: column;
-      gap: 12px;
-      width: 100%;
-      max-width: 320px;
-    }
-
-    .input-group {
+    /* Messages */
+    .msg {
       display: flex;
       flex-direction: column;
       gap: 6px;
     }
 
-    .input-group label {
-      font-size: 12px;
-      font-weight: 500;
-      color: var(--text-secondary);
-      text-transform: uppercase;
-      letter-spacing: 0.5px;
+    .msg-user .msg-content {
+      background: var(--bg-user-msg);
+      border: 1px solid var(--border);
+      border-radius: var(--radius) var(--radius) var(--radius-xs) var(--radius);
+      padding: 12px 16px;
+      font-size: 14px;
+      line-height: 1.6;
+      color: var(--text-bright);
     }
 
-    .input-group input {
-      width: 100%;
-      height: 44px;
-      padding: 0 14px;
-      border-radius: var(--radius-sm);
-      border: 1px solid var(--border);
+    .msg-assistant .msg-header {
+      font-size: 13px;
+      font-weight: 600;
+      color: var(--accent);
+      margin-bottom: 4px;
+    }
+
+    .msg-assistant .msg-content {
+      font-size: 14px;
+      line-height: 1.7;
+      color: var(--text-primary);
+      padding: 0 2px;
+    }
+
+    .msg-assistant .msg-content code {
       background: var(--bg-tertiary);
-      color: var(--text-bright);
-      font-size: 15px;
-      font-family: 'Inter', sans-serif;
-      outline: none;
+      padding: 2px 6px;
+      border-radius: 4px;
+      font-size: 12px;
+      color: var(--warning);
+      font-family: 'Consolas', 'Monaco', monospace;
+    }
+
+    .msg-assistant .msg-content pre {
+      background: var(--bg-tertiary);
+      border: 1px solid var(--border);
+      border-radius: var(--radius-sm);
+      padding: 12px;
+      margin: 8px 0;
+      overflow-x: auto;
+      font-size: 12px;
+      font-family: 'Consolas', 'Monaco', monospace;
+      color: var(--text-primary);
+    }
+
+    .msg-status {
+      display: flex;
+      align-items: center;
+      gap: 8px;
+      font-size: 12px;
+      color: var(--text-secondary);
+      padding: 4px 0;
+    }
+
+    .msg-status .dot {
+      width: 6px;
+      height: 6px;
+      border-radius: 50%;
+      background: var(--success);
+      animation: blink 1.2s ease-in-out infinite;
+    }
+
+    @keyframes blink {
+
+      0%,
+      100% {
+        opacity: 1;
+      }
+
+      50% {
+        opacity: 0.3;
+      }
+    }
+
+    /* ─── Input Bar ────────────────────────────────── */
+    .input-section {
+      padding: 8px 12px 12px;
+      background: var(--bg-secondary);
+      border-top: 1px solid var(--border);
+    }
+
+    .input-box {
+      display: flex;
+      align-items: flex-end;
+      background: var(--bg-input);
+      border: 1px solid var(--border);
+      border-radius: var(--radius);
+      padding: 10px 12px;
+      gap: 8px;
       transition: border-color 0.2s;
     }
 
-    .input-group input:focus {
+    .input-box:focus-within {
       border-color: var(--accent);
-      box-shadow: 0 0 0 3px var(--accent-glow);
     }
 
-    .connect-btn {
-      width: 100%;
-      height: 48px;
-      border-radius: var(--radius);
+    .input-textarea {
+      flex: 1;
       border: none;
-      background: var(--gradient-accent);
-      color: white;
-      font-size: 15px;
-      font-weight: 600;
+      background: transparent;
+      color: var(--text-bright);
+      font-size: 14px;
       font-family: 'Inter', sans-serif;
+      resize: none;
+      outline: none;
+      min-height: 22px;
+      max-height: 120px;
+      line-height: 1.5;
+    }
+
+    .input-textarea::placeholder {
+      color: var(--text-muted);
+    }
+
+    .input-send {
+      width: 30px;
+      height: 30px;
+      border-radius: 50%;
+      border: none;
       cursor: pointer;
-      transition: all 0.2s;
-      box-shadow: var(--shadow-glow);
       display: flex;
       align-items: center;
       justify-content: center;
-      gap: 8px;
+      transition: all 0.2s;
+      flex-shrink: 0;
+      background: var(--accent);
+      color: white;
     }
 
-    .connect-btn:active {
-      transform: scale(0.97);
+    .input-send:hover {
+      background: var(--accent-hover);
     }
 
-    .connect-btn:disabled {
-      opacity: 0.5;
+    .input-send:disabled {
+      background: var(--bg-hover);
+      color: var(--text-muted);
+      cursor: default;
     }
 
-    .connect-btn .spinner {
-      width: 18px;
-      height: 18px;
-      border: 2px solid rgba(255, 255, 255, 0.3);
-      border-top-color: white;
+    .input-send .material-icons-round {
+      font-size: 18px;
+    }
+
+    .input-controls {
+      display: flex;
+      align-items: center;
+      gap: 4px;
+      padding-top: 8px;
+    }
+
+    .input-ctrl-btn {
+      height: 28px;
+      padding: 0 10px;
+      border-radius: var(--radius-full);
+      border: 1px solid var(--border);
+      background: transparent;
+      color: var(--text-secondary);
+      font-size: 12px;
+      font-family: 'Inter', sans-serif;
+      cursor: pointer;
+      display: flex;
+      align-items: center;
+      gap: 4px;
+      transition: all 0.15s;
+    }
+
+    .input-ctrl-btn:hover {
+      background: var(--bg-hover);
+      color: var(--text-bright);
+    }
+
+    .input-ctrl-btn .material-icons-round {
+      font-size: 14px;
+    }
+
+    .input-ctrl-btn.model-btn {
+      color: var(--text-secondary);
+      border: none;
+      padding: 0 8px;
+    }
+
+    /* ─── Recent Actions ───────────────────────────── */
+    .recent-actions {
+      padding: 8px 16px 6px;
+      border-top: 1px solid var(--border);
+      background: var(--bg-primary);
+    }
+
+    .action-item {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      padding: 8px 0;
+      cursor: pointer;
+      transition: opacity 0.15s;
+    }
+
+    .action-item:hover {
+      opacity: 0.8;
+    }
+
+    .action-name {
+      font-size: 13px;
+      color: var(--text-primary);
+    }
+
+    .action-time {
+      font-size: 12px;
+      color: var(--text-secondary);
+    }
+
+    .action-see-all {
+      font-size: 12px;
+      color: var(--text-muted);
+      padding: 6px 0;
+      cursor: pointer;
+    }
+
+    .action-see-all:hover {
+      color: var(--text-secondary);
+    }
+
+    /* ─── Footer ───────────────────────────────────── */
+    .footer {
+      padding: 8px 16px;
+      text-align: center;
+      font-size: 11px;
+      color: var(--text-muted);
+    }
+
+    /* ─── Connection Status Bar ─────────────────────── */
+    .connection-bar {
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      gap: 6px;
+      padding: 6px;
+      background: var(--bg-tertiary);
+      font-size: 11px;
+      color: var(--text-secondary);
+    }
+
+    .connection-bar.connected {
+      background: rgba(78, 201, 176, 0.1);
+      color: var(--success);
+    }
+
+    .connection-bar.error {
+      background: rgba(244, 71, 71, 0.1);
+      color: var(--error);
+    }
+
+    .connection-dot {
+      width: 6px;
+      height: 6px;
       border-radius: 50%;
-      animation: spin 0.8s linear infinite;
+      background: var(--error);
+    }
+
+    .connection-bar.connected .connection-dot {
+      background: var(--success);
+    }
+
+    /* ─── Spinner ──────────────────────────────────── */
+    .spinner {
+      width: 14px;
+      height: 14px;
+      border: 2px solid rgba(255, 255, 255, 0.2);
+      border-top-color: var(--accent);
+      border-radius: 50%;
+      animation: spin 0.7s linear infinite;
     }
 
     @keyframes spin {
@@ -401,334 +447,84 @@
         transform: rotate(360deg);
       }
     }
-
-    .connect-error {
-      padding: 10px 14px;
-      border-radius: var(--radius-sm);
-      background: rgba(244, 71, 71, 0.15);
-      border: 1px solid rgba(244, 71, 71, 0.3);
-      color: var(--error);
-      font-size: 13px;
-      text-align: center;
-      display: none;
-    }
-
-    .connect-error.visible {
-      display: block;
-    }
-
-    .connect-hint {
-      font-size: 12px;
-      color: var(--text-secondary);
-      text-align: center;
-      line-height: 1.5;
-      opacity: 0.7;
-    }
-
-    .connect-hint code {
-      background: var(--bg-tertiary);
-      padding: 2px 6px;
-      border-radius: 4px;
-      font-size: 11px;
-      color: var(--warning);
-    }
-
-    /* ─── Keyboard Input Overlay ───────────────────── */
-    .keyboard-overlay {
-      position: absolute;
-      bottom: 0;
-      left: 0;
-      right: 0;
-      background: var(--bg-secondary);
-      border-top: 1px solid var(--border);
-      padding: 8px 12px;
-      z-index: 30;
-      display: none;
-    }
-
-    .keyboard-overlay.visible {
-      display: flex;
-      gap: 8px;
-      align-items: center;
-    }
-
-    .keyboard-input {
-      flex: 1;
-      height: 40px;
-      padding: 0 12px;
-      border-radius: var(--radius-sm);
-      border: 1px solid var(--border);
-      background: var(--bg-tertiary);
-      color: var(--text-bright);
-      font-size: 15px;
-      font-family: 'Inter', sans-serif;
-      outline: none;
-    }
-
-    .keyboard-input:focus {
-      border-color: var(--accent);
-    }
-
-    .keyboard-send {
-      width: 40px;
-      height: 40px;
-      border-radius: 50%;
-      border: none;
-      background: var(--accent);
-      color: white;
-      display: flex;
-      align-items: center;
-      justify-content: center;
-      cursor: pointer;
-      font-size: 18px;
-    }
-
-    /* ─── Loading Shimmer ──────────────────────────── */
-    .loading-shimmer {
-      position: absolute;
-      inset: 0;
-      background: linear-gradient(90deg,
-          transparent 0%,
-          rgba(0, 120, 212, 0.1) 50%,
-          transparent 100%);
-      background-size: 200% 100%;
-      animation: shimmer 2s infinite;
-      pointer-events: none;
-      z-index: 5;
-      display: none;
-    }
-
-    .loading-shimmer.active {
-      display: block;
-    }
-
-    @keyframes shimmer {
-      0% {
-        background-position: 200% 0;
-      }
-
-      100% {
-        background-position: -200% 0;
-      }
-    }
-
-    /* ─── Toast Notification ───────────────────────── */
-    .toast {
-      position: fixed;
-      top: calc(var(--safe-area-top) + 56px);
-      left: 50%;
-      transform: translateX(-50%) translateY(-20px);
-      padding: 10px 20px;
-      border-radius: var(--radius);
-      background: var(--bg-tertiary);
-      border: 1px solid var(--border);
-      color: var(--text-bright);
-      font-size: 13px;
-      font-weight: 500;
-      box-shadow: var(--shadow-lg);
-      z-index: 200;
-      opacity: 0;
-      visibility: hidden;
-      transition: all 0.3s;
-    }
-
-    .toast.visible {
-      opacity: 1;
-      visibility: visible;
-      transform: translateX(-50%) translateY(0);
-    }
-
-    /* ─── Settings Panel ───────────────────────────── */
-    .settings-panel {
-      position: absolute;
-      top: 0;
-      right: -300px;
-      bottom: 0;
-      width: 280px;
-      background: var(--bg-secondary);
-      border-left: 1px solid var(--border);
-      z-index: 60;
-      padding: 16px;
-      transition: right 0.3s ease;
-      display: flex;
-      flex-direction: column;
-      gap: 16px;
-      overflow-y: auto;
-    }
-
-    .settings-panel.visible {
-      right: 0;
-    }
-
-    .settings-backdrop {
-      position: absolute;
-      inset: 0;
-      background: rgba(0, 0, 0, 0.5);
-      z-index: 55;
-      opacity: 0;
-      visibility: hidden;
-      transition: all 0.3s;
-    }
-
-    .settings-backdrop.visible {
-      opacity: 1;
-      visibility: visible;
-    }
-
-    .settings-title {
-      font-size: 16px;
-      font-weight: 600;
-      color: var(--text-bright);
-      padding-bottom: 12px;
-      border-bottom: 1px solid var(--border);
-    }
-
-    .settings-item {
-      display: flex;
-      justify-content: space-between;
-      align-items: center;
-      padding: 8px 0;
-    }
-
-    .settings-item label {
-      font-size: 13px;
-      color: var(--text-primary);
-    }
-
-    .settings-item input[type="range"] {
-      width: 100px;
-      accent-color: var(--accent);
-    }
-
-    .settings-item select {
-      padding: 6px 10px;
-      border-radius: var(--radius-xs);
-      border: 1px solid var(--border);
-      background: var(--bg-tertiary);
-      color: var(--text-bright);
-      font-size: 13px;
-      outline: none;
-    }
-
-    .btn-reconnect {
-      height: 36px;
-      width: auto;
-      padding: 0 16px;
-      font-size: 13px;
-    }
   </style>
 </head>
 
 <body>
   <div id="app">
+    <!-- Connection Status -->
+    <div class="connection-bar" id="connectionBar">
+      <div class="connection-dot"></div>
+      <span id="connectionText">Đang kết nối...</span>
+    </div>
+
     <!-- Header -->
     <div class="header">
-      <div class="header-left">
-        <div class="header-logo">A</div>
-        <span class="header-title">AntigravityHub</span>
-        <div class="status-dot" id="statusDot"></div>
-      </div>
-      <div class="header-right">
-        <button class="header-btn" id="btnRefresh" title="Refresh">
-          <span class="material-icons-round">refresh</span>
+      <span class="header-title">Agent</span>
+      <div class="header-actions">
+        <button class="header-btn" id="btnNew" title="New chat">
+          <span class="material-icons-round">add</span>
         </button>
-        <button class="header-btn" id="btnKeyboard" title="Keyboard">
-          <span class="material-icons-round">keyboard</span>
+        <button class="header-btn" id="btnHistory" title="History">
+          <span class="material-icons-round">schedule</span>
         </button>
-        <button class="header-btn" id="btnSettings" title="Settings">
-          <span class="material-icons-round">settings</span>
+        <button class="header-btn" id="btnMenu" title="Menu">
+          <span class="material-icons-round">more_horiz</span>
         </button>
-      </div>
-    </div>
-
-    <!-- Screen View -->
-    <div class="screen-container" id="screenContainer">
-      <img id="remoteScreen" alt="Remote Screen" />
-      <div class="screen-overlay" id="screenOverlay"></div>
-      <div class="loading-shimmer" id="loadingShimmer"></div>
-    </div>
-
-    <!-- Control Bar -->
-    <div class="control-bar">
-      <button class="ctrl-btn" id="btnStream" title="Live Stream">
-        <span class="material-icons-round">videocam</span>
-      </button>
-      <button class="ctrl-btn" id="btnBack" title="Back (Escape)">
-        <span class="material-icons-round">arrow_back</span>
-      </button>
-      <button class="ctrl-btn" id="btnHome" title="Home">
-        <span class="material-icons-round">home</span>
-      </button>
-      <button class="ctrl-btn" id="btnTab" title="Tab">
-        <span class="material-icons-round">tab</span>
-      </button>
-      <button class="ctrl-btn" id="btnEnter" title="Enter">
-        <span class="material-icons-round">keyboard_return</span>
-      </button>
-      <button class="ctrl-btn" id="btnCtrlZ" title="Undo (Ctrl+Z)">
-        <span class="material-icons-round">undo</span>
-      </button>
-    </div>
-
-    <!-- Keyboard Overlay -->
-    <div class="keyboard-overlay" id="keyboardOverlay">
-      <input type="text" class="keyboard-input" id="keyboardInput" placeholder="Type here..." autocomplete="off"
-        autocorrect="off">
-      <button class="keyboard-send" id="keyboardSend">
-        <span class="material-icons-round">send</span>
-      </button>
-    </div>
-
-    <!-- Connect Screen -->
-    <div class="connect-screen" id="connectScreen">
-      <div class="connect-icon">
-        <span class="material-icons-round">cast_connected</span>
-      </div>
-      <div class="connect-title">AntigravityHub</div>
-      <div class="connect-subtitle">
-        Remote access Antigravity từ điện thoại của bạn
-      </div>
-      <div class="connect-form">
-        <div class="connect-error" id="connectError"></div>
-        <button class="connect-btn" id="btnConnect">
-          <span class="material-icons-round">link</span>
-          Kết nối
-        </button>
-      </div>
-      <div class="connect-hint">
-        Đảm bảo Antigravity đang chạy với<br>
-        <code id="cdpPortHint">--remote-debugging-port=9333</code>
-      </div>
-    </div>
-
-    <!-- Settings Panel -->
-    <div class="settings-backdrop" id="settingsBackdrop"></div>
-    <div class="settings-panel" id="settingsPanel">
-      <div class="settings-title">Cài đặt</div>
-      <div class="settings-item">
-        <label>Chất lượng</label>
-        <input type="range" id="settingQuality" min="20" max="100" value="60" title="Chất lượng hình ảnh">
-      </div>
-      <div class="settings-item">
-        <label>FPS tối đa</label>
-        <select id="settingFPS" title="FPS tối đa">
-          <option value="5">5 FPS</option>
-          <option value="10">10 FPS</option>
-          <option value="15" selected>15 FPS</option>
-          <option value="24">24 FPS</option>
-          <option value="30">30 FPS</option>
-        </select>
-      </div>
-      <div class="settings-item">
-        <label>Reconnect</label>
-        <button class="connect-btn btn-reconnect" id="btnReconnect">
-          Kết nối lại
+        <button class="header-btn" id="btnClose" title="Close">
+          <span class="material-icons-round">close</span>
         </button>
       </div>
     </div>
 
-    <!-- Toast -->
-    <div class="toast" id="toast"></div>
+    <!-- Chat Area -->
+    <div class="chat-area" id="chatArea">
+      <div class="chat-welcome" id="chatWelcome">
+        <div class="chat-welcome-title">AntigravityHub</div>
+      </div>
+    </div>
+
+    <!-- Input Section -->
+    <div class="input-section">
+      <div class="input-box">
+        <textarea class="input-textarea" id="chatInput" rows="1" placeholder="Nhập tin nhắn cho Agent..."></textarea>
+        <button class="input-send" id="btnSend" title="Send" disabled>
+          <span class="material-icons-round">arrow_forward</span>
+        </button>
+      </div>
+      <div class="input-controls">
+        <button class="input-ctrl-btn" id="btnAttach">
+          <span class="material-icons-round">add</span>
+        </button>
+        <button class="input-ctrl-btn">
+          <span class="material-icons-round">expand_more</span> Fast
+        </button>
+        <button class="input-ctrl-btn model-btn">
+          <span class="material-icons-round">expand_more</span> Claude Opus 4.6 (Thinking)
+        </button>
+        <button class="input-ctrl-btn" id="btnMic" style="margin-left:auto; border:none;">
+          <span class="material-icons-round">mic</span>
+        </button>
+      </div>
+    </div>
+
+    <!-- Recent Actions -->
+    <div class="recent-actions" id="recentActions">
+      <div class="action-item" id="actionReconnect">
+        <span class="action-name">Reconnect CDP</span>
+        <span class="action-time" id="reconnectTime">-</span>
+      </div>
+      <div class="action-item" id="actionRefresh">
+        <span class="action-name">Refresh Screenshot</span>
+        <span class="action-time">-</span>
+      </div>
+      <div class="action-see-all">See all</div>
+    </div>
+
+    <!-- Footer -->
+    <div class="footer">
+      AI may make mistakes. Double-check all generated code.
+    </div>
   </div>
 
   <script>
@@ -736,81 +532,56 @@
     const state = {
       ws: null,
       connected: false,
-      streaming: false,
-      viewport: { width: 1280, height: 800 },
-      keyboardVisible: false,
-      settingsVisible: false,
       cdpPort: 9333,
+      messages: [],
+      waiting: false,
     };
 
-    // ─── DOM Elements ───────────────────────────────
-    const $ = (s) => document.getElementById(s);
-    const screen$ = $('remoteScreen');
-    const overlay$ = $('screenOverlay');
-    const container$ = $('screenContainer');
-    const statusDot$ = $('statusDot');
-    const connectScreen$ = $('connectScreen');
-    const connectError$ = $('connectError');
-    const loadingShimmer$ = $('loadingShimmer');
-    const toast$ = $('toast');
-    const keyboardOverlay$ = $('keyboardOverlay');
-    const keyboardInput$ = $('keyboardInput');
-    const settingsPanel$ = $('settingsPanel');
-    const settingsBackdrop$ = $('settingsBackdrop');
+    // ─── DOM ────────────────────────────────────────
+    const chatArea$ = document.getElementById('chatArea');
+    const chatWelcome$ = document.getElementById('chatWelcome');
+    const chatInput$ = document.getElementById('chatInput');
+    const btnSend$ = document.getElementById('btnSend');
+    const connectionBar$ = document.getElementById('connectionBar');
+    const connectionText$ = document.getElementById('connectionText');
 
-    // ─── Toast ──────────────────────────────────────
-    let toastTimer = null;
-    function showToast(msg, duration = 2000) {
-      toast$.textContent = msg;
-      toast$.classList.add('visible');
-      if (toastTimer) clearTimeout(toastTimer);
-      toastTimer = setTimeout(() => toast$.classList.remove('visible'), duration);
-    }
+    // ─── Auto-resize textarea ───────────────────────
+    chatInput$.addEventListener('input', () => {
+      chatInput$.style.height = 'auto';
+      chatInput$.style.height = Math.min(chatInput$.scrollHeight, 120) + 'px';
+      btnSend$.disabled = !chatInput$.value.trim();
+    });
 
-    // ─── Fetch Server Config ────────────────────────
-    async function fetchConfig() {
-      try {
-        const res = await fetch('/api/config');
-        const cfg = await res.json();
-        state.cdpPort = cfg.cdpPort;
-        const hint = document.getElementById('cdpPortHint');
-        if (hint) hint.textContent = `--remote-debugging-port=${cfg.cdpPort}`;
-      } catch (_) { /* noop */ }
-    }
-    fetchConfig();
+    chatInput$.addEventListener('keydown', (e) => {
+      if (e.key === 'Enter' && !e.shiftKey) {
+        e.preventDefault();
+        sendMessage();
+      }
+    });
 
-    // ─── WebSocket Connection ───────────────────────
+    btnSend$.addEventListener('click', sendMessage);
+
+    // ─── WebSocket ──────────────────────────────────
     function connectWS() {
       const proto = location.protocol === 'https:' ? 'wss' : 'ws';
-      const url = `${proto}://${location.host}/ws`;
-
-      state.ws = new WebSocket(url);
+      state.ws = new WebSocket(`${proto}://${location.host}/ws`);
 
       state.ws.onopen = () => {
-        console.log('WebSocket connected');
-        showToast('Đã kết nối WebSocket');
+        updateConnection('connecting', 'WebSocket connected, checking CDP...');
       };
 
       state.ws.onmessage = (e) => {
-        try {
-          const msg = JSON.parse(e.data);
-          handleMessage(msg);
-        } catch (err) {
-          console.error('WS parse error:', err);
-        }
+        try { handleMessage(JSON.parse(e.data)); }
+        catch (err) { console.error('WS parse error:', err); }
       };
 
       state.ws.onclose = () => {
-        console.log('WebSocket closed');
         state.connected = false;
-        updateUI();
-        // Auto-reconnect after 3s
+        updateConnection('error', 'Mất kết nối. Đang thử lại...');
         setTimeout(connectWS, 3000);
       };
 
-      state.ws.onerror = (err) => {
-        console.error('WebSocket error:', err);
-      };
+      state.ws.onerror = () => { };
     }
 
     function send(data) {
@@ -819,230 +590,137 @@
       }
     }
 
-    // ─── Message Handler ────────────────────────────
+    // ─── Handle Messages ────────────────────────────
     function handleMessage(msg) {
       switch (msg.type) {
         case 'status':
           state.connected = msg.connected;
-          if (msg.viewport) state.viewport = msg.viewport;
-          updateUI();
           if (msg.connected) {
-            connectScreen$.classList.add('hidden');
-            showToast('✓ Đã kết nối Antigravity');
+            updateConnection('connected', 'Đã kết nối Antigravity');
+          } else {
+            updateConnection('error', 'CDP chưa kết nối — khởi chạy Antigravity với --remote-debugging-port');
           }
+          break;
+
+        case 'chat-response':
+          removeTypingIndicator();
+          addMessage('assistant', msg.text);
+          state.waiting = false;
+          break;
+
+        case 'chat-error':
+          removeTypingIndicator();
+          addMessage('assistant', '⚠️ ' + (msg.error || 'Lỗi không xác định'));
+          state.waiting = false;
           break;
 
         case 'frame':
-          screen$.src = 'data:image/jpeg;base64,' + msg.data;
-          loadingShimmer$.classList.remove('active');
+          // Ignore frames in chat mode
           break;
       }
     }
 
-    // ─── UI Update ──────────────────────────────────
-    function updateUI() {
-      statusDot$.classList.toggle('connected', state.connected);
-
-      if (!state.connected) {
-        connectScreen$.classList.remove('hidden');
-      }
-
-      const streamBtn = $('btnStream');
-      streamBtn.classList.toggle('active', state.streaming);
+    // ─── Connection UI ──────────────────────────────
+    function updateConnection(status, text) {
+      connectionBar$.className = 'connection-bar ' + (status === 'connected' ? 'connected' : status === 'error' ? 'error' : '');
+      connectionText$.textContent = text;
     }
 
-    // ─── Touch/Click Handling ───────────────────────
-    function getRemoteCoords(clientX, clientY) {
-      const rect = screen$.getBoundingClientRect();
-      if (rect.width === 0 || rect.height === 0) return null;
+    // ─── Messages ───────────────────────────────────
+    function sendMessage() {
+      const text = chatInput$.value.trim();
+      if (!text || state.waiting) return;
 
-      // Map screen coordinates to Antigravity viewport
-      const scaleX = state.viewport.width / rect.width;
-      const scaleY = state.viewport.height / rect.height;
+      chatWelcome$.style.display = 'none';
+      addMessage('user', text);
+      chatInput$.value = '';
+      chatInput$.style.height = 'auto';
+      btnSend$.disabled = true;
+      state.waiting = true;
 
-      const x = (clientX - rect.left) * scaleX;
-      const y = (clientY - rect.top) * scaleY;
+      // Show typing indicator
+      showTypingIndicator();
 
-      return { x, y };
+      // Send to server for CDP execution
+      send({ type: 'chat', text });
     }
 
-    function showTouchIndicator(clientX, clientY) {
-      const indicator = document.createElement('div');
-      indicator.className = 'touch-indicator';
-      indicator.style.left = clientX + 'px';
-      indicator.style.top = clientY + 'px';
-      container$.appendChild(indicator);
-      setTimeout(() => indicator.remove(), 400);
+    function addMessage(role, text) {
+      const div = document.createElement('div');
+      div.className = 'msg msg-' + role;
+
+      if (role === 'user') {
+        div.innerHTML = `<div class="msg-content">${escapeHtml(text)}</div>`;
+      } else {
+        div.innerHTML = `
+          <div class="msg-header">AntigravityHub</div>
+          <div class="msg-content">${formatResponse(text)}</div>
+        `;
+      }
+
+      chatArea$.appendChild(div);
+      chatArea$.scrollTop = chatArea$.scrollHeight;
+      state.messages.push({ role, text });
     }
 
-    // Touch events
-    let touchStart = null;
-    let touchStartTime = 0;
-    let lastTouchMove = null;
+    function showTypingIndicator() {
+      const div = document.createElement('div');
+      div.className = 'msg msg-assistant';
+      div.id = 'typingIndicator';
+      div.innerHTML = `
+        <div class="msg-header">AntigravityHub</div>
+        <div class="msg-status"><div class="dot"></div> Thinking...</div>
+      `;
+      chatArea$.appendChild(div);
+      chatArea$.scrollTop = chatArea$.scrollHeight;
+    }
 
-    overlay$.addEventListener('touchstart', (e) => {
-      e.preventDefault();
-      const touch = e.touches[0];
-      touchStart = { x: touch.clientX, y: touch.clientY };
-      touchStartTime = Date.now();
-      lastTouchMove = null;
+    function removeTypingIndicator() {
+      const el = document.getElementById('typingIndicator');
+      if (el) el.remove();
+    }
 
-      const coords = getRemoteCoords(touch.clientX, touch.clientY);
-      if (coords) {
-        send({ type: 'mousedown', x: coords.x, y: coords.y });
-      }
-    }, { passive: false });
+    function escapeHtml(text) {
+      const d = document.createElement('div');
+      d.textContent = text;
+      return d.innerHTML;
+    }
 
-    overlay$.addEventListener('touchmove', (e) => {
-      e.preventDefault();
-      const touch = e.touches[0];
-      lastTouchMove = { x: touch.clientX, y: touch.clientY };
+    function formatResponse(text) {
+      // Basic markdown-like formatting
+      return escapeHtml(text)
+        .replace(/`([^`]+)`/g, '<code>$1</code>')
+        .replace(/\n/g, '<br>');
+    }
 
-      if (touchStart) {
-        const dx = touch.clientX - touchStart.x;
-        const dy = touch.clientY - touchStart.y;
-
-        // Scroll if moved significantly
-        if (Math.abs(dx) > 10 || Math.abs(dy) > 10) {
-          const coords = getRemoteCoords(touch.clientX, touch.clientY);
-          if (coords) {
-            send({ type: 'scroll', x: coords.x, y: coords.y, deltaX: -dx * 2, deltaY: -dy * 2 });
-            touchStart = { x: touch.clientX, y: touch.clientY };
-          }
-        }
-      }
-    }, { passive: false });
-
-    overlay$.addEventListener('touchend', (e) => {
-      e.preventDefault();
-      const duration = Date.now() - touchStartTime;
-      const finalPos = lastTouchMove || touchStart;
-
-      if (finalPos) {
-        const coords = getRemoteCoords(finalPos.x, finalPos.y);
-
-        if (duration < 300 && !lastTouchMove) {
-          // Tap = click
-          if (coords) {
-            showTouchIndicator(finalPos.x, finalPos.y);
-            send({ type: 'click', x: coords.x, y: coords.y });
-          }
-        } else {
-          // Release after drag
-          if (coords) {
-            send({ type: 'mouseup', x: coords.x, y: coords.y });
-          }
-        }
-      }
-
-      touchStart = null;
-      lastTouchMove = null;
-    }, { passive: false });
-
-    // ─── Controls ───────────────────────────────────
-    $('btnConnect').addEventListener('click', () => {
-      const btn = $('btnConnect');
-      btn.disabled = true;
-      btn.innerHTML = '<div class="spinner"></div> Đang kết nối...';
-
+    // ─── Actions ────────────────────────────────────
+    document.getElementById('actionReconnect').addEventListener('click', () => {
       send({ type: 'connect' });
-      loadingShimmer$.classList.add('active');
-
-      setTimeout(() => {
-        btn.disabled = false;
-        btn.innerHTML = '<span class="material-icons-round">link</span> Kết nối';
-        if (!state.connected) {
-          const port = state.cdpPort || 9333;
-          connectError$.textContent = `Không thể kết nối. Hãy kiểm tra Antigravity đã chạy với --remote-debugging-port=${port}`;
-          connectError$.classList.add('visible');
-        }
-      }, 5000);
+      updateConnection('connecting', 'Đang kết nối lại...');
     });
 
-    $('btnRefresh').addEventListener('click', () => {
+    document.getElementById('actionRefresh').addEventListener('click', () => {
       send({ type: 'refresh' });
-      loadingShimmer$.classList.add('active');
-      showToast('Đang làm mới...');
     });
 
-    $('btnStream').addEventListener('click', () => {
-      state.streaming = !state.streaming;
-      send({ type: state.streaming ? 'stream-start' : 'stream-stop' });
-      updateUI();
-      showToast(state.streaming ? '▶ Live Stream ON' : '⏸ Live Stream OFF');
+    document.getElementById('btnNew').addEventListener('click', () => {
+      chatArea$.innerHTML = '';
+      chatArea$.appendChild(chatWelcome$);
+      chatWelcome$.style.display = 'flex';
+      state.messages = [];
     });
 
-    $('btnBack').addEventListener('click', () => {
-      send({ type: 'key', key: 'Escape', code: 'Escape' });
-    });
+    // ─── Fetch Config ───────────────────────────────
+    async function fetchConfig() {
+      try {
+        const res = await fetch('/api/config');
+        const cfg = await res.json();
+        state.cdpPort = cfg.cdpPort;
+      } catch (_) { }
+    }
 
-    $('btnHome').addEventListener('click', () => {
-      // Ctrl+Shift+P - Command Palette
-      send({ type: 'key', key: 'p', code: 'KeyP', modifiers: 6 }); // Ctrl+Shift
-    });
-
-    $('btnTab').addEventListener('click', () => {
-      send({ type: 'key', key: 'Tab', code: 'Tab' });
-    });
-
-    $('btnEnter').addEventListener('click', () => {
-      send({ type: 'key', key: 'Enter', code: 'Enter' });
-    });
-
-    $('btnCtrlZ').addEventListener('click', () => {
-      send({ type: 'key', key: 'z', code: 'KeyZ', modifiers: 2 }); // Ctrl
-    });
-
-    // ─── Keyboard ───────────────────────────────────
-    $('btnKeyboard').addEventListener('click', () => {
-      state.keyboardVisible = !state.keyboardVisible;
-      keyboardOverlay$.classList.toggle('visible', state.keyboardVisible);
-      if (state.keyboardVisible) {
-        keyboardInput$.focus();
-      }
-    });
-
-    keyboardInput$.addEventListener('keydown', (e) => {
-      if (e.key === 'Enter') {
-        e.preventDefault();
-        const text = keyboardInput$.value;
-        if (text) {
-          send({ type: 'key', text });
-          keyboardInput$.value = '';
-        }
-        send({ type: 'key', key: 'Enter', code: 'Enter' });
-      }
-    });
-
-    $('keyboardSend').addEventListener('click', () => {
-      const text = keyboardInput$.value;
-      if (text) {
-        send({ type: 'key', text });
-        keyboardInput$.value = '';
-        showToast('Đã gửi text');
-      }
-    });
-
-    // ─── Settings ───────────────────────────────────
-    $('btnSettings').addEventListener('click', () => {
-      state.settingsVisible = !state.settingsVisible;
-      settingsPanel$.classList.toggle('visible', state.settingsVisible);
-      settingsBackdrop$.classList.toggle('visible', state.settingsVisible);
-    });
-
-    settingsBackdrop$.addEventListener('click', () => {
-      state.settingsVisible = false;
-      settingsPanel$.classList.remove('visible');
-      settingsBackdrop$.classList.remove('visible');
-    });
-
-    $('btnReconnect').addEventListener('click', () => {
-      send({ type: 'connect' });
-      loadingShimmer$.classList.add('active');
-      showToast('Đang kết nối lại...');
-    });
-
-    // ─── Initialize ─────────────────────────────────
+    // ─── Init ───────────────────────────────────────
+    fetchConfig();
     connectWS();
   </script>
 </body>
