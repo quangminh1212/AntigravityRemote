@@ -557,83 +557,88 @@ wss.on('connection', async (ws) => {
 
                         ws.send(JSON.stringify({ type: 'chat-status', text: 'Đang tìm Agent chat input...', status: 'info' }));
 
-                        // Deep Shadow DOM search expression
-                        const deepSearchExpr = `
+                        // Search expression for Antigravity Agent chat input
+                        // The REAL input is a contenteditable DIV with Tailwind classes, NOT a textarea
+                        const chatInputSearchExpr = `
                             (function() {
-                                function deepQuery(root, selectors) {
-                                    for (const sel of selectors) {
-                                        const el = root.querySelector(sel);
-                                        if (el && (el.offsetParent !== null || el.offsetHeight > 0 || getComputedStyle(el).display !== 'none')) {
-                                            return { element: el, selector: sel, depth: 0 };
-                                        }
+                                // Strategy 1: Find contenteditable div (Antigravity agent chat)
+                                const ceEls = document.querySelectorAll('[contenteditable="true"]');
+                                for (const el of ceEls) {
+                                    // Must be visible
+                                    const rect = el.getBoundingClientRect();
+                                    if (rect.width < 50 || rect.height < 10) continue;
+                                    // Typical Antigravity chat input has these classes
+                                    const cls = el.className || '';
+                                    if (cls.includes('cursor-text') || cls.includes('overflow-y-auto') || cls.includes('outline-none')) {
+                                        el.focus();
+                                        el.click();
+                                        return { found: true, type: 'contenteditable', tag: el.tagName, class: cls.substring(0,80) };
                                     }
-                                    const allElements = root.querySelectorAll('*');
-                                    for (const el of allElements) {
-                                        if (el.shadowRoot) {
-                                            const result = deepQuery(el.shadowRoot, selectors);
-                                            if (result) { result.depth++; return result; }
-                                        }
-                                    }
-                                    const iframes = root.querySelectorAll('iframe, webview');
-                                    for (const iframe of iframes) {
-                                        try {
-                                            const doc = iframe.contentDocument || iframe.contentWindow?.document;
-                                            if (doc) {
-                                                const result = deepQuery(doc, selectors);
-                                                if (result) { result.depth++; return result; }
-                                            }
-                                        } catch(e) {}
-                                    }
-                                    return null;
                                 }
-                                const selectors = [
-                                    'textarea[class*="inputarea"]',
-                                    'textarea[class*="input-area"]',
-                                    'textarea[class*="chat-input"]',
-                                    'textarea[aria-label*="chat"]',
-                                    'textarea[aria-label*="Chat"]',
-                                    'textarea[aria-label*="agent"]',
-                                    'textarea[aria-label*="Agent"]',
-                                    'textarea[placeholder*="message"]',
-                                    'textarea[placeholder*="Message"]',
-                                    'textarea[placeholder*="Ask"]',
-                                    'textarea[placeholder*="ask"]',
-                                    'div[class*="agent"] textarea',
-                                    'div[class*="chat"] textarea',
-                                    'div[class*="cascade"] textarea',
-                                    '.monaco-inputbox textarea',
-                                    'textarea.inputarea',
-                                    'textarea',
-                                ];
-                                const result = deepQuery(document, selectors);
-                                if (result) {
-                                    result.element.focus();
-                                    result.element.click();
-                                    return { found: true, selector: result.selector, depth: result.depth, tag: result.element.tagName };
+                                // Strategy 2: Any visible contenteditable
+                                for (const el of ceEls) {
+                                    const rect = el.getBoundingClientRect();
+                                    if (rect.width > 50 && rect.height > 10) {
+                                        el.focus();
+                                        el.click();
+                                        return { found: true, type: 'contenteditable-generic', tag: el.tagName, class: (el.className||'').substring(0,80) };
+                                    }
                                 }
-                                return { found: false, searched: selectors.length };
+                                // Strategy 3: Fall back to textarea (rare)
+                                const tas = document.querySelectorAll('textarea');
+                                for (const ta of tas) {
+                                    const rect = ta.getBoundingClientRect();
+                                    if (rect.width > 50 && rect.height > 10) {
+                                        ta.focus();
+                                        ta.click();
+                                        return { found: true, type: 'textarea', tag: 'TEXTAREA', class: (ta.className||'').substring(0,80) };
+                                    }
+                                }
+                                return { found: false };
                             })()
                         `;
 
-                        // Strategy: try multiple CDP targets to find the one with the agent textarea
-                        // Priority order: jetski-agent (Launchpad) > workbench > other pages
+                        // Expression to insert text into contenteditable div and press Enter
+                        const insertTextExpr = (text) => `
+                            (function() {
+                                const el = document.querySelector('[contenteditable="true"]');
+                                if (!el) {
+                                    // Fallback to textarea
+                                    const ta = document.querySelector('textarea');
+                                    if (!ta) return { ok: false, error: 'no input found' };
+                                    ta.focus();
+                                    ta.value = ${JSON.stringify(text)};
+                                    ta.dispatchEvent(new Event('input', {bubbles: true}));
+                                    return { ok: true, type: 'textarea' };
+                                }
+                                el.focus();
+                                // Clear and set text
+                                el.textContent = '';
+                                el.textContent = ${JSON.stringify(text)};
+                                // Dispatch input event for React/framework detection
+                                el.dispatchEvent(new InputEvent('input', {bubbles: true, data: ${JSON.stringify(text)}, inputType: 'insertText'}));
+                                el.dispatchEvent(new Event('change', {bubbles: true}));
+                                return { ok: true, type: 'contenteditable' };
+                            })()
+                        `;
+
+                        // Strategy: try workbench FIRST (that's where the chat input actually is)
+                        // then jetski-agent, then other targets
                         let targets = [];
                         try {
                             targets = await CDP.List({ host: CONFIG.cdpHost, port: CONFIG.cdpPort });
                         } catch (_) { }
 
-                        // Sort targets: jetski-agent first, then webview iframes, then workbench, then others
-                        // Include both 'page' AND 'iframe' types (agent panel lives in an iframe webview)
+                        // Sort: workbench first (chat input is in workbench), then jetski-agent, then others
                         const candidateTargets = targets.filter(t =>
                             (t.type === 'page' || t.type === 'iframe') &&
                             !t.url?.includes(`localhost:${CONFIG.port}`)
                         );
                         candidateTargets.sort((a, b) => {
                             const score = (t) => {
-                                if (t.url?.includes('jetski-agent')) return 5;
-                                if (t.type === 'iframe' && t.url?.includes('vscode-webview')) return 4;
-                                if (t.url?.includes('workbench.html')) return 3;
-                                if (t.type === 'iframe') return 2;
+                                if (t.url?.includes('workbench.html')) return 5; // Chat input is here!
+                                if (t.url?.includes('jetski-agent')) return 4;
+                                if (t.type === 'iframe' && t.url?.includes('vscode-webview')) return 2;
                                 return 1;
                             };
                             return score(b) - score(a);
@@ -641,60 +646,46 @@ wss.on('connection', async (ws) => {
 
                         let chatSent = false;
 
-                        // First try with the current main CDP connection
-                        const mainResult = await cdpClient.Runtime.evaluate({ expression: deepSearchExpr, returnByValue: true });
-                        const mainValue = mainResult.result && mainResult.result.value;
+                        for (const target of candidateTargets) {
+                            if (chatSent) break;
+                            log('INFO', `Trying target: ${target.title} (${target.url?.substring(0, 80)})`);
+                            ws.send(JSON.stringify({ type: 'chat-status', text: `Thử target: ${target.title || 'unknown'}...`, status: 'info' }));
 
-                        if (mainValue && mainValue.found) {
-                            log('INFO', `Found textarea on main target: ${mainValue.selector} (depth=${mainValue.depth})`);
-                            ws.send(JSON.stringify({ type: 'chat-status', text: `Input found on main target (${mainValue.selector})`, status: 'success' }));
-                            await cdpClient.Input.insertText({ text: chatText });
-                            await new Promise(r => setTimeout(r, 150));
-                            await sendKeyEvent('keyDown', 'Enter', 'Enter', 0);
-                            await sendKeyEvent('keyUp', 'Enter', 'Enter', 0);
-                            chatSent = true;
-                        }
+                            let tempClient = null;
+                            try {
+                                tempClient = await CDP({ host: CONFIG.cdpHost, port: CONFIG.cdpPort, target });
+                                await tempClient.Runtime.enable();
 
-                        // If not found on main target, try other targets
-                        if (!chatSent) {
-                            for (const target of candidateTargets) {
-                                if (chatSent) break;
-                                log('INFO', `Trying target: ${target.title} (${target.url?.substring(0, 80)})`);
-                                ws.send(JSON.stringify({ type: 'chat-status', text: `Thử target: ${target.title || 'unknown'}...`, status: 'info' }));
+                                // Step 1: Find the chat input
+                                const findResult = await tempClient.Runtime.evaluate({ expression: chatInputSearchExpr, returnByValue: true });
+                                const val = findResult.result && findResult.result.value;
 
-                                let tempClient = null;
-                                try {
-                                    tempClient = await CDP({ host: CONFIG.cdpHost, port: CONFIG.cdpPort, target });
-                                    await tempClient.Page.enable();
-                                    await tempClient.Runtime.enable();
+                                if (val && val.found) {
+                                    log('INFO', `Found ${val.type} on target "${target.title}": ${val.class}`);
+                                    ws.send(JSON.stringify({ type: 'chat-status', text: `✅ Input found: ${target.title} (${val.type})`, status: 'success' }));
 
-                                    const result = await tempClient.Runtime.evaluate({ expression: deepSearchExpr, returnByValue: true });
-                                    const val = result.result && result.result.value;
+                                    // Step 2: Insert text
+                                    const insertResult = await tempClient.Runtime.evaluate({ expression: insertTextExpr(chatText), returnByValue: true });
+                                    const insertVal = insertResult.result && insertResult.result.value;
 
-                                    if (val && val.found) {
-                                        log('INFO', `Found textarea on target "${target.title}": ${val.selector} (depth=${val.depth})`);
-                                        ws.send(JSON.stringify({ type: 'chat-status', text: `Input found: ${target.title} (${val.selector})`, status: 'success' }));
+                                    if (insertVal && insertVal.ok) {
+                                        log('INFO', `Text inserted via ${insertVal.type}`);
+                                        await new Promise(r => setTimeout(r, 200));
 
-                                        // Focus and insert text on this target
-                                        await tempClient.Input.insertText({ text: chatText });
-                                        await new Promise(r => setTimeout(r, 150));
-
-                                        // Send Enter key via this target's Input domain
+                                        // Step 3: Press Enter to send
                                         await tempClient.Input.dispatchKeyEvent({ type: 'keyDown', key: 'Enter', code: 'Enter', windowsVirtualKeyCode: 13, nativeVirtualKeyCode: 13 });
                                         await tempClient.Input.dispatchKeyEvent({ type: 'keyUp', key: 'Enter', code: 'Enter', windowsVirtualKeyCode: 13, nativeVirtualKeyCode: 13 });
                                         chatSent = true;
+                                        log('INFO', 'Chat message sent successfully!');
+                                    } else {
+                                        log('WARN', `Text insert failed on "${target.title}": ${insertVal?.error || 'unknown'}`);
                                     }
-                                } catch (err) {
-                                    log('WARN', `Failed to check target "${target.title}": ${err.message}`);
-                                } finally {
-                                    if (tempClient && !chatSent) {
-                                        try { await tempClient.close(); } catch (_) { }
-                                    } else if (tempClient && chatSent) {
-                                        // Keep connection briefly for response, then close
-                                        setTimeout(async () => {
-                                            try { await tempClient.close(); } catch (_) { }
-                                        }, 5000);
-                                    }
+                                }
+                            } catch (err) {
+                                log('WARN', `Failed to check target "${target.title}": ${err.message}`);
+                            } finally {
+                                if (tempClient) {
+                                    setTimeout(async () => { try { await tempClient.close(); } catch (_) { } }, chatSent ? 5000 : 0);
                                 }
                             }
                         }
