@@ -9,11 +9,13 @@ const fs = require('fs');
 const { execFile } = require('child_process');
 
 // ─── Configuration ────────────────────────────────────────────
-function detectCdpPort() {
-    // User specified via env
-    if (process.env.CDP_PORT) return parseInt(process.env.CDP_PORT);
+function getCdpPortCandidates() {
+    // User specified via env → only try that
+    if (process.env.CDP_PORT) return [parseInt(process.env.CDP_PORT)];
 
-    // Auto-detect from Antigravity's DevToolsActivePort file
+    const candidates = new Set();
+
+    // Read DevToolsActivePort files
     const dtapPaths = [
         path.join(process.env.APPDATA || '', 'Antigravity', 'DevToolsActivePort'),
         path.join(process.env.APPDATA || '', 'Windsurf', 'DevToolsActivePort'),
@@ -23,17 +25,57 @@ function detectCdpPort() {
             const content = fs.readFileSync(dtap, 'utf8').trim();
             const port = parseInt(content.split('\n')[0].trim());
             if (port > 0 && port < 65536) {
-                console.log(`[AUTO-DETECT] Found Antigravity CDP port: ${port} (from ${dtap})`);
-                return port;
+                console.log(`[AUTO-DETECT] Read port ${port} from ${path.basename(path.dirname(dtap))}/${path.basename(dtap)}`);
+                candidates.add(port);
             }
-        } catch (_) { /* file not found - skip */ }
+        } catch (_) { /* file not found */ }
     }
-    return 9333; // fallback
+
+    // Always try common Electron/Chrome CDP ports
+    [9222, 9229, 9333].forEach(p => candidates.add(p));
+
+    return [...candidates];
+}
+
+async function probeCdpPort(port) {
+    return new Promise((resolve) => {
+        const req = http.get(`http://127.0.0.1:${port}/json/version`, { timeout: 2000 }, (res) => {
+            let data = '';
+            res.on('data', (chunk) => data += chunk);
+            res.on('end', () => {
+                try {
+                    const info = JSON.parse(data);
+                    resolve({ port, ok: true, browser: info.Browser || 'unknown' });
+                } catch (_) {
+                    resolve({ port, ok: false });
+                }
+            });
+        });
+        req.on('error', () => resolve({ port, ok: false }));
+        req.on('timeout', () => { req.destroy(); resolve({ port, ok: false }); });
+    });
+}
+
+async function detectCdpPort() {
+    const candidates = getCdpPortCandidates();
+    console.log(`[AUTO-DETECT] Scanning CDP ports: ${candidates.join(', ')}`);
+
+    for (const port of candidates) {
+        const result = await probeCdpPort(port);
+        if (result.ok) {
+            console.log(`[AUTO-DETECT] ✓ CDP found on port ${port} (${result.browser})`);
+            return port;
+        }
+        console.log(`[AUTO-DETECT] ✗ Port ${port} - no CDP response`);
+    }
+
+    console.log(`[AUTO-DETECT] No CDP port found, defaulting to ${candidates[0] || 9333}`);
+    return candidates[0] || 9333;
 }
 
 const CONFIG = {
     port: parseInt(process.env.PORT || '3000'),
-    cdpPort: detectCdpPort(),
+    cdpPort: null, // will be set in init
     cdpHost: process.env.CDP_HOST || 'localhost',
     screenshotQuality: parseInt(process.env.QUALITY || '60'),
     maxFPS: parseInt(process.env.MAX_FPS || '15'),
@@ -134,12 +176,6 @@ async function findWorkbenchTarget() {
                 continue;
             }
 
-            // Skip chrome:// internal pages
-            if (t.url && t.url.startsWith('chrome://')) {
-                log('INFO', `    ↳ Skipped (chrome internal)`);
-                continue;
-            }
-
             // High priority: workbench pages (VS Code / Antigravity main UI)
             if (t.url && (t.url.includes('workbench.html') || t.url.includes('workbench.desktop'))) {
                 score = 100;
@@ -152,7 +188,13 @@ async function findWorkbenchTarget() {
             else if (t.title && /antigravity|cascade|agent/i.test(t.title)) {
                 score = 70;
             }
-            // Lower priority: other pages
+            // chrome:// pages - low priority but still usable as fallback
+            else if (t.url && t.url.startsWith('chrome://')) {
+                // Skip footers but allow main newtab
+                if (t.url.includes('footer')) continue;
+                score = 5;
+            }
+            // Any other page (external website etc.)
             else {
                 score = 10;
             }
@@ -505,6 +547,15 @@ app.get('/api/targets', async (req, res) => {
     }
 });
 
+app.get('/api/config', (req, res) => {
+    res.json({
+        cdpPort: CONFIG.cdpPort,
+        connected: isConnected,
+        ip: getLocalIP(),
+        port: CONFIG.port,
+    });
+});
+
 // ─── Utility ──────────────────────────────────────────────────
 function getLocalIP() {
     const interfaces = os.networkInterfaces();
@@ -518,30 +569,63 @@ function getLocalIP() {
     return '127.0.0.1';
 }
 
-// ─── Start Server ─────────────────────────────────────────────
-server.listen(CONFIG.port, '0.0.0.0', async () => {
-    const ip = getLocalIP();
-    log('INFO', '═══════════════════════════════════════════');
-    log('INFO', '  AntigravityHub Remote Access Server');
-    log('INFO', '═══════════════════════════════════════════');
-    log('INFO', `  Local:   http://localhost:${CONFIG.port}`);
-    log('INFO', `  Mobile:  http://${ip}:${CONFIG.port}`);
-    log('INFO', `  CDP:     ${CONFIG.cdpHost}:${CONFIG.cdpPort}`);
-    log('INFO', '═══════════════════════════════════════════');
+// ─── Start Server ─────────────────────────────────────────
+function startServer(port) {
+    server.listen(port, '0.0.0.0', async () => {
+        CONFIG.port = port; // update in case it changed
 
-    // Try initial CDP connection
-    const connected = await connectCDP();
-    if (connected) {
-        log('INFO', '✓ CDP connected - ready for mobile access');
+        // Auto-detect CDP port
+        CONFIG.cdpPort = await detectCdpPort();
+
+        const ip = getLocalIP();
+        log('INFO', '═══════════════════════════════════════════');
+        log('INFO', '  AntigravityHub Remote Access Server');
+        log('INFO', '═══════════════════════════════════════════');
+        log('INFO', `  Local:   http://localhost:${port}`);
+        log('INFO', `  Mobile:  http://${ip}:${port}`);
+        log('INFO', `  CDP:     ${CONFIG.cdpHost}:${CONFIG.cdpPort}`);
+        log('INFO', '═══════════════════════════════════════════');
+
+        // Try initial CDP connection
+        const connected = await connectCDP();
+        if (connected) {
+            log('INFO', '✓ CDP connected - ready for mobile access');
+        } else {
+            log('WARN', '✗ CDP not available - start Antigravity with --remote-debugging-port=' + CONFIG.cdpPort);
+        }
+
+        // Periodic CDP reconnect attempt (re-scan all ports)
+        setInterval(async () => {
+            if (!isConnected) {
+                // Re-detect in case ports changed
+                const newPort = await detectCdpPort();
+                if (newPort !== CONFIG.cdpPort) {
+                    log('INFO', `CDP port changed: ${CONFIG.cdpPort} → ${newPort}`);
+                    CONFIG.cdpPort = newPort;
+                }
+                const ok = await connectCDP();
+                if (ok) log('INFO', '✓ CDP reconnected');
+            }
+        }, 10000);
+
+        // Generate QR code in terminal
+        try {
+            const url = `http://${ip}:${port}`;
+            const qrText = await QRCode.toString(url, { type: 'terminal', small: true });
+            console.log('\n  Scan QR code with your phone:\n');
+            console.log(qrText);
+        } catch (_) { /* noop */ }
+    });
+}
+
+server.on('error', (err) => {
+    if (err.code === 'EADDRINUSE') {
+        log('WARN', `Port ${CONFIG.port} in use, trying ${CONFIG.port + 1}...`);
+        startServer(CONFIG.port + 1);
     } else {
-        log('WARN', '✗ CDP not available - start Antigravity with --remote-debugging-port=' + CONFIG.cdpPort);
+        log('ERROR', 'Server error:', err.message);
+        process.exit(1);
     }
-
-    // Generate QR code in terminal
-    try {
-        const url = `http://${ip}:${CONFIG.port}`;
-        const qrText = await QRCode.toString(url, { type: 'terminal', small: true });
-        console.log('\n  Scan QR code with your phone:\n');
-        console.log(qrText);
-    } catch (_) { /* noop */ }
 });
+
+startServer(CONFIG.port);

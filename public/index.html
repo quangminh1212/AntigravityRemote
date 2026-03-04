@@ -697,7 +697,7 @@
       </div>
       <div class="connect-hint">
         Đảm bảo Antigravity đang chạy với<br>
-        <code>--remote-debugging-port=9333</code>
+        <code id="cdpPortHint">--remote-debugging-port=9333</code>
       </div>
     </div>
 
@@ -740,6 +740,7 @@
       viewport: { width: 1280, height: 800 },
       keyboardVisible: false,
       settingsVisible: false,
+      cdpPort: 9333,
     };
 
     // ─── DOM Elements ───────────────────────────────
@@ -765,6 +766,18 @@
       if (toastTimer) clearTimeout(toastTimer);
       toastTimer = setTimeout(() => toast$.classList.remove('visible'), duration);
     }
+
+    // ─── Fetch Server Config ────────────────────────
+    async function fetchConfig() {
+      try {
+        const res = await fetch('/api/config');
+        const cfg = await res.json();
+        state.cdpPort = cfg.cdpPort;
+        const hint = document.getElementById('cdpPortHint');
+        if (hint) hint.textContent = `--remote-debugging-port=${cfg.cdpPort}`;
+      } catch (_) { /* noop */ }
+    }
+    fetchConfig();
 
     // ─── WebSocket Connection ───────────────────────
     function connectWS() {
@@ -939,7 +952,8 @@
         btn.disabled = false;
         btn.innerHTML = '<span class="material-icons-round">link</span> Kết nối';
         if (!state.connected) {
-          connectError$.textContent = 'Không thể kết nối. Hãy kiểm tra Antigravity đã chạy với --remote-debugging-port=9333';
+          const port = state.cdpPort || 9333;
+          connectError$.textContent = `Không thể kết nối. Hãy kiểm tra Antigravity đã chạy với --remote-debugging-port=${port}`;
           connectError$.classList.add('visible');
         }
       }, 5000);
