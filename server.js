@@ -10,12 +10,8 @@ const { execFile } = require('child_process');
 
 // ─── Configuration ────────────────────────────────────────────
 function getCdpPortCandidates() {
-    // User specified via env → only try that
     if (process.env.CDP_PORT) return [parseInt(process.env.CDP_PORT)];
-
     const candidates = new Set();
-
-    // Try to read --remote-debugging-port from Antigravity process command line
     try {
         const { execSync } = require('child_process');
         const wmicOut = execSync('wmic process where "name like \'%Antigravity%\'" get CommandLine /value 2>nul', { encoding: 'utf8', timeout: 3000 });
@@ -23,13 +19,11 @@ function getCdpPortCandidates() {
         if (match) {
             const port = parseInt(match[1]);
             if (port > 0 && port < 65536) {
-                console.log(`[AUTO-DETECT] Read port ${port} from Antigravity process args`);
+                log('INFO', `[AUTO-DETECT] Read port ${port} from Antigravity process args`);
                 candidates.add(port);
             }
         }
-    } catch (_) { /* wmic not available or failed */ }
-
-    // Read DevToolsActivePort files
+    } catch (_) { }
     const userDataDirs = [
         path.join(process.env.APPDATA || '', 'Antigravity'),
         path.join(process.env.APPDATA || '', 'Windsurf'),
@@ -42,15 +36,12 @@ function getCdpPortCandidates() {
             const content = fs.readFileSync(dtap, 'utf8').trim();
             const port = parseInt(content.split('\n')[0].trim());
             if (port > 0 && port < 65536) {
-                console.log(`[AUTO-DETECT] Read port ${port} from ${path.basename(dir)}/DevToolsActivePort`);
+                log('INFO', `[AUTO-DETECT] Read port ${port} from ${path.basename(dir)}/DevToolsActivePort`);
                 candidates.add(port);
             }
-        } catch (_) { /* file not found */ }
+        } catch (_) { }
     }
-
-    // Always try common Electron/Chrome CDP ports
     [9222, 9229, 9333, 9000].forEach(p => candidates.add(p));
-
     return [...candidates];
 }
 
@@ -63,9 +54,7 @@ async function probeCdpPort(port) {
                 try {
                     const info = JSON.parse(data);
                     resolve({ port, ok: true, browser: info.Browser || 'unknown' });
-                } catch (_) {
-                    resolve({ port, ok: false });
-                }
+                } catch (_) { resolve({ port, ok: false }); }
             });
         });
         req.on('error', () => resolve({ port, ok: false }));
@@ -75,27 +64,22 @@ async function probeCdpPort(port) {
 
 async function detectCdpPort() {
     const candidates = getCdpPortCandidates();
-    console.log(`[AUTO-DETECT] Scanning CDP ports: ${candidates.join(', ')}`);
-
+    log('INFO', `Scanning CDP ports: ${candidates.join(', ')}`);
     for (const port of candidates) {
         const result = await probeCdpPort(port);
         if (result.ok) {
-            console.log(`[AUTO-DETECT] ✓ CDP found on port ${port} (${result.browser})`);
+            log('INFO', `✓ CDP found on port ${port} (${result.browser})`);
             return port;
         }
-        console.log(`[AUTO-DETECT] ✗ Port ${port} - no CDP response`);
     }
-
-    console.log(`[AUTO-DETECT] No CDP port found, defaulting to ${candidates[0] || 9333}`);
     return candidates[0] || 9333;
 }
 
 const CONFIG = {
     port: parseInt(process.env.PORT || '3000'),
-    cdpPort: null, // will be set in init
+    cdpPort: null,
     cdpHost: process.env.CDP_HOST || 'localhost',
-    screenshotQuality: parseInt(process.env.QUALITY || '60'),
-    maxFPS: parseInt(process.env.MAX_FPS || '15'),
+    screenshotQuality: parseInt(process.env.QUALITY || '55'),
     logFile: path.join(__dirname, 'debug.log'),
 };
 
@@ -104,14 +88,13 @@ function log(level, msg, ...args) {
     const ts = new Date().toISOString();
     const line = `[${ts}] [${level}] ${msg} ${args.length ? JSON.stringify(args) : ''}`;
     console.log(line);
-    try { fs.appendFileSync(CONFIG.logFile, line + '\n'); } catch (_) { /* noop */ }
+    try { fs.appendFileSync(CONFIG.logFile, line + '\n'); } catch (_) { }
 }
 
 // ─── Express + HTTP Server ────────────────────────────────────
 const app = express();
 app.use(express.static(path.join(__dirname, 'public')));
 app.use(express.json());
-
 const server = http.createServer(app);
 
 // ─── CDP Connection Manager ──────────────────────────────────
@@ -119,154 +102,40 @@ let cdpClient = null;
 let cdpPage = null;
 let cdpInput = null;
 let cdpRuntime = null;
+let cdpDOM = null;
 let isConnected = false;
 let lastScreenshot = null;
 let screenshotInProgress = false;
 
-// ─── Chat History ────────────────────────────────────────────
-const HISTORY_FILE = path.join(__dirname, 'chat-history.json');
-let chatHistory = [];
+// ─── Chat Sync State ─────────────────────────────────────────
+let lastKnownMessages = [];
+let chatPollInterval = null;
+let observerInjected = false;
 
-function loadHistory() {
-    try {
-        if (fs.existsSync(HISTORY_FILE)) {
-            chatHistory = JSON.parse(fs.readFileSync(HISTORY_FILE, 'utf8'));
-        }
-    } catch (_) { chatHistory = []; }
-}
-
-function saveHistory() {
-    try {
-        fs.writeFileSync(HISTORY_FILE, JSON.stringify(chatHistory, null, 2));
-    } catch (_) { /* noop */ }
-}
-
-function addToHistory(role, text) {
-    const entry = { role, text, ts: Date.now() };
-    chatHistory.push(entry);
-    // Keep last 200 messages
-    if (chatHistory.length > 200) chatHistory = chatHistory.slice(-200);
-    saveHistory();
-    return entry;
-}
-
-loadHistory();
-
-// ─── Antigravity Launcher ─────────────────────────────────────
-let antigravityProcess = null;
-
-async function findAntigravityPath() {
-    const possiblePaths = [
-        path.join(process.env.LOCALAPPDATA || '', 'Programs', 'Antigravity', 'Antigravity.exe'),
-        path.join(process.env.LOCALAPPDATA || '', 'Programs', 'Windsurf', 'Windsurf.exe'),
-        path.join(process.env.PROGRAMFILES || '', 'Antigravity', 'Antigravity.exe'),
-    ];
-    for (const p of possiblePaths) {
-        if (fs.existsSync(p)) return p;
-    }
-    return null;
-}
-
-async function launchAntigravity(killExisting = false) {
-    const exePath = await findAntigravityPath();
-    if (!exePath) {
-        log('WARN', 'Antigravity executable not found');
-        return false;
-    }
-
-    // Kill existing Antigravity processes if requested
-    if (killExisting) {
-        try {
-            const { execSync } = require('child_process');
-            execSync('taskkill /f /im Antigravity.exe 2>nul', { encoding: 'utf8', timeout: 5000 });
-            log('INFO', 'Killed existing Antigravity processes');
-            await new Promise(r => setTimeout(r, 2000)); // Wait for cleanup
-        } catch (_) { /* no processes to kill */ }
-    }
-
-    log('INFO', `Launching Antigravity from: ${exePath} with --remote-debugging-port=${CONFIG.cdpPort}`);
-    try {
-        antigravityProcess = execFile(exePath, [
-            `--remote-debugging-port=${CONFIG.cdpPort}`,
-        ], { detached: true, stdio: 'ignore' });
-        antigravityProcess.unref();
-
-        // Wait for CDP to become available
-        for (let i = 0; i < 30; i++) {
-            await new Promise(r => setTimeout(r, 1000));
-            try {
-                await CDP.List({ host: CONFIG.cdpHost, port: CONFIG.cdpPort });
-                log('INFO', 'Antigravity CDP is ready');
-                return true;
-            } catch (_) {
-                log('INFO', `Waiting for CDP... (${i + 1}/30)`);
-            }
-        }
-        log('WARN', 'Timeout waiting for Antigravity CDP');
-        return false;
-    } catch (err) {
-        log('ERROR', 'Failed to launch Antigravity:', err.message);
-        return false;
-    }
-}
-
-async function findWorkbenchTarget(preferAgent = false) {
+// ─── Find the best CDP target ─────────────────────────────────
+async function findWorkbenchTarget() {
     try {
         const targets = await CDP.List({ host: CONFIG.cdpHost, port: CONFIG.cdpPort });
         log('INFO', `Found ${targets.length} CDP targets`);
-
-        // Priority scoring for targets
         let best = null;
         let bestScore = -1;
         const serverUrl = `localhost:${CONFIG.port}`;
-
         for (const t of targets) {
             log('INFO', `  Target: ${t.type} - ${t.title} - ${t.url}`);
             if (t.type !== 'page') continue;
-
+            if (t.url && t.url.includes(serverUrl)) continue;
             let score = 0;
-
-            // Skip our own web server pages
-            if (t.url && t.url.includes(serverUrl)) {
-                log('INFO', `    ↳ Skipped (own server)`);
-                continue;
-            }
-
-            // Highest priority: jetski-agent (agent chat panel only)
-            if (t.url && t.url.includes('jetski-agent')) {
-                score = 120; // Agent panel — the primary remote target
-            }
-            // Secondary: workbench (full IDE)
-            else if (t.url && (t.url.includes('workbench.html') || t.url.includes('workbench.desktop'))) {
-                score = 100;
-            }
-            // Medium priority: vscode-file protocol
-            else if (t.url && t.url.includes('vscode-file://')) {
-                score = 80;
-            }
-            // Medium: any page with cascade/antigravity in title
-            else if (t.title && /antigravity|cascade|agent/i.test(t.title)) {
-                score = 70;
-            }
-            // chrome:// pages - low priority
+            if (t.url && t.url.includes('jetski-agent')) score = 120;
+            else if (t.url && (t.url.includes('workbench.html') || t.url.includes('workbench.desktop'))) score = 100;
+            else if (t.url && t.url.includes('vscode-file://')) score = 80;
+            else if (t.title && /antigravity|cascade|agent/i.test(t.title)) score = 70;
             else if (t.url && t.url.startsWith('chrome://')) {
                 if (t.url.includes('footer')) continue;
                 score = 5;
-            }
-            // Any other page
-            else {
-                score = 10;
-            }
-
-            if (score > bestScore) {
-                bestScore = score;
-                best = t;
-            }
+            } else score = 10;
+            if (score > bestScore) { bestScore = score; best = t; }
         }
-
-        if (best) {
-            log('INFO', `  → Selected target (score=${bestScore}): ${best.title || best.url}`);
-        }
+        if (best) log('INFO', `→ Selected target (score=${bestScore}): ${best.title || best.url}`);
         return best;
     } catch (err) {
         log('ERROR', 'Failed to list CDP targets:', err.message);
@@ -274,54 +143,342 @@ async function findWorkbenchTarget(preferAgent = false) {
     }
 }
 
+let connectingPromise = null;
+
 async function connectCDP() {
     if (isConnected) return true;
+    // Prevent concurrent connection attempts
+    if (connectingPromise) return connectingPromise;
 
-    // Disconnect old client if any
-    if (cdpClient) {
-        try { await cdpClient.close(); } catch (_) { }
-        cdpClient = null;
-    }
+    connectingPromise = (async () => {
+        if (cdpClient) {
+            try { await cdpClient.close(); } catch (_) { }
+            cdpClient = null;
+        }
+        try {
+            const target = await findWorkbenchTarget();
+            if (!target) { log('WARN', 'No suitable CDP target found'); return false; }
+            log('INFO', `Connecting to CDP target: ${target.title || target.url}`);
+            cdpClient = await CDP({ host: CONFIG.cdpHost, port: CONFIG.cdpPort, target });
+            cdpPage = cdpClient.Page;
+            cdpInput = cdpClient.Input;
+            cdpRuntime = cdpClient.Runtime;
+            cdpDOM = cdpClient.DOM;
+            await cdpPage.enable();
+            await cdpRuntime.enable();
+            isConnected = true;
+            log('INFO', 'CDP connected successfully');
 
-    try {
-        const target = await findWorkbenchTarget();
-        if (!target) {
-            log('WARN', 'No suitable CDP target found');
+            // Listen for DOM changes from injected observer
+            cdpRuntime.on('consoleAPICalled', (params) => {
+                if (params.type === 'log' && params.args && params.args[0]) {
+                    const val = params.args[0].value;
+                    if (typeof val === 'string' && val.startsWith('__AGHUB_CHAT_UPDATE__')) {
+                        pollChatMessages();
+                    }
+                }
+            });
+
+            cdpClient.on('disconnect', () => {
+                log('WARN', 'CDP disconnected');
+                isConnected = false;
+                cdpClient = null;
+                observerInjected = false;
+                stopChatPolling();
+                setTimeout(() => connectCDP(), 3000);
+            });
+
+            startChatPolling();
+            await injectChatObserver();
+            return true;
+        } catch (err) {
+            log('ERROR', 'CDP connect failed:', err.message);
+            isConnected = false;
             return false;
         }
+    })();
 
-        log('INFO', `Connecting to CDP target: ${target.title || target.url}`);
-        cdpClient = await CDP({ host: CONFIG.cdpHost, port: CONFIG.cdpPort, target });
-
-        cdpPage = cdpClient.Page;
-        cdpInput = cdpClient.Input;
-        cdpRuntime = cdpClient.Runtime;
-
-        await cdpPage.enable();
-
-        isConnected = true;
-        log('INFO', 'CDP connected successfully');
-
-        cdpClient.on('disconnect', () => {
-            log('WARN', 'CDP disconnected');
-            isConnected = false;
-            cdpClient = null;
-            // Auto-reconnect after 2 seconds
-            setTimeout(() => connectCDP(), 2000);
-        });
-
-        return true;
-    } catch (err) {
-        log('ERROR', 'CDP connect failed:', err.message);
-        isConnected = false;
-        return false;
+    try {
+        return await connectingPromise;
+    } finally {
+        connectingPromise = null;
     }
 }
 
+// ─── Chat DOM Interaction ─────────────────────────────────────
+
+// Read all chat messages from the Agent panel DOM
+async function readChatMessages() {
+    if (!isConnected) return null;
+    try {
+        const { result } = await cdpRuntime.evaluate({
+            expression: `
+            (function() {
+                // Try multiple selectors for the chat messages container
+                const selectors = [
+                    // Antigravity/Windsurf agent panel selectors
+                    '.chat-messages-container',
+                    '.conversation-messages',
+                    '.message-list',
+                    '[class*="chat"] [class*="message"]',
+                    '[class*="conversation"]',
+                    '.aichat-messages',
+                    '.ai-chat-messages',
+                    // Generic chat area selectors
+                    '[role="log"]',
+                    '[aria-label*="chat"]',
+                    '[aria-label*="conversation"]',
+                ];
+                
+                let container = null;
+                for (const sel of selectors) {
+                    container = document.querySelector(sel);
+                    if (container) break;
+                }
+                
+                if (!container) {
+                    // Broader search: find largest scrollable container with text
+                    const allElements = document.querySelectorAll('div[class]');
+                    let bestEl = null;
+                    let bestHeight = 0;
+                    for (const el of allElements) {
+                        if (el.scrollHeight > 300 && el.children.length > 1) {
+                            const cls = el.className.toLowerCase();
+                            if (cls.includes('message') || cls.includes('chat') || cls.includes('conversation') || cls.includes('scroll')) {
+                                if (el.scrollHeight > bestHeight) {
+                                    bestHeight = el.scrollHeight;
+                                    bestEl = el;
+                                }
+                            }
+                        }
+                    }
+                    container = bestEl;
+                }
+                
+                if (!container) return JSON.stringify({ found: false, messages: [], debug: 'No chat container found' });
+                
+                // Extract messages from child elements
+                const messages = [];
+                const children = container.children;
+                for (let i = 0; i < children.length; i++) {
+                    const child = children[i];
+                    const text = child.innerText?.trim();
+                    if (!text || text.length < 1) continue;
+                    
+                    const cls = (child.className || '').toLowerCase();
+                    const dataset = child.dataset || {};
+                    
+                    // Determine role
+                    let role = 'unknown';
+                    if (cls.includes('user') || cls.includes('human') || dataset.role === 'user')
+                        role = 'user';
+                    else if (cls.includes('assistant') || cls.includes('ai') || cls.includes('bot') || cls.includes('agent') || dataset.role === 'assistant')
+                        role = 'assistant';
+                    else if (cls.includes('system') || cls.includes('info'))
+                        role = 'system';
+                    
+                    // Check for thinking/loading state
+                    const isThinking = cls.includes('thinking') || cls.includes('loading') || 
+                                       cls.includes('streaming') || child.querySelector('.thinking, .loading, [class*="spinner"]') != null;
+                    
+                    messages.push({
+                        role,
+                        text: text.substring(0, 5000), // Limit text length
+                        isThinking,
+                        index: i,
+                    });
+                }
+                
+                return JSON.stringify({ found: true, messages, containerClass: container.className });
+            })()`,
+            returnByValue: true,
+        });
+        return JSON.parse(result.value);
+    } catch (err) {
+        log('ERROR', 'readChatMessages failed:', err.message);
+        return null;
+    }
+}
+
+// Search for the chat input element and send a message
+async function sendChatMessage(text) {
+    if (!isConnected || !text) return { success: false, error: 'Not connected or empty message' };
+    try {
+        // Step 1: Find and focus the chat input
+        const { result: findResult } = await cdpRuntime.evaluate({
+            expression: `
+            (function() {
+                // Try multiple selectors for the chat input
+                const inputSelectors = [
+                    '[contenteditable="true"]',
+                    '[contenteditable="plaintext-only"]',
+                    'textarea[class*="chat"]',
+                    'textarea[class*="input"]',
+                    'input[class*="chat"]',
+                    '[role="textbox"]',
+                    '.chat-input',
+                    '.message-input',
+                    '[placeholder*="message"]',
+                    '[placeholder*="chat"]',
+                    '[data-placeholder]',
+                ];
+                
+                let input = null;
+                for (const sel of inputSelectors) {
+                    const els = document.querySelectorAll(sel);
+                    for (const el of els) {
+                        // Check if visible
+                        const rect = el.getBoundingClientRect();
+                        if (rect.width > 50 && rect.height > 10) {
+                            // Prefer ones at bottom of page (chat inputs are usually at bottom)
+                            if (!input || rect.top > input.getBoundingClientRect().top) {
+                                input = el;
+                            }
+                        }
+                    }
+                }
+                
+                if (!input) return JSON.stringify({ found: false, error: 'Chat input not found' });
+                
+                // Focus and get info
+                input.focus();
+                input.click();
+                
+                return JSON.stringify({
+                    found: true,
+                    tag: input.tagName,
+                    isContentEditable: input.isContentEditable,
+                    selector: input.tagName + (input.className ? '.' + input.className.split(' ')[0] : ''),
+                    rect: input.getBoundingClientRect().toJSON(),
+                });
+            })()`,
+            returnByValue: true,
+        });
+        const inputInfo = JSON.parse(findResult.value);
+        log('INFO', 'Chat input info:', JSON.stringify(inputInfo));
+
+        if (!inputInfo.found) return { success: false, error: inputInfo.error };
+
+        // Step 2: Clear existing content and type the message
+        if (inputInfo.isContentEditable) {
+            // For contenteditable, use insertText
+            await cdpRuntime.evaluate({
+                expression: `
+                (function() {
+                    const inputs = document.querySelectorAll('[contenteditable="true"], [contenteditable="plaintext-only"]');
+                    let input = null;
+                    for (const el of inputs) {
+                        const rect = el.getBoundingClientRect();
+                        if (rect.width > 50 && rect.height > 10) {
+                            if (!input || rect.top > input.getBoundingClientRect().top) input = el;
+                        }
+                    }
+                    if (input) {
+                        input.focus();
+                        // Clear existing text
+                        const range = document.createRange();
+                        range.selectNodeContents(input);
+                        window.getSelection().removeAllRanges();
+                        window.getSelection().addRange(range);
+                    }
+                })()`,
+            });
+            // Use Input.insertText for proper text entry
+            await cdpInput.insertText({ text });
+        } else {
+            // For input/textarea, set value directly
+            await cdpRuntime.evaluate({
+                expression: `
+                (function() {
+                    const selectors = ['textarea[class*="chat"]', 'textarea[class*="input"]', 'input[class*="chat"]', '[role="textbox"]'];
+                    for (const sel of selectors) {
+                        const el = document.querySelector(sel);
+                        if (el) { el.value = ${JSON.stringify(text)}; el.dispatchEvent(new Event('input', {bubbles:true})); break; }
+                    }
+                })()`,
+            });
+        }
+
+        // Step 3: Simulate Enter key to send
+        await new Promise(r => setTimeout(r, 100));
+        await cdpInput.dispatchKeyEvent({ type: 'keyDown', key: 'Enter', code: 'Enter', windowsVirtualKeyCode: 13, nativeVirtualKeyCode: 13 });
+        await cdpInput.dispatchKeyEvent({ type: 'keyUp', key: 'Enter', code: 'Enter', windowsVirtualKeyCode: 13, nativeVirtualKeyCode: 13 });
+
+        log('INFO', `Message sent: "${text.substring(0, 50)}..."`);
+        return { success: true };
+    } catch (err) {
+        log('ERROR', 'sendChatMessage failed:', err.message);
+        return { success: false, error: err.message };
+    }
+}
+
+// Inject MutationObserver to detect chat changes
+async function injectChatObserver() {
+    if (!isConnected || observerInjected) return;
+    try {
+        await cdpRuntime.evaluate({
+            expression: `
+            (function() {
+                if (window.__agHubObserver) return;
+                // Observe the entire body for subtree changes
+                window.__agHubObserver = new MutationObserver((mutations) => {
+                    for (const m of mutations) {
+                        if (m.addedNodes.length > 0 || m.type === 'characterData') {
+                            console.log('__AGHUB_CHAT_UPDATE__');
+                            break;
+                        }
+                    }
+                });
+                window.__agHubObserver.observe(document.body, {
+                    childList: true, subtree: true, characterData: true
+                });
+            })()`,
+        });
+        observerInjected = true;
+        log('INFO', 'Chat MutationObserver injected');
+    } catch (err) {
+        log('WARN', 'Failed to inject observer:', err.message);
+    }
+}
+
+// Poll chat messages and broadcast changes
+async function pollChatMessages() {
+    const data = await readChatMessages();
+    if (!data) return;
+
+    // Compare with last known state
+    const currentJSON = JSON.stringify(data.messages);
+    const lastJSON = JSON.stringify(lastKnownMessages);
+    if (currentJSON !== lastJSON) {
+        lastKnownMessages = data.messages;
+        broadcastToClients({
+            type: 'chat-update',
+            messages: data.messages,
+            containerFound: data.found,
+        });
+    }
+}
+
+function startChatPolling() {
+    if (chatPollInterval) return;
+    chatPollInterval = setInterval(() => {
+        if (isConnected) pollChatMessages();
+    }, 1500); // Poll every 1.5s
+    // Also do an immediate poll
+    pollChatMessages();
+}
+
+function stopChatPolling() {
+    if (chatPollInterval) {
+        clearInterval(chatPollInterval);
+        chatPollInterval = null;
+    }
+}
+
+// ─── Screenshot (for stream view) ─────────────────────────────
 async function captureScreenshot() {
     if (!isConnected || screenshotInProgress) return lastScreenshot;
     screenshotInProgress = true;
-
     try {
         const result = await cdpPage.captureScreenshot({
             format: 'jpeg',
@@ -332,137 +489,125 @@ async function captureScreenshot() {
         return lastScreenshot;
     } catch (err) {
         log('ERROR', 'Screenshot failed:', err.message);
-        if (err.message.includes('not attached') || err.message.includes('closed')) {
-            isConnected = false;
-        }
+        if (err.message.includes('not attached') || err.message.includes('closed')) isConnected = false;
         return lastScreenshot;
     } finally {
         screenshotInProgress = false;
     }
 }
 
+// ─── Input forwarding ─────────────────────────────────────────
 async function sendMouseEvent(type, x, y, button = 'left', clickCount = 1) {
     if (!isConnected) return false;
     try {
-        await cdpInput.dispatchMouseEvent({
-            type,
-            x: Math.round(x),
-            y: Math.round(y),
-            button,
-            clickCount,
-        });
+        await cdpInput.dispatchMouseEvent({ type, x: Math.round(x), y: Math.round(y), button, clickCount });
         return true;
-    } catch (err) {
-        log('ERROR', 'Mouse event failed:', err.message);
-        return false;
-    }
+    } catch (err) { log('ERROR', 'Mouse event failed:', err.message); return false; }
 }
 
 async function sendKeyEvent(type, key, code, modifiers = 0) {
     if (!isConnected) return false;
     try {
         const params = { type, modifiers };
-
-        if (type === 'char') {
-            params.text = key;
-        } else {
-            params.key = key;
-            params.code = code || '';
-            if (key.length === 1) {
-                params.text = type === 'keyDown' ? key : '';
-            }
-        }
-
+        if (type === 'char') { params.text = key; }
+        else { params.key = key; params.code = code || ''; if (key.length === 1) params.text = type === 'keyDown' ? key : ''; }
         await cdpInput.dispatchKeyEvent(params);
         return true;
-    } catch (err) {
-        log('ERROR', 'Key event failed:', err.message);
-        return false;
-    }
+    } catch (err) { log('ERROR', 'Key event failed:', err.message); return false; }
 }
 
 async function sendScrollEvent(x, y, deltaX, deltaY) {
     if (!isConnected) return false;
     try {
-        await cdpInput.dispatchMouseEvent({
-            type: 'mouseWheel',
-            x: Math.round(x),
-            y: Math.round(y),
-            deltaX: Math.round(deltaX),
-            deltaY: Math.round(deltaY),
-        });
+        await cdpInput.dispatchMouseEvent({ type: 'mouseWheel', x: Math.round(x), y: Math.round(y), deltaX: Math.round(deltaX), deltaY: Math.round(deltaY) });
         return true;
-    } catch (err) {
-        log('ERROR', 'Scroll event failed:', err.message);
-        return false;
-    }
+    } catch (err) { log('ERROR', 'Scroll event failed:', err.message); return false; }
 }
 
-// ─── Get viewport dimensions ─────────────────────────────────
 async function getViewportSize() {
     if (!isConnected) return { width: 1280, height: 800 };
     try {
-        const { result } = await cdpRuntime.evaluate({
-            expression: 'JSON.stringify({ width: window.innerWidth, height: window.innerHeight })',
-            returnByValue: true,
-        });
+        const { result } = await cdpRuntime.evaluate({ expression: 'JSON.stringify({ width: window.innerWidth, height: window.innerHeight })', returnByValue: true });
         return JSON.parse(result.value);
-    } catch (err) {
-        return { width: 1280, height: 800 };
-    }
+    } catch (err) { return { width: 1280, height: 800 }; }
 }
 
 // ─── WebSocket Server ─────────────────────────────────────────
-const wss = new WebSocketServer({ server, path: '/ws' });
+const wss = new WebSocketServer({ noServer: true });
+const wsClients = new Set();
+
+// Handle upgrade manually so WSS doesn't conflict with server errors
+server.on('upgrade', (request, socket, head) => {
+    const { pathname } = new URL(request.url, `http://${request.headers.host}`);
+    if (pathname === '/ws') {
+        wss.handleUpgrade(request, socket, head, (ws) => {
+            wss.emit('connection', ws, request);
+        });
+    } else {
+        socket.destroy();
+    }
+});
+
+function broadcastToClients(msg) {
+    const data = JSON.stringify(msg);
+    for (const ws of wsClients) {
+        if (ws.readyState === 1) ws.send(data);
+    }
+}
 
 wss.on('connection', async (ws) => {
-    log('INFO', 'Mobile client connected');
+    log('INFO', 'Client connected');
+    wsClients.add(ws);
 
     let streamInterval = null;
     let isStreaming = false;
 
-    // Try connecting to CDP
     const connected = await connectCDP();
     const viewport = await getViewportSize();
 
-    ws.send(JSON.stringify({
-        type: 'status',
-        connected,
-        viewport,
-    }));
+    ws.send(JSON.stringify({ type: 'status', connected, viewport }));
 
-    // Send initial screenshot
-    if (connected) {
-        const screenshot = await captureScreenshot();
-        if (screenshot) {
-            ws.send(JSON.stringify({ type: 'frame', data: screenshot }));
-        }
+    // Send current chat state immediately
+    if (connected && lastKnownMessages.length > 0) {
+        ws.send(JSON.stringify({ type: 'chat-update', messages: lastKnownMessages, containerFound: true }));
+    } else if (connected) {
+        await pollChatMessages();
     }
 
     ws.on('message', async (raw) => {
         try {
             const msg = JSON.parse(raw.toString());
-
             switch (msg.type) {
                 case 'connect':
                     const ok = await connectCDP();
                     const vp = await getViewportSize();
                     ws.send(JSON.stringify({ type: 'status', connected: ok, viewport: vp }));
-                    if (ok) {
-                        const ss = await captureScreenshot();
-                        if (ss) ws.send(JSON.stringify({ type: 'frame', data: ss }));
-                    }
                     break;
+
+                case 'send-chat': {
+                    // Send a chat message to the Antigravity agent
+                    const result = await sendChatMessage(msg.text);
+                    ws.send(JSON.stringify({ type: 'chat-sent', ...result }));
+                    // Poll for response after a short delay
+                    setTimeout(() => pollChatMessages(), 500);
+                    setTimeout(() => pollChatMessages(), 2000);
+                    setTimeout(() => pollChatMessages(), 5000);
+                    break;
+                }
+
+                case 'get-chat': {
+                    // Force read current chat state
+                    await pollChatMessages();
+                    ws.send(JSON.stringify({ type: 'chat-update', messages: lastKnownMessages, containerFound: true }));
+                    break;
+                }
 
                 case 'click':
                     await sendMouseEvent('mousePressed', msg.x, msg.y, 'left', 1);
                     await sendMouseEvent('mouseReleased', msg.x, msg.y, 'left', 1);
-                    // Capture screenshot after interaction
                     setTimeout(async () => {
                         const ss = await captureScreenshot();
-                        if (ss && ws.readyState === 1) {
-                            ws.send(JSON.stringify({ type: 'frame', data: ss }));
-                        }
+                        if (ss && ws.readyState === 1) ws.send(JSON.stringify({ type: 'frame', data: ss }));
                     }, 150);
                     break;
 
@@ -470,85 +615,41 @@ wss.on('connection', async (ws) => {
                     await sendMouseEvent('mouseMoved', msg.x, msg.y);
                     break;
 
-                case 'mousedown':
-                    await sendMouseEvent('mousePressed', msg.x, msg.y, 'left', 1);
-                    break;
-
-                case 'mouseup':
-                    await sendMouseEvent('mouseReleased', msg.x, msg.y, 'left', 1);
-                    setTimeout(async () => {
-                        const ss = await captureScreenshot();
-                        if (ss && ws.readyState === 1) {
-                            ws.send(JSON.stringify({ type: 'frame', data: ss }));
-                        }
-                    }, 150);
-                    break;
-
                 case 'scroll':
                     await sendScrollEvent(msg.x, msg.y, msg.deltaX || 0, msg.deltaY || 0);
                     setTimeout(async () => {
                         const ss = await captureScreenshot();
-                        if (ss && ws.readyState === 1) {
-                            ws.send(JSON.stringify({ type: 'frame', data: ss }));
-                        }
+                        if (ss && ws.readyState === 1) ws.send(JSON.stringify({ type: 'frame', data: ss }));
                     }, 100);
                     break;
 
                 case 'key':
                     if (msg.text) {
-                        // Type text character by character
-                        for (const char of msg.text) {
-                            await sendKeyEvent('char', char);
-                        }
+                        for (const char of msg.text) await sendKeyEvent('char', char);
                     } else {
                         await sendKeyEvent('keyDown', msg.key, msg.code, msg.modifiers || 0);
                         await sendKeyEvent('keyUp', msg.key, msg.code, msg.modifiers || 0);
                     }
-                    setTimeout(async () => {
-                        const ss = await captureScreenshot();
-                        if (ss && ws.readyState === 1) {
-                            ws.send(JSON.stringify({ type: 'frame', data: ss }));
-                        }
-                    }, 200);
                     break;
 
                 case 'stream-start':
                     if (!isStreaming) {
                         isStreaming = true;
-                        const interval = Math.max(1000 / CONFIG.maxFPS, 66); // Min ~15fps
                         streamInterval = setInterval(async () => {
-                            if (ws.readyState !== 1) {
-                                clearInterval(streamInterval);
-                                isStreaming = false;
-                                return;
-                            }
+                            if (ws.readyState !== 1) { clearInterval(streamInterval); isStreaming = false; return; }
                             const ss = await captureScreenshot();
-                            if (ss) {
-                                ws.send(JSON.stringify({ type: 'frame', data: ss }));
-                            }
-                        }, interval);
+                            if (ss) ws.send(JSON.stringify({ type: 'frame', data: ss }));
+                        }, 100);
                     }
                     break;
 
                 case 'stream-stop':
-                    if (streamInterval) {
-                        clearInterval(streamInterval);
-                        streamInterval = null;
-                        isStreaming = false;
-                    }
+                    if (streamInterval) { clearInterval(streamInterval); streamInterval = null; isStreaming = false; }
                     break;
 
                 case 'refresh':
                     const freshSS = await captureScreenshot();
-                    if (freshSS) {
-                        ws.send(JSON.stringify({ type: 'frame', data: freshSS }));
-                    }
-                    break;
-
-                case 'viewport':
-                    // Client requests current viewport size
-                    const vpSize = await getViewportSize();
-                    ws.send(JSON.stringify({ type: 'viewport', viewport: vpSize }));
+                    if (freshSS) ws.send(JSON.stringify({ type: 'frame', data: freshSS }));
                     break;
 
                 case 'list-targets':
@@ -556,21 +657,16 @@ wss.on('connection', async (ws) => {
                         const tgts = await CDP.List({ host: CONFIG.cdpHost, port: CONFIG.cdpPort });
                         ws.send(JSON.stringify({
                             type: 'targets-list',
-                            targets: tgts.map(t => ({
-                                id: t.id, type: t.type, title: t.title, url: t.url,
-                            }))
+                            targets: tgts.map(t => ({ id: t.id, type: t.type, title: t.title, url: t.url }))
                         }));
-                    } catch (err) {
-                        log('WARN', 'List targets error:', err.message);
-                    }
+                    } catch (err) { log('WARN', 'List targets error:', err.message); }
                     break;
 
-                case 'get-history':
-                    ws.send(JSON.stringify({
-                        type: 'history',
-                        messages: chatHistory.slice(-100)
-                    }));
+                case 'screenshot-once': {
+                    const ss = await captureScreenshot();
+                    if (ss) ws.send(JSON.stringify({ type: 'frame', data: ss }));
                     break;
+                }
             }
         } catch (err) {
             log('ERROR', 'WS message error:', err.message);
@@ -578,20 +674,15 @@ wss.on('connection', async (ws) => {
     });
 
     ws.on('close', () => {
-        log('INFO', 'Mobile client disconnected');
-        if (streamInterval) {
-            clearInterval(streamInterval);
-        }
+        log('INFO', 'Client disconnected');
+        wsClients.delete(ws);
+        if (streamInterval) clearInterval(streamInterval);
     });
 });
 
 // ─── REST API ─────────────────────────────────────────────────
 app.get('/api/status', async (req, res) => {
-    res.json({
-        connected: isConnected,
-        cdpPort: CONFIG.cdpPort,
-        cdpHost: CONFIG.cdpHost,
-    });
+    res.json({ connected: isConnected, cdpPort: CONFIG.cdpPort, cdpHost: CONFIG.cdpHost });
 });
 
 app.get('/api/qr', async (req, res) => {
@@ -600,58 +691,14 @@ app.get('/api/qr', async (req, res) => {
         const url = `http://${ip}:${CONFIG.port}`;
         const qr = await QRCode.toDataURL(url, { width: 256, margin: 2 });
         res.json({ url, qr });
-    } catch (err) {
-        res.status(500).json({ error: err.message });
-    }
-});
-
-app.post('/api/launch', async (req, res) => {
-    try {
-        const killExisting = req.body?.restart === true;
-        const launched = await launchAntigravity(killExisting);
-        if (launched) {
-            const connected = await connectCDP();
-            res.json({ success: true, connected });
-        } else {
-            res.json({ success: false, error: 'Failed to launch Antigravity' });
-        }
-    } catch (err) {
-        res.status(500).json({ error: err.message });
-    }
+    } catch (err) { res.status(500).json({ error: err.message }); }
 });
 
 app.get('/api/targets', async (req, res) => {
     try {
         const targets = await CDP.List({ host: CONFIG.cdpHost, port: CONFIG.cdpPort });
-        res.json(targets.map(t => ({
-            id: t.id,
-            type: t.type,
-            title: t.title,
-            url: t.url,
-        })));
-    } catch (err) {
-        res.json([]);
-    }
-});
-
-app.get('/api/config', (req, res) => {
-    res.json({
-        cdpPort: CONFIG.cdpPort,
-        connected: isConnected,
-        ip: getLocalIP(),
-        port: CONFIG.port,
-    });
-});
-
-// ─── Chat History API ─────────────────────────────────────────
-app.get('/api/history', (req, res) => {
-    res.json(chatHistory.slice(-100));
-});
-
-app.post('/api/history/clear', (req, res) => {
-    chatHistory = [];
-    saveHistory();
-    res.json({ success: true });
+        res.json(targets.map(t => ({ id: t.id, type: t.type, title: t.title, url: t.url })));
+    } catch (err) { res.json([]); }
 });
 
 // ─── Utility ──────────────────────────────────────────────────
@@ -659,60 +706,45 @@ function getLocalIP() {
     const interfaces = os.networkInterfaces();
     for (const name of Object.keys(interfaces)) {
         for (const iface of interfaces[name]) {
-            if (iface.family === 'IPv4' && !iface.internal) {
-                return iface.address;
-            }
+            if (iface.family === 'IPv4' && !iface.internal) return iface.address;
         }
     }
     return '127.0.0.1';
 }
 
-// ─── Start Server ─────────────────────────────────────────
+// ─── Start Server ─────────────────────────────────────────────
 function startServer(port) {
     server.listen(port, '0.0.0.0', async () => {
-        CONFIG.port = port; // update in case it changed
-
-        // Auto-detect CDP port
+        CONFIG.port = port;
         CONFIG.cdpPort = await detectCdpPort();
-
         const ip = getLocalIP();
         log('INFO', '═══════════════════════════════════════════');
-        log('INFO', '  AntigravityHub Remote Access Server');
+        log('INFO', '  AntigravityHub - Agent Chat Mirror');
         log('INFO', '═══════════════════════════════════════════');
         log('INFO', `  Local:   http://localhost:${port}`);
         log('INFO', `  Mobile:  http://${ip}:${port}`);
         log('INFO', `  CDP:     ${CONFIG.cdpHost}:${CONFIG.cdpPort}`);
         log('INFO', '═══════════════════════════════════════════');
-
-        // Try initial CDP connection
         const connected = await connectCDP();
-        if (connected) {
-            log('INFO', '✓ CDP connected - ready for mobile access');
-        } else {
-            log('WARN', '✗ CDP not available - start Antigravity with --remote-debugging-port=' + CONFIG.cdpPort);
-        }
+        if (connected) log('INFO', '✓ CDP connected - ready');
+        else log('WARN', '✗ CDP not available - start Antigravity with --remote-debugging-port=' + CONFIG.cdpPort);
 
-        // Periodic CDP reconnect attempt (re-scan all ports)
+        // Periodic reconnect
         setInterval(async () => {
             if (!isConnected) {
-                // Re-detect in case ports changed
                 const newPort = await detectCdpPort();
-                if (newPort !== CONFIG.cdpPort) {
-                    log('INFO', `CDP port changed: ${CONFIG.cdpPort} → ${newPort}`);
-                    CONFIG.cdpPort = newPort;
-                }
+                if (newPort !== CONFIG.cdpPort) { log('INFO', `CDP port changed: ${CONFIG.cdpPort} → ${newPort}`); CONFIG.cdpPort = newPort; }
                 const ok = await connectCDP();
                 if (ok) log('INFO', '✓ CDP reconnected');
             }
         }, 10000);
 
-        // Generate QR code in terminal
         try {
             const url = `http://${ip}:${port}`;
             const qrText = await QRCode.toString(url, { type: 'terminal', small: true });
             console.log('\n  Scan QR code with your phone:\n');
             console.log(qrText);
-        } catch (_) { /* noop */ }
+        } catch (_) { }
     });
 }
 
@@ -720,10 +752,7 @@ server.on('error', (err) => {
     if (err.code === 'EADDRINUSE') {
         log('WARN', `Port ${CONFIG.port} in use, trying ${CONFIG.port + 1}...`);
         startServer(CONFIG.port + 1);
-    } else {
-        log('ERROR', 'Server error:', err.message);
-        process.exit(1);
-    }
+    } else { log('ERROR', 'Server error:', err.message); process.exit(1); }
 });
 
 startServer(CONFIG.port);
