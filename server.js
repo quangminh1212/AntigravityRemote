@@ -106,6 +106,35 @@ let isConnected = false;
 let lastScreenshot = null;
 let screenshotInProgress = false;
 
+// ─── Chat History ────────────────────────────────────────────
+const HISTORY_FILE = path.join(__dirname, 'chat-history.json');
+let chatHistory = [];
+
+function loadHistory() {
+    try {
+        if (fs.existsSync(HISTORY_FILE)) {
+            chatHistory = JSON.parse(fs.readFileSync(HISTORY_FILE, 'utf8'));
+        }
+    } catch (_) { chatHistory = []; }
+}
+
+function saveHistory() {
+    try {
+        fs.writeFileSync(HISTORY_FILE, JSON.stringify(chatHistory, null, 2));
+    } catch (_) { /* noop */ }
+}
+
+function addToHistory(role, text) {
+    const entry = { role, text, ts: Date.now() };
+    chatHistory.push(entry);
+    // Keep last 200 messages
+    if (chatHistory.length > 200) chatHistory = chatHistory.slice(-200);
+    saveHistory();
+    return entry;
+}
+
+loadHistory();
+
 // ─── Antigravity Launcher ─────────────────────────────────────
 let antigravityProcess = null;
 
@@ -154,7 +183,7 @@ async function launchAntigravity() {
     }
 }
 
-async function findWorkbenchTarget() {
+async function findWorkbenchTarget(preferAgent = false) {
     try {
         const targets = await CDP.List({ host: CONFIG.cdpHost, port: CONFIG.cdpPort });
         log('INFO', `Found ${targets.length} CDP targets`);
@@ -176,8 +205,12 @@ async function findWorkbenchTarget() {
                 continue;
             }
 
+            // Highest priority: jetski-agent (the agent panel itself)
+            if (t.url && t.url.includes('jetski-agent')) {
+                score = preferAgent ? 120 : 90;
+            }
             // High priority: workbench pages (VS Code / Antigravity main UI)
-            if (t.url && (t.url.includes('workbench.html') || t.url.includes('workbench.desktop'))) {
+            else if (t.url && (t.url.includes('workbench.html') || t.url.includes('workbench.desktop'))) {
                 score = 100;
             }
             // Medium priority: vscode-file protocol
@@ -188,13 +221,12 @@ async function findWorkbenchTarget() {
             else if (t.title && /antigravity|cascade|agent/i.test(t.title)) {
                 score = 70;
             }
-            // chrome:// pages - low priority but still usable as fallback
+            // chrome:// pages - low priority
             else if (t.url && t.url.startsWith('chrome://')) {
-                // Skip footers but allow main newtab
                 if (t.url.includes('footer')) continue;
                 score = 5;
             }
-            // Any other page (external website etc.)
+            // Any other page
             else {
                 score = 10;
             }
@@ -494,63 +526,191 @@ wss.on('connection', async (ws) => {
                     try {
                         const chatText = msg.text || '';
                         log('INFO', `Chat message: ${chatText.substring(0, 50)}...`);
+                        addToHistory('user', chatText);
 
-                        // Use CDP to type into Antigravity's agent chat input
-                        // First, find and focus the chat input
+                        // Deep Shadow DOM traversal to find agent chat textarea
                         const focusResult = await cdpClient.Runtime.evaluate({
                             expression: `
                                 (function() {
-                                    // Try to find the agent chat input in Antigravity
+                                    // Recursive function to search through Shadow DOMs
+                                    function deepQuery(root, selectors) {
+                                        for (const sel of selectors) {
+                                            const el = root.querySelector(sel);
+                                            if (el && (el.offsetParent !== null || el.offsetHeight > 0)) {
+                                                return { element: el, selector: sel, depth: 0 };
+                                            }
+                                        }
+                                        // Search in shadow roots
+                                        const allElements = root.querySelectorAll('*');
+                                        for (const el of allElements) {
+                                            if (el.shadowRoot) {
+                                                const result = deepQuery(el.shadowRoot, selectors);
+                                                if (result) {
+                                                    result.depth++;
+                                                    return result;
+                                                }
+                                            }
+                                        }
+                                        // Search in iframes (same-origin)
+                                        const iframes = root.querySelectorAll('iframe, webview');
+                                        for (const iframe of iframes) {
+                                            try {
+                                                const doc = iframe.contentDocument || iframe.contentWindow?.document;
+                                                if (doc) {
+                                                    const result = deepQuery(doc, selectors);
+                                                    if (result) {
+                                                        result.depth++;
+                                                        return result;
+                                                    }
+                                                }
+                                            } catch(e) { /* cross-origin */ }
+                                        }
+                                        return null;
+                                    }
+
                                     const selectors = [
-                                        'textarea[class*="input"]',
+                                        'textarea[class*="inputarea"]',
+                                        'textarea[class*="input-area"]',
+                                        'textarea[class*="chat-input"]',
+                                        'textarea[aria-label*="chat"]',
+                                        'textarea[aria-label*="Chat"]',
+                                        'textarea[aria-label*="agent"]',
+                                        'textarea[aria-label*="Agent"]',
                                         'textarea[placeholder*="message"]',
+                                        'textarea[placeholder*="Message"]',
                                         'textarea[placeholder*="Ask"]',
-                                        '.chat-input textarea',
-                                        '.agent-input textarea',
-                                        'div[class*="chat"] textarea',
+                                        'textarea[placeholder*="ask"]',
                                         'div[class*="agent"] textarea',
+                                        'div[class*="chat"] textarea',
+                                        'div[class*="cascade"] textarea',
+                                        '.monaco-inputbox textarea',
+                                        'textarea.inputarea',
                                         'textarea',
                                     ];
-                                    for (const sel of selectors) {
-                                        const el = document.querySelector(sel);
-                                        if (el && el.offsetParent !== null) {
-                                            el.focus();
-                                            el.value = '';
-                                            return { found: true, selector: sel };
-                                        }
+
+                                    const result = deepQuery(document, selectors);
+                                    if (result) {
+                                        const el = result.element;
+                                        el.focus();
+                                        el.click();
+                                        return { found: true, selector: result.selector, depth: result.depth, tag: el.tagName };
                                     }
-                                    return { found: false };
+                                    return { found: false, searched: selectors.length };
                                 })()
                             `,
                             returnByValue: true,
                         });
 
-                        if (focusResult.result && focusResult.result.value && focusResult.result.value.found) {
-                            // Type the message character by character
-                            for (const char of chatText) {
-                                await sendKeyEvent('char', char);
-                            }
-                            // Press Enter to submit
-                            await new Promise(r => setTimeout(r, 100));
+                        const focusValue = focusResult.result && focusResult.result.value;
+
+                        if (focusValue && focusValue.found) {
+                            log('INFO', `Found textarea: ${focusValue.selector} (depth=${focusValue.depth})`);
+
+                            ws.send(JSON.stringify({
+                                type: 'chat-status',
+                                text: `Tìm thấy input (${focusValue.selector})`,
+                                status: 'success'
+                            }));
+
+                            // Use insertText for reliable text injection into Electron apps
+                            await cdpClient.Input.insertText({ text: chatText });
+
+                            // Small delay then press Enter to submit
+                            await new Promise(r => setTimeout(r, 150));
                             await sendKeyEvent('keyDown', 'Enter', 'Enter', 0);
                             await sendKeyEvent('keyUp', 'Enter', 'Enter', 0);
 
-                            // Wait for response and send it back
-                            ws.send(JSON.stringify({
-                                type: 'chat-response',
-                                text: `Đã gửi tin nhắn đến Antigravity Agent: "${chatText.substring(0, 100)}"`
-                            }));
+                            // Wait a bit then capture the response
+                            await new Promise(r => setTimeout(r, 2000));
+
+                            // Try to read the latest response from the agent panel
+                            const responseResult = await cdpClient.Runtime.evaluate({
+                                expression: `
+                                    (function() {
+                                        function deepQueryAll(root, selectors) {
+                                            let results = [];
+                                            for (const sel of selectors) {
+                                                results.push(...root.querySelectorAll(sel));
+                                            }
+                                            const allEls = root.querySelectorAll('*');
+                                            for (const el of allEls) {
+                                                if (el.shadowRoot) {
+                                                    results.push(...deepQueryAll(el.shadowRoot, selectors));
+                                                }
+                                            }
+                                            return results;
+                                        }
+                                        // Look for the last assistant message
+                                        const msgSelectors = [
+                                            '[class*="assistant"]',
+                                            '[class*="response"]',
+                                            '[class*="markdown"]',
+                                            '[class*="message-body"]',
+                                        ];
+                                        const msgs = deepQueryAll(document, msgSelectors);
+                                        if (msgs.length) {
+                                            const last = msgs[msgs.length - 1];
+                                            return { text: last.textContent?.substring(0, 2000) || '', found: true };
+                                        }
+                                        return { text: '', found: false };
+                                    })()
+                                `,
+                                returnByValue: true,
+                            });
+
+                            const respValue = responseResult.result && responseResult.result.value;
+                            if (respValue && respValue.found && respValue.text) {
+                                addToHistory('assistant', respValue.text);
+                                ws.send(JSON.stringify({
+                                    type: 'chat-response',
+                                    text: respValue.text
+                                }));
+                            } else {
+                                const fallbackText = `✅ Đã gửi tin nhắn đến Antigravity Agent: "${chatText.substring(0, 100)}"\n\nAgent đang xử lý... Kiểm tra Antigravity để xem kết quả.`;
+                                addToHistory('assistant', fallbackText);
+                                ws.send(JSON.stringify({
+                                    type: 'chat-response',
+                                    text: fallbackText
+                                }));
+                            }
                         } else {
-                            // Fallback: just execute the text as a notification
+                            log('WARN', 'Chat input not found in Antigravity');
                             ws.send(JSON.stringify({
                                 type: 'chat-response',
-                                text: `Không tìm thấy chat input trong Antigravity. Tin nhắn: "${chatText}"\n\nHãy đảm bảo agent panel đang mở trong Antigravity.`
+                                text: `Không tìm thấy chat input trong Antigravity.\n\n🔧 Hãy đảm bảo:\n1. Agent panel đang mở (Cmd+I hoặc Ctrl+Shift+I)\n2. Antigravity đã được khởi chạy với --remote-debugging-port\n3. CDP target đúng (kiểm tra bằng List CDP Targets)`
                             }));
                         }
                     } catch (chatErr) {
                         log('ERROR', 'Chat error:', chatErr.message);
                         ws.send(JSON.stringify({ type: 'chat-error', error: chatErr.message }));
                     }
+                    break;
+
+                case 'list-targets':
+                    try {
+                        const targets = await CDP.List({ host: CONFIG.cdpHost, port: CONFIG.cdpPort });
+                        ws.send(JSON.stringify({
+                            type: 'targets-list',
+                            targets: targets.map(t => ({
+                                id: t.id,
+                                type: t.type,
+                                title: t.title,
+                                url: t.url,
+                            }))
+                        }));
+                    } catch (err) {
+                        ws.send(JSON.stringify({
+                            type: 'chat-error',
+                            error: `Không thể lấy CDP targets: ${err.message}`
+                        }));
+                    }
+                    break;
+
+                case 'get-history':
+                    ws.send(JSON.stringify({
+                        type: 'history',
+                        messages: chatHistory.slice(-100)
+                    }));
                     break;
             }
         } catch (err) {
@@ -621,6 +781,17 @@ app.get('/api/config', (req, res) => {
         ip: getLocalIP(),
         port: CONFIG.port,
     });
+});
+
+// ─── Chat History API ─────────────────────────────────────────
+app.get('/api/history', (req, res) => {
+    res.json(chatHistory.slice(-100));
+});
+
+app.post('/api/history/clear', (req, res) => {
+    chatHistory = [];
+    saveHistory();
+    res.json({ success: true });
 });
 
 // ─── Utility ──────────────────────────────────────────────────
