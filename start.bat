@@ -1,4 +1,5 @@
 @echo off
+setlocal enabledelayedexpansion
 title AntigravityHub Remote Access
 chcp 65001 >nul 2>&1
 
@@ -78,7 +79,7 @@ if "%AUTO_LAUNCH%"=="1" (
         echo [INFO] Found: !AG_PATH!
         start "" "!AG_PATH!" --remote-debugging-port=%CDP_PORT%
         echo [INFO] Waiting for Antigravity to start...
-        timeout /t 5 /nobreak >nul
+        timeout /t 8 /nobreak >nul
     ) else (
         echo [WARN] Antigravity not found. Please start it manually with:
         echo        antigravity --remote-debugging-port=%CDP_PORT%
