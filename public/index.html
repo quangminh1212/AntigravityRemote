@@ -3,7 +3,7 @@
 
 <head>
   <meta charset="UTF-8">
-  <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <meta name="apple-mobile-web-app-capable" content="yes">
   <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
   <title>AntigravityHub</title>
@@ -68,6 +68,7 @@
       flex-shrink: 0;
       z-index: 20;
       min-height: 48px;
+      -webkit-backdrop-filter: blur(10px);
       backdrop-filter: blur(10px);
     }
 
@@ -177,6 +178,7 @@
       cursor: pointer;
       border-bottom: 2px solid transparent;
       transition: 0.2s;
+      -webkit-user-select: none;
       user-select: none;
     }
 
@@ -501,8 +503,8 @@
       cursor: crosshair;
       display: none;
       touch-action: none;
-      user-select: none;
       -webkit-user-select: none;
+      user-select: none;
     }
 
     .stream-placeholder {
@@ -531,6 +533,7 @@
       background: rgba(22, 27, 34, 0.9);
       border: 1px solid var(--border);
       border-radius: 12px;
+      -webkit-backdrop-filter: blur(10px);
       backdrop-filter: blur(10px);
       z-index: 5;
     }
@@ -652,6 +655,67 @@
       padding: 4px 16px 8px;
       background: var(--bg2);
     }
+
+    /* ═══ Tab icon ═══ */
+    .tab-icon {
+      font-size: 14px;
+      vertical-align: middle;
+      margin-right: 4px;
+    }
+
+    /* ═══ Model bar icon ═══ */
+    .model-icon {
+      font-size: 12px;
+    }
+
+    /* ═══ QR Modal ═══ */
+    .qr-overlay {
+      display: none;
+      position: fixed;
+      inset: 0;
+      background: rgba(0, 0, 0, 0.7);
+      z-index: 200;
+      align-items: center;
+      justify-content: center;
+    }
+
+    .qr-card {
+      background: var(--bg2);
+      border: 1px solid var(--border);
+      border-radius: 16px;
+      padding: 24px;
+      text-align: center;
+      max-width: 300px;
+    }
+
+    .qr-card h3 {
+      margin-bottom: 12px;
+      font-size: 16px;
+    }
+
+    .qr-card .qr-img {
+      width: 200px;
+      height: 200px;
+      border-radius: 8px;
+      background: #fff;
+    }
+
+    .qr-card .qr-url {
+      font-size: 12px;
+      color: var(--text2);
+      margin-top: 12px;
+    }
+
+    .qr-close-btn {
+      margin-top: 16px;
+      padding: 8px 20px;
+      border-radius: 8px;
+      border: none;
+      background: var(--bg3);
+      color: var(--text);
+      cursor: pointer;
+      font-family: inherit;
+    }
   </style>
 </head>
 
@@ -680,12 +744,10 @@
     <!-- Tabs -->
     <div class="tabs">
       <div class="tab active" data-tab="chat">
-        <span class="material-icons-round"
-          style="font-size:14px;vertical-align:middle;margin-right:4px">chat</span>Agent
+        <span class="material-icons-round tab-icon">chat</span>Agent
       </div>
       <div class="tab" data-tab="stream">
-        <span class="material-icons-round"
-          style="font-size:14px;vertical-align:middle;margin-right:4px">screen_share</span>Stream
+        <span class="material-icons-round tab-icon">screen_share</span>Stream
       </div>
     </div>
 
@@ -699,14 +761,14 @@
         </div>
       </div>
       <div class="model-bar">
-        <span class="material-icons-round" style="font-size:12px">add</span>
+        <span class="material-icons-round model-icon">add</span>
         <span class="model-badge">Fast</span>
         <span class="model-badge">Claude Opus 4.6</span>
       </div>
       <div class="chat-input-bar">
         <div class="chat-input-wrapper">
           <textarea class="chat-input" id="chatInput" placeholder="Nhắn gì đó cho Antigravity..." rows="1"
-            autocomplete="off" autocapitalize="off" autocorrect="off" spellcheck="false"></textarea>
+            autocomplete="off" autocorrect="off" spellcheck="false"></textarea>
           <button class="send-btn" id="btnSend" title="Gửi">
             <span class="material-icons-round">arrow_upward</span>
           </button>
@@ -751,15 +813,12 @@
   <div class="toast" id="toast"></div>
 
   <!-- QR Modal -->
-  <div id="qrModal"
-    style="display:none;position:fixed;inset:0;background:rgba(0,0,0,0.7);z-index:200;display:none;align-items:center;justify-content:center">
-    <div
-      style="background:var(--bg2);border:1px solid var(--border);border-radius:16px;padding:24px;text-align:center;max-width:300px">
-      <h3 style="margin-bottom:12px;font-size:16px">Quét QR để truy cập</h3>
-      <img id="qrImage" style="width:200px;height:200px;border-radius:8px;background:#fff">
-      <p id="qrUrl" style="font-size:12px;color:var(--text2);margin-top:12px"></p>
-      <button onclick="document.getElementById('qrModal').style.display='none'"
-        style="margin-top:16px;padding:8px 20px;border-radius:8px;border:none;background:var(--bg3);color:var(--text);cursor:pointer;font-family:inherit">Đóng</button>
+  <div id="qrModal" class="qr-overlay">
+    <div class="qr-card">
+      <h3>Quét QR để truy cập</h3>
+      <img id="qrImage" class="qr-img" alt="QR Code">
+      <p id="qrUrl" class="qr-url"></p>
+      <button class="qr-close-btn" onclick="document.getElementById('qrModal').style.display='none'">Đóng</button>
     </div>
   </div>
 
