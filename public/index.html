@@ -49,6 +49,10 @@
       font-size: 14px;
     }
 
+    .hidden {
+      display: none !important;
+    }
+
     #app {
       display: flex;
       flex-direction: column;
@@ -841,10 +845,10 @@
     </div>
 
     <!-- Divider -->
-    <div class="divider"></div>
+    <div class="divider hidden"></div>
 
-    <!-- Recent Actions -->
-    <div class="recent-section" id="recentSection">
+    <!-- Recent Actions (hidden) -->
+    <div class="recent-section hidden" id="recentSection">
       <div class="action-row" data-action="reconnect">
         <span class="action-name">Reconnect CDP</span>
       </div>
