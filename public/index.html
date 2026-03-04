@@ -32,6 +32,8 @@
       --text-muted: #555;
       --text-bright: #e8e8e8;
       --accent: #3b8eea;
+      --accent-green: #3fb950;
+      --accent-red: #f85149;
       --border: #2e2e2e;
       --scrollbar: #c8a832;
     }
@@ -65,10 +67,29 @@
       min-height: 42px;
     }
 
+    .header-left {
+      display: flex;
+      align-items: center;
+      gap: 8px;
+    }
+
     .header-title {
       font-size: 13px;
       font-weight: 600;
       color: var(--text-bright);
+    }
+
+    .status-dot {
+      width: 7px;
+      height: 7px;
+      border-radius: 50%;
+      background: var(--accent-red);
+      transition: background 0.3s;
+    }
+
+    .status-dot.connected {
+      background: var(--accent-green);
+      box-shadow: 0 0 6px rgba(63, 185, 80, 0.5);
     }
 
     .header-actions {
@@ -100,6 +121,33 @@
       font-size: 16px;
     }
 
+    /* ═══ Connection Banner ═══ */
+    .conn-banner {
+      display: none;
+      padding: 8px 16px;
+      font-size: 12px;
+      text-align: center;
+      background: rgba(248, 81, 73, 0.1);
+      border-bottom: 1px solid rgba(248, 81, 73, 0.2);
+      color: var(--accent-red);
+      cursor: pointer;
+      transition: background 0.15s;
+    }
+
+    .conn-banner:hover {
+      background: rgba(248, 81, 73, 0.15);
+    }
+
+    .conn-banner.show {
+      display: block;
+    }
+
+    .conn-banner.ok {
+      background: rgba(63, 185, 80, 0.08);
+      border-color: rgba(63, 185, 80, 0.15);
+      color: var(--accent-green);
+    }
+
     /* ═══ Main Content ═══ */
     .main {
       flex: 1;
@@ -116,7 +164,6 @@
       padding: 0;
     }
 
-    /* Yellow scrollbar like Antigravity */
     .chat-scroll::-webkit-scrollbar {
       width: 4px;
     }
@@ -153,6 +200,12 @@
       color: var(--text-bright);
     }
 
+    .welcome-subtitle {
+      font-size: 13px;
+      color: var(--text-secondary);
+      margin-top: 4px;
+    }
+
     /* User message */
     .msg-user {
       background: var(--bg-msg);
@@ -181,6 +234,7 @@
       font-size: 14px;
       line-height: 1.7;
       color: var(--text);
+      word-break: break-word;
     }
 
     .msg-assistant-body code {
@@ -202,6 +256,27 @@
       font-size: 12px;
       line-height: 1.5;
       font-family: 'Consolas', 'Fira Code', monospace;
+    }
+
+    .msg-status {
+      font-size: 12px;
+      color: var(--text-muted);
+      padding: 4px 0;
+      display: flex;
+      align-items: center;
+      gap: 6px;
+    }
+
+    .msg-status .material-icons-round {
+      font-size: 14px;
+    }
+
+    .msg-status.success {
+      color: var(--accent-green);
+    }
+
+    .msg-status.error {
+      color: var(--accent-red);
     }
 
     .msg-typing {
@@ -394,7 +469,8 @@
 
     .action-name {
       font-size: 13px;
-      color: var(--text);
+      color: var(--accent);
+      font-weight: 500;
     }
 
     .action-time {
@@ -421,14 +497,28 @@
       color: var(--text-muted);
     }
 
-    /* ═══ Bottom bar (status icons) ═══ */
+    /* ═══ Bottom bar ═══ */
     .bottom-bar {
       display: flex;
       align-items: center;
-      justify-content: flex-end;
+      justify-content: space-between;
       padding: 4px 12px;
       background: var(--bg-secondary);
       border-top: 1px solid var(--border);
+      gap: 8px;
+    }
+
+    .bottom-left {
+      display: flex;
+      align-items: center;
+      gap: 6px;
+      font-size: 11px;
+      color: var(--text-muted);
+    }
+
+    .bottom-right {
+      display: flex;
+      align-items: center;
       gap: 8px;
     }
 
@@ -468,6 +558,174 @@
     .animate-in {
       animation: fadeIn 0.2s ease;
     }
+
+    @keyframes pulse-glow {
+      0%, 100% { opacity: 1; }
+      50% { opacity: 0.5; }
+    }
+
+    .pulse {
+      animation: pulse-glow 2s ease-in-out infinite;
+    }
+
+    /* ═══ Mode Selector ═══ */
+    .mode-selector {
+      display: none;
+      position: absolute;
+      bottom: 100%;
+      left: 0;
+      background: var(--bg-secondary);
+      border: 1px solid var(--border);
+      border-radius: 8px;
+      padding: 4px;
+      margin-bottom: 4px;
+      z-index: 10;
+      min-width: 180px;
+      box-shadow: 0 4px 16px rgba(0,0,0,0.4);
+    }
+
+    .mode-selector.show {
+      display: block;
+    }
+
+    .mode-option {
+      display: flex;
+      align-items: center;
+      gap: 8px;
+      padding: 8px 12px;
+      border-radius: 6px;
+      cursor: pointer;
+      font-size: 13px;
+      color: var(--text);
+      transition: background 0.1s;
+    }
+
+    .mode-option:hover {
+      background: var(--bg-hover);
+    }
+
+    .mode-option.active {
+      color: var(--text-bright);
+      background: var(--bg-hover);
+    }
+
+    .mode-option .material-icons-round {
+      font-size: 16px;
+      color: var(--accent);
+    }
+
+    /* ═══ History Panel ═══ */
+    .history-overlay {
+      display: none;
+      position: fixed;
+      top: 0;
+      left: 0;
+      right: 0;
+      bottom: 0;
+      z-index: 100;
+      background: rgba(0,0,0,0.5);
+    }
+
+    .history-overlay.show {
+      display: block;
+    }
+
+    .history-panel {
+      position: absolute;
+      top: 0;
+      right: 0;
+      width: min(360px, 90vw);
+      height: 100%;
+      background: var(--bg-secondary);
+      border-left: 1px solid var(--border);
+      display: flex;
+      flex-direction: column;
+      animation: slideIn 0.2s ease;
+    }
+
+    @keyframes slideIn {
+      from { transform: translateX(100%); }
+      to { transform: translateX(0); }
+    }
+
+    .history-header {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      padding: 12px 16px;
+      border-bottom: 1px solid var(--border);
+    }
+
+    .history-header-title {
+      font-size: 14px;
+      font-weight: 600;
+      color: var(--text-bright);
+    }
+
+    .history-header-actions {
+      display: flex;
+      gap: 4px;
+    }
+
+    .history-list {
+      flex: 1;
+      overflow-y: auto;
+      padding: 8px 0;
+    }
+
+    .history-list::-webkit-scrollbar {
+      width: 4px;
+    }
+
+    .history-list::-webkit-scrollbar-thumb {
+      background: var(--scrollbar);
+      border-radius: 2px;
+    }
+
+    .history-item {
+      padding: 10px 16px;
+      cursor: default;
+      border-bottom: 1px solid rgba(255,255,255,0.03);
+    }
+
+    .history-item:hover {
+      background: var(--bg-hover);
+    }
+
+    .history-item-role {
+      font-size: 11px;
+      font-weight: 600;
+      color: var(--text-secondary);
+      margin-bottom: 2px;
+      display: flex;
+      justify-content: space-between;
+    }
+
+    .history-item-role .time {
+      font-weight: 400;
+      color: var(--text-muted);
+    }
+
+    .history-item-text {
+      font-size: 13px;
+      color: var(--text);
+      line-height: 1.4;
+      overflow: hidden;
+      display: -webkit-box;
+      -webkit-line-clamp: 3;
+      -webkit-box-orient: vertical;
+    }
+
+    .history-item.user .history-item-role {
+      color: var(--accent);
+    }
+
+    .history-empty {
+      padding: 40px 20px;
+      text-align: center;
+      color: var(--text-muted);
+      font-size: 13px;
+    }
   </style>
 </head>
 
@@ -475,7 +733,10 @@
   <div id="app">
     <!-- Header -->
     <div class="header">
-      <span class="header-title">Agent</span>
+      <div class="header-left">
+        <span class="header-title">Agent</span>
+        <div class="status-dot" id="statusDot" title="CDP disconnected"></div>
+      </div>
       <div class="header-actions">
         <button class="header-btn" id="btnNew" title="New chat">
           <span class="material-icons-round">add</span>
@@ -486,9 +747,31 @@
         <button class="header-btn" id="btnMenu" title="Menu">
           <span class="material-icons-round">more_horiz</span>
         </button>
-        <button class="header-btn" id="btnClose" title="Close">
-          <span class="material-icons-round">close</span>
-        </button>
+      </div>
+    </div>
+
+    <!-- Connection Banner -->
+    <div class="conn-banner" id="connBanner">
+      <span id="connBannerText">⚡ Đang kết nối đến Antigravity...</span>
+    </div>
+
+    <!-- History Panel -->
+    <div class="history-overlay" id="historyOverlay">
+      <div class="history-panel">
+        <div class="history-header">
+          <span class="history-header-title">Lịch sử Chat</span>
+          <div class="history-header-actions">
+            <button class="header-btn" id="btnClearHistory" title="Xóa lịch sử">
+              <span class="material-icons-round">delete_outline</span>
+            </button>
+            <button class="header-btn" id="btnCloseHistory" title="Đóng">
+              <span class="material-icons-round">close</span>
+            </button>
+          </div>
+        </div>
+        <div class="history-list" id="historyList">
+          <div class="history-empty">Chưa có lịch sử chat nào</div>
+        </div>
       </div>
     </div>
 
@@ -499,6 +782,7 @@
           <!-- Welcome -->
           <div class="welcome" id="welcome">
             <div class="welcome-title">AntigravityHub</div>
+            <div class="welcome-subtitle">Remote Agent Chat — Gửi tin nhắn để điều khiển Antigravity từ xa</div>
           </div>
         </div>
       </div>
@@ -507,7 +791,7 @@
       <div class="input-area">
         <div class="input-box">
           <textarea class="input-textarea" id="chatInput" rows="1"
-            placeholder="mình cần 1 dự án để có thể remote đến antigravity với giao diện y hệt như nàu"></textarea>
+            placeholder="Nhập tin nhắn gửi đến Antigravity Agent..."></textarea>
           <div class="input-icons">
             <button class="input-icon-btn" id="btnMic" title="Voice">
               <span class="material-icons-round">mic</span>
@@ -517,16 +801,28 @@
             </button>
           </div>
         </div>
-        <div class="input-controls">
+        <div class="input-controls" style="position: relative;">
           <button class="ctrl-pill" id="btnAttach">
             <span class="material-icons-round">add</span>
           </button>
-          <button class="ctrl-pill">
-            <span class="material-icons-round">expand_more</span> Fast
+          <button class="ctrl-pill" id="btnMode">
+            <span class="material-icons-round">expand_more</span> <span id="modeLabel">Fast</span>
           </button>
           <button class="ctrl-pill model-pill">
-            <span class="material-icons-round">expand_more</span> Claude Opus 4.6 (Thinking)
+            <span class="material-icons-round">expand_more</span> Claude Opus 4.8 (Thinking)
           </button>
+
+          <!-- Mode Selector Dropdown -->
+          <div class="mode-selector" id="modeSelector">
+            <div class="mode-option active" data-mode="chat">
+              <span class="material-icons-round">chat</span>
+              Chat — Gửi tin nhắn đến Agent
+            </div>
+            <div class="mode-option" data-mode="screen">
+              <span class="material-icons-round">monitor</span>
+              Screen — Xem &amp; điều khiển màn hình
+            </div>
+          </div>
         </div>
       </div>
     </div>
@@ -536,19 +832,16 @@
 
     <!-- Recent Actions -->
     <div class="recent-section" id="recentSection">
-      <div class="action-row" id="actionClean">
-        <span class="action-name">Clean Project Files</span>
-        <span class="action-time">2s</span>
+      <div class="action-row" data-action="reconnect">
+        <span class="action-name">Reconnect CDP</span>
       </div>
-      <div class="action-row" id="actionRevert">
-        <span class="action-name">Revert to Best Commit</span>
-        <span class="action-time">4m</span>
+      <div class="action-row" data-action="screenshot">
+        <span class="action-name">Capture Screenshot</span>
       </div>
-      <div class="action-row" id="actionFix">
-        <span class="action-name">Fix esbuild Module Not Found</span>
-        <span class="action-time">13m</span>
+      <div class="action-row" data-action="targets">
+        <span class="action-name">List CDP Targets</span>
       </div>
-      <div class="action-see-all">See all</div>
+      <div class="action-see-all" id="seeAll">See all</div>
     </div>
 
     <!-- Footer -->
@@ -556,18 +849,32 @@
 
     <!-- Bottom bar -->
     <div class="bottom-bar">
-      <div class="bottom-icon">
-        <span class="material-icons-round">chat_bubble_outline</span>
+      <div class="bottom-left">
+        <span id="cdpInfo">CDP: ---</span>
       </div>
-      <div class="bottom-icon">
-        <span class="material-icons-round">search</span>
+      <div class="bottom-right">
+        <div class="bottom-icon" id="btnNotif" title="Notifications">
+          <span class="material-icons-round">notifications_none</span>
+        </div>
+        <div class="bottom-icon" id="btnSettings" title="Settings">
+          <span class="material-icons-round">settings</span>
+        </div>
       </div>
     </div>
   </div>
 
   <script>
     // ─── State ──────────────────────────────────────
-    const state = { ws: null, connected: false, cdpPort: 9333, messages: [], waiting: false };
+    const state = {
+      ws: null,
+      connected: false,
+      cdpConnected: false,
+      cdpPort: 9333,
+      messages: [],
+      waiting: false,
+      mode: 'chat', // 'chat' | 'screen'
+      historyOpen: false,
+    };
 
     // ─── DOM ────────────────────────────────────────
     const chatMessages$ = document.getElementById('chatMessages');
@@ -575,6 +882,14 @@
     const welcome$ = document.getElementById('welcome');
     const chatInput$ = document.getElementById('chatInput');
     const btnSend$ = document.getElementById('btnSend');
+    const statusDot$ = document.getElementById('statusDot');
+    const connBanner$ = document.getElementById('connBanner');
+    const connBannerText$ = document.getElementById('connBannerText');
+    const cdpInfo$ = document.getElementById('cdpInfo');
+    const modeSelector$ = document.getElementById('modeSelector');
+    const modeLabel$ = document.getElementById('modeLabel');
+    const historyOverlay$ = document.getElementById('historyOverlay');
+    const historyList$ = document.getElementById('historyList');
 
     // ─── Auto-resize textarea ───────────────────────
     chatInput$.addEventListener('input', () => {
@@ -592,12 +907,105 @@
 
     btnSend$.addEventListener('click', sendMessage);
 
+    // ─── Mode Selector ──────────────────────────────
+    document.getElementById('btnMode').addEventListener('click', (e) => {
+      e.stopPropagation();
+      modeSelector$.classList.toggle('show');
+    });
+
+    document.addEventListener('click', () => {
+      modeSelector$.classList.remove('show');
+    });
+
+    modeSelector$.querySelectorAll('.mode-option').forEach(opt => {
+      opt.addEventListener('click', () => {
+        const mode = opt.dataset.mode;
+        state.mode = mode;
+        modeSelector$.querySelectorAll('.mode-option').forEach(o => o.classList.remove('active'));
+        opt.classList.add('active');
+        modeLabel$.textContent = mode === 'chat' ? 'Fast' : 'Screen';
+        modeSelector$.classList.remove('show');
+      });
+    });
+
+    // ─── History Panel ──────────────────────────────
+    document.getElementById('btnHistory').addEventListener('click', () => {
+      state.historyOpen = true;
+      historyOverlay$.classList.add('show');
+      loadHistoryFromServer();
+    });
+
+    document.getElementById('btnCloseHistory').addEventListener('click', closeHistory);
+
+    historyOverlay$.addEventListener('click', (e) => {
+      if (e.target === historyOverlay$) closeHistory();
+    });
+
+    document.getElementById('btnClearHistory').addEventListener('click', async () => {
+      if (!confirm('Xóa toàn bộ lịch sử?')) return;
+      try {
+        await fetch('/api/history/clear', { method: 'POST' });
+        renderHistory([]);
+      } catch (_) { }
+    });
+
+    function closeHistory() {
+      state.historyOpen = false;
+      historyOverlay$.classList.remove('show');
+    }
+
+    async function loadHistoryFromServer() {
+      try {
+        const res = await fetch('/api/history');
+        const history = await res.json();
+        renderHistory(history);
+      } catch (_) {
+        renderHistory([]);
+      }
+    }
+
+    function renderHistory(items) {
+      if (!items || items.length === 0) {
+        historyList$.innerHTML = '<div class="history-empty">Chưa có lịch sử chat nào</div>';
+        return;
+      }
+      historyList$.innerHTML = items.map(item => {
+        const isUser = item.role === 'user';
+        const roleName = isUser ? 'Bạn' : 'AntigravityHub';
+        const timeStr = formatRelativeTime(item.ts);
+        const text = (item.text || '').substring(0, 200);
+        return `
+          <div class="history-item ${isUser ? 'user' : 'assistant'}">
+            <div class="history-item-role">
+              <span>${roleName}</span>
+              <span class="time">${timeStr}</span>
+            </div>
+            <div class="history-item-text">${escapeHtml(text)}</div>
+          </div>
+        `;
+      }).reverse().join('');
+    }
+
+    function formatRelativeTime(ts) {
+      const diff = Date.now() - ts;
+      const mins = Math.floor(diff / 60000);
+      if (mins < 1) return 'vừa xong';
+      if (mins < 60) return `${mins}m`;
+      const hours = Math.floor(mins / 60);
+      if (hours < 24) return `${hours}h`;
+      const days = Math.floor(hours / 24);
+      return `${days}d`;
+    }
+
     // ─── WebSocket ──────────────────────────────────
     function connectWS() {
       const proto = location.protocol === 'https:' ? 'wss' : 'ws';
       state.ws = new WebSocket(`${proto}://${location.host}/ws`);
 
-      state.ws.onopen = () => { console.log('WS connected'); };
+      state.ws.onopen = () => {
+        state.connected = true;
+        updateConnectionUI();
+      };
 
       state.ws.onmessage = (e) => {
         try { handleMessage(JSON.parse(e.data)); }
@@ -606,6 +1014,8 @@
 
       state.ws.onclose = () => {
         state.connected = false;
+        state.cdpConnected = false;
+        updateConnectionUI();
         setTimeout(connectWS, 3000);
       };
 
@@ -618,21 +1028,82 @@
       }
     }
 
+    // ─── Connection UI ──────────────────────────────
+    function updateConnectionUI() {
+      if (state.cdpConnected) {
+        statusDot$.classList.add('connected');
+        statusDot$.title = 'CDP connected';
+        connBanner$.classList.remove('show');
+        cdpInfo$.textContent = `CDP: ${state.cdpPort} ✓`;
+      } else if (state.connected) {
+        statusDot$.classList.remove('connected');
+        statusDot$.title = 'CDP disconnected';
+        connBanner$.classList.add('show');
+        connBannerText$.textContent = '⚡ CDP chưa kết nối — Nhấn để thử lại';
+        cdpInfo$.textContent = `CDP: ${state.cdpPort} ✗`;
+      } else {
+        statusDot$.classList.remove('connected');
+        statusDot$.title = 'Disconnected';
+        connBanner$.classList.add('show');
+        connBannerText$.textContent = '🔌 Mất kết nối server — Đang thử lại...';
+        cdpInfo$.textContent = 'CDP: ---';
+      }
+    }
+
+    connBanner$.addEventListener('click', () => {
+      send({ type: 'connect' });
+      connBannerText$.textContent = '⏳ Đang kết nối lại CDP...';
+    });
+
     // ─── Message Handler ────────────────────────────
     function handleMessage(msg) {
       switch (msg.type) {
         case 'status':
-          state.connected = msg.connected;
+          state.cdpConnected = msg.connected;
+          if (msg.viewport) state.viewport = msg.viewport;
+          updateConnectionUI();
           break;
+
         case 'chat-response':
           removeTyping();
           addAssistantMsg(msg.text);
           state.waiting = false;
           break;
+
         case 'chat-error':
           removeTyping();
           addAssistantMsg('⚠️ ' + (msg.error || 'Lỗi không xác định'));
           state.waiting = false;
+          break;
+
+        case 'chat-status':
+          addStatusMsg(msg.text, msg.status || 'info');
+          break;
+
+        case 'frame':
+          if (state.mode === 'screen') {
+            removeTyping();
+            addScreenshot(msg.data);
+            state.waiting = false;
+          }
+          break;
+
+        case 'targets-list':
+          removeTyping();
+          if (msg.targets && msg.targets.length) {
+            let text = `📋 **${msg.targets.length} CDP targets:**\n\n`;
+            msg.targets.forEach((t, i) => {
+              text += `${i + 1}. [${t.type}] ${t.title}\n   ${t.url}\n\n`;
+            });
+            addAssistantMsg(text);
+          } else {
+            addAssistantMsg('Không tìm thấy CDP target nào.');
+          }
+          state.waiting = false;
+          break;
+
+        case 'history':
+          renderHistory(msg.messages || []);
           break;
       }
     }
@@ -650,7 +1121,12 @@
       state.waiting = true;
 
       showTyping();
-      send({ type: 'chat', text });
+
+      if (state.mode === 'screen') {
+        send({ type: 'key', text });
+      } else {
+        send({ type: 'chat', text });
+      }
     }
 
     // ─── Render Messages ────────────────────────────
@@ -668,6 +1144,28 @@
       div.innerHTML = `
         <div class="msg-assistant-header">AntigravityHub</div>
         <div class="msg-assistant-body">${formatText(text)}</div>
+      `;
+      chatMessages$.appendChild(div);
+      scrollToBottom();
+    }
+
+    function addStatusMsg(text, status) {
+      const div = document.createElement('div');
+      div.className = `msg-status animate-in ${status}`;
+      const icon = status === 'success' ? 'check_circle' : status === 'error' ? 'error' : 'info';
+      div.innerHTML = `<span class="material-icons-round">${icon}</span> ${escapeHtml(text)}`;
+      chatMessages$.appendChild(div);
+      scrollToBottom();
+    }
+
+    function addScreenshot(base64) {
+      const div = document.createElement('div');
+      div.className = 'msg-assistant animate-in';
+      div.innerHTML = `
+        <div class="msg-assistant-header">AntigravityHub</div>
+        <div class="msg-assistant-body">
+          <img src="data:image/jpeg;base64,${base64}" style="max-width:100%;border-radius:8px;border:1px solid var(--border);" />
+        </div>
       `;
       chatMessages$.appendChild(div);
       scrollToBottom();
@@ -700,22 +1198,41 @@
       });
     }
 
-    function formatText(text) {
+    function escapeHtml(text) {
       const d = document.createElement('div');
       d.textContent = text;
-      return d.innerHTML
+      return d.innerHTML;
+    }
+
+    function formatText(text) {
+      return escapeHtml(text)
+        .replace(/\*\*([^*]+)\*\*/g, '<strong>$1</strong>')
         .replace(/`([^`]+)`/g, '<code>$1</code>')
         .replace(/\n/g, '<br>');
     }
 
     // ─── Actions ────────────────────────────────────
-    document.getElementById('actionClean').addEventListener('click', () => {
-      send({ type: 'connect' });
-      addAssistantMsg('Đang kết nối lại CDP...');
-    });
-
-    document.getElementById('actionRevert').addEventListener('click', () => {
-      send({ type: 'refresh' });
+    document.querySelectorAll('.action-row').forEach(row => {
+      row.addEventListener('click', () => {
+        const action = row.dataset.action;
+        switch (action) {
+          case 'reconnect':
+            send({ type: 'connect' });
+            addStatusMsg('Đang kết nối lại CDP...', 'info');
+            break;
+          case 'screenshot':
+            send({ type: 'refresh' });
+            showTyping();
+            state.waiting = true;
+            state.mode = 'screen';
+            break;
+          case 'targets':
+            send({ type: 'list-targets' });
+            showTyping();
+            state.waiting = true;
+            break;
+        }
+      });
     });
 
     document.getElementById('btnNew').addEventListener('click', () => {
@@ -723,18 +1240,20 @@
       chatMessages$.appendChild(welcome$);
       welcome$.style.display = 'flex';
       state.messages = [];
+      state.waiting = false;
     });
 
-    // ─── Config ─────────────────────────────────────
+    // ─── Config & Init ──────────────────────────────
     async function fetchConfig() {
       try {
         const res = await fetch('/api/config');
         const cfg = await res.json();
         state.cdpPort = cfg.cdpPort;
+        state.cdpConnected = cfg.connected;
+        updateConnectionUI();
       } catch (_) { }
     }
 
-    // ─── Init ───────────────────────────────────────
     fetchConfig();
     connectWS();
   </script>
