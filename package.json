@@ -5,7 +5,7 @@
     "main": "server.js",
     "scripts": {
         "start": "node server.js",
-        "dev": "node server.js"
+        "dev": "npx nodemon --watch server.js --watch public server.js"
     },
     "dependencies": {
         "chrome-remote-interface": "^0.33.2",
