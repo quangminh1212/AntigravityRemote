@@ -232,9 +232,9 @@ async function findWorkbenchTarget(preferAgent = false) {
                 continue;
             }
 
-            // Highest priority: jetski-agent (the agent panel itself)
+            // Highest priority: jetski-agent (the agent panel - chat target)
             if (t.url && t.url.includes('jetski-agent')) {
-                score = preferAgent ? 120 : 90;
+                score = 120; // Always highest - this is the chat panel
             }
             // High priority: workbench pages (VS Code / Antigravity main UI)
             else if (t.url && (t.url.includes('workbench.html') || t.url.includes('workbench.desktop'))) {
