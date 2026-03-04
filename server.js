@@ -300,68 +300,156 @@ async function readChatMessages() {
     }
 }
 
+// Helper: get all execution context IDs from all frames
+async function getAllContextIds() {
+    if (!isConnected) return [];
+    const contextIds = [];
+    try {
+        // Get the frame tree to find all frames
+        const { frameTree } = await cdpPage.getFrameTree();
+        const frames = [];
+        function collectFrames(node) {
+            frames.push(node.frame);
+            if (node.childFrames) node.childFrames.forEach(collectFrames);
+        }
+        collectFrames(frameTree);
+
+        // Get execution contexts
+        // We need to create isolated worlds or find existing contexts for each frame
+        for (const frame of frames) {
+            try {
+                const { executionContextId } = await cdpPage.createIsolatedWorld({
+                    frameId: frame.id,
+                    worldName: 'aghub_finder',
+                    grantUniveralAccess: true,
+                });
+                contextIds.push({ contextId: executionContextId, frameId: frame.id, url: frame.url });
+            } catch (_) { }
+        }
+    } catch (err) {
+        log('WARN', 'getAllContextIds failed:', err.message);
+    }
+    return contextIds;
+}
+
+// Find chat input across all frames
+const FIND_INPUT_SCRIPT = `
+(function() {
+    const inputSelectors = [
+        '[contenteditable="true"]',
+        '[contenteditable="plaintext-only"]',
+        '[role="textbox"]',
+        '[data-placeholder]',
+        'textarea[class*="chat"]',
+        'textarea[class*="input"]',
+    ];
+    let input = null;
+    for (const sel of inputSelectors) {
+        const els = document.querySelectorAll(sel);
+        for (const el of els) {
+            const rect = el.getBoundingClientRect();
+            if (rect.width > 50 && rect.height > 10) {
+                if (!input || rect.top > input.getBoundingClientRect().top) {
+                    input = el;
+                }
+            }
+        }
+    }
+    if (!input) return JSON.stringify({ found: false });
+    input.focus();
+    input.click();
+    return JSON.stringify({
+        found: true,
+        tag: input.tagName,
+        isContentEditable: input.isContentEditable,
+        rect: input.getBoundingClientRect().toJSON(),
+    });
+})()`;
+
+// Helper: get viewport size of the connected page
+async function getViewportSize() {
+    try {
+        const { result } = await cdpRuntime.evaluate({
+            expression: `JSON.stringify({ width: window.innerWidth, height: window.innerHeight })`,
+            returnByValue: true,
+        });
+        return JSON.parse(result.value);
+    } catch (_) {
+        return { width: 1280, height: 800 }; // reasonable default
+    }
+}
+
 // Search for the chat input element and send a message
 async function sendChatMessage(text) {
     if (!isConnected || !text) return { success: false, error: 'Not connected or empty message' };
     try {
-        // Step 1: Find and focus the chat input
-        const { result: findResult } = await cdpRuntime.evaluate({
-            expression: `
-            (function() {
-                // Try multiple selectors for the chat input
-                const inputSelectors = [
-                    '[contenteditable="true"]',
-                    '[contenteditable="plaintext-only"]',
-                    'textarea[class*="chat"]',
-                    'textarea[class*="input"]',
-                    'input[class*="chat"]',
-                    '[role="textbox"]',
-                    '.chat-input',
-                    '.message-input',
-                    '[placeholder*="message"]',
-                    '[placeholder*="chat"]',
-                    '[data-placeholder]',
-                ];
-                
-                let input = null;
-                for (const sel of inputSelectors) {
-                    const els = document.querySelectorAll(sel);
-                    for (const el of els) {
-                        // Check if visible
-                        const rect = el.getBoundingClientRect();
-                        if (rect.width > 50 && rect.height > 10) {
-                            // Prefer ones at bottom of page (chat inputs are usually at bottom)
-                            if (!input || rect.top > input.getBoundingClientRect().top) {
-                                input = el;
-                            }
-                        }
+        // Strategy 1: Try finding input in each frame context
+        let inputInfo = null;
+        let foundContextId = null;
+
+        // First try top-level
+        try {
+            const { result } = await cdpRuntime.evaluate({
+                expression: FIND_INPUT_SCRIPT,
+                returnByValue: true,
+            });
+            const info = JSON.parse(result.value);
+            if (info.found) {
+                inputInfo = info;
+                log('INFO', 'Chat input found in top-level frame');
+            }
+        } catch (_) { }
+
+        // If not found, search child frames
+        if (!inputInfo) {
+            const contexts = await getAllContextIds();
+            log('INFO', `Searching ${contexts.length} frame contexts for chat input`);
+            for (const ctx of contexts) {
+                try {
+                    const { result } = await cdpRuntime.evaluate({
+                        expression: FIND_INPUT_SCRIPT,
+                        contextId: ctx.contextId,
+                        returnByValue: true,
+                    });
+                    const info = JSON.parse(result.value);
+                    if (info.found) {
+                        inputInfo = info;
+                        foundContextId = ctx.contextId;
+                        log('INFO', `Chat input found in frame: ${ctx.url?.substring(0, 80)}`);
+                        break;
                     }
-                }
-                
-                if (!input) return JSON.stringify({ found: false, error: 'Chat input not found' });
-                
-                // Focus and get info
-                input.focus();
-                input.click();
-                
-                return JSON.stringify({
-                    found: true,
-                    tag: input.tagName,
-                    isContentEditable: input.isContentEditable,
-                    selector: input.tagName + (input.className ? '.' + input.className.split(' ')[0] : ''),
-                    rect: input.getBoundingClientRect().toJSON(),
-                });
-            })()`,
-            returnByValue: true,
-        });
-        const inputInfo = JSON.parse(findResult.value);
+                } catch (_) { }
+            }
+        }
+
+        if (!inputInfo) {
+            log('WARN', 'Chat input not found in any frame, using mouse click fallback');
+            // Strategy 2: Fallback - click at a known position (bottom of viewport)
+            // and type directly
+            const viewport = await getViewportSize();
+            // Click near bottom center where chat input usually is
+            const clickX = Math.round(viewport.width / 2);
+            const clickY = viewport.height - 60;
+            await cdpInput.dispatchMouseEvent({ type: 'mousePressed', x: clickX, y: clickY, button: 'left', clickCount: 1 });
+            await cdpInput.dispatchMouseEvent({ type: 'mouseReleased', x: clickX, y: clickY, button: 'left', clickCount: 1 });
+            await new Promise(r => setTimeout(r, 200));
+            // Select all existing text and replace
+            await cdpInput.dispatchKeyEvent({ type: 'keyDown', key: 'a', code: 'KeyA', modifiers: 2 }); // Ctrl+A
+            await cdpInput.dispatchKeyEvent({ type: 'keyUp', key: 'a', code: 'KeyA', modifiers: 2 });
+            await cdpInput.insertText({ text });
+            await new Promise(r => setTimeout(r, 100));
+            await cdpInput.dispatchKeyEvent({ type: 'keyDown', key: 'Enter', code: 'Enter', windowsVirtualKeyCode: 13, nativeVirtualKeyCode: 13 });
+            await cdpInput.dispatchKeyEvent({ type: 'keyUp', key: 'Enter', code: 'Enter', windowsVirtualKeyCode: 13, nativeVirtualKeyCode: 13 });
+            log('INFO', `Message sent via mouse fallback: "${text.substring(0, 50)}"`);
+            return { success: true, method: 'mouse-fallback' };
+        }
+
         log('INFO', 'Chat input info:', JSON.stringify(inputInfo));
 
-        if (!inputInfo.found) return { success: false, error: inputInfo.error };
-
-        // Step 2: Clear existing content and type the message
+        // Step 2: Type the message
         if (inputInfo.isContentEditable) {
-            // For contenteditable, use insertText
+            // Focus + select all in the correct context
+            const evalOpts = foundContextId ? { contextId: foundContextId } : {};
             await cdpRuntime.evaluate({
                 expression: `
                 (function() {
@@ -375,28 +463,38 @@ async function sendChatMessage(text) {
                     }
                     if (input) {
                         input.focus();
-                        // Clear existing text
                         const range = document.createRange();
                         range.selectNodeContents(input);
                         window.getSelection().removeAllRanges();
                         window.getSelection().addRange(range);
                     }
                 })()`,
+                ...evalOpts,
             });
-            // Use Input.insertText for proper text entry
+            // Also click the element by coordinates to ensure focus
+            if (inputInfo.rect) {
+                const cx = Math.round(inputInfo.rect.x + inputInfo.rect.width / 2);
+                const cy = Math.round(inputInfo.rect.y + inputInfo.rect.height / 2);
+                await cdpInput.dispatchMouseEvent({ type: 'mousePressed', x: cx, y: cy, button: 'left', clickCount: 1 });
+                await cdpInput.dispatchMouseEvent({ type: 'mouseReleased', x: cx, y: cy, button: 'left', clickCount: 1 });
+                await new Promise(r => setTimeout(r, 100));
+                // Select all and delete
+                await cdpInput.dispatchKeyEvent({ type: 'keyDown', key: 'a', code: 'KeyA', modifiers: 2 });
+                await cdpInput.dispatchKeyEvent({ type: 'keyUp', key: 'a', code: 'KeyA', modifiers: 2 });
+                await cdpInput.dispatchKeyEvent({ type: 'keyDown', key: 'Backspace', code: 'Backspace', windowsVirtualKeyCode: 8 });
+                await cdpInput.dispatchKeyEvent({ type: 'keyUp', key: 'Backspace', code: 'Backspace', windowsVirtualKeyCode: 8 });
+            }
             await cdpInput.insertText({ text });
         } else {
-            // For input/textarea, set value directly
-            await cdpRuntime.evaluate({
-                expression: `
-                (function() {
-                    const selectors = ['textarea[class*="chat"]', 'textarea[class*="input"]', 'input[class*="chat"]', '[role="textbox"]'];
-                    for (const sel of selectors) {
-                        const el = document.querySelector(sel);
-                        if (el) { el.value = ${JSON.stringify(text)}; el.dispatchEvent(new Event('input', {bubbles:true})); break; }
-                    }
-                })()`,
-            });
+            // For textarea/input - click + type
+            if (inputInfo.rect) {
+                const cx = Math.round(inputInfo.rect.x + inputInfo.rect.width / 2);
+                const cy = Math.round(inputInfo.rect.y + inputInfo.rect.height / 2);
+                await cdpInput.dispatchMouseEvent({ type: 'mousePressed', x: cx, y: cy, button: 'left', clickCount: 3 }); // Triple click = select all
+                await cdpInput.dispatchMouseEvent({ type: 'mouseReleased', x: cx, y: cy, button: 'left', clickCount: 3 });
+                await new Promise(r => setTimeout(r, 100));
+            }
+            await cdpInput.insertText({ text });
         }
 
         // Step 3: Simulate Enter key to send
@@ -404,8 +502,8 @@ async function sendChatMessage(text) {
         await cdpInput.dispatchKeyEvent({ type: 'keyDown', key: 'Enter', code: 'Enter', windowsVirtualKeyCode: 13, nativeVirtualKeyCode: 13 });
         await cdpInput.dispatchKeyEvent({ type: 'keyUp', key: 'Enter', code: 'Enter', windowsVirtualKeyCode: 13, nativeVirtualKeyCode: 13 });
 
-        log('INFO', `Message sent: "${text.substring(0, 50)}..."`);
-        return { success: true };
+        log('INFO', `Message sent: "${text.substring(0, 50)}"`);
+        return { success: true, method: foundContextId ? 'frame-context' : 'top-level' };
     } catch (err) {
         log('ERROR', 'sendChatMessage failed:', err.message);
         return { success: false, error: err.message };
