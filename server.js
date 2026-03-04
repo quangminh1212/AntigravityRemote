@@ -528,156 +528,185 @@ wss.on('connection', async (ws) => {
                         log('INFO', `Chat message: ${chatText.substring(0, 50)}...`);
                         addToHistory('user', chatText);
 
-                        // Deep Shadow DOM traversal to find agent chat textarea
-                        const focusResult = await cdpClient.Runtime.evaluate({
-                            expression: `
-                                (function() {
-                                    // Recursive function to search through Shadow DOMs
-                                    function deepQuery(root, selectors) {
-                                        for (const sel of selectors) {
-                                            const el = root.querySelector(sel);
-                                            if (el && (el.offsetParent !== null || el.offsetHeight > 0)) {
-                                                return { element: el, selector: sel, depth: 0 };
-                                            }
-                                        }
-                                        // Search in shadow roots
-                                        const allElements = root.querySelectorAll('*');
-                                        for (const el of allElements) {
-                                            if (el.shadowRoot) {
-                                                const result = deepQuery(el.shadowRoot, selectors);
-                                                if (result) {
-                                                    result.depth++;
-                                                    return result;
-                                                }
-                                            }
-                                        }
-                                        // Search in iframes (same-origin)
-                                        const iframes = root.querySelectorAll('iframe, webview');
-                                        for (const iframe of iframes) {
-                                            try {
-                                                const doc = iframe.contentDocument || iframe.contentWindow?.document;
-                                                if (doc) {
-                                                    const result = deepQuery(doc, selectors);
-                                                    if (result) {
-                                                        result.depth++;
-                                                        return result;
-                                                    }
-                                                }
-                                            } catch(e) { /* cross-origin */ }
-                                        }
-                                        return null;
-                                    }
+                        ws.send(JSON.stringify({ type: 'chat-status', text: 'Đang tìm Agent chat input...', status: 'info' }));
 
-                                    const selectors = [
-                                        'textarea[class*="inputarea"]',
-                                        'textarea[class*="input-area"]',
-                                        'textarea[class*="chat-input"]',
-                                        'textarea[aria-label*="chat"]',
-                                        'textarea[aria-label*="Chat"]',
-                                        'textarea[aria-label*="agent"]',
-                                        'textarea[aria-label*="Agent"]',
-                                        'textarea[placeholder*="message"]',
-                                        'textarea[placeholder*="Message"]',
-                                        'textarea[placeholder*="Ask"]',
-                                        'textarea[placeholder*="ask"]',
-                                        'div[class*="agent"] textarea',
-                                        'div[class*="chat"] textarea',
-                                        'div[class*="cascade"] textarea',
-                                        '.monaco-inputbox textarea',
-                                        'textarea.inputarea',
-                                        'textarea',
-                                    ];
-
-                                    const result = deepQuery(document, selectors);
-                                    if (result) {
-                                        const el = result.element;
-                                        el.focus();
-                                        el.click();
-                                        return { found: true, selector: result.selector, depth: result.depth, tag: el.tagName };
+                        // Deep Shadow DOM search expression
+                        const deepSearchExpr = `
+                            (function() {
+                                function deepQuery(root, selectors) {
+                                    for (const sel of selectors) {
+                                        const el = root.querySelector(sel);
+                                        if (el && (el.offsetParent !== null || el.offsetHeight > 0 || getComputedStyle(el).display !== 'none')) {
+                                            return { element: el, selector: sel, depth: 0 };
+                                        }
                                     }
-                                    return { found: false, searched: selectors.length };
-                                })()
-                            `,
-                            returnByValue: true,
+                                    const allElements = root.querySelectorAll('*');
+                                    for (const el of allElements) {
+                                        if (el.shadowRoot) {
+                                            const result = deepQuery(el.shadowRoot, selectors);
+                                            if (result) { result.depth++; return result; }
+                                        }
+                                    }
+                                    const iframes = root.querySelectorAll('iframe, webview');
+                                    for (const iframe of iframes) {
+                                        try {
+                                            const doc = iframe.contentDocument || iframe.contentWindow?.document;
+                                            if (doc) {
+                                                const result = deepQuery(doc, selectors);
+                                                if (result) { result.depth++; return result; }
+                                            }
+                                        } catch(e) {}
+                                    }
+                                    return null;
+                                }
+                                const selectors = [
+                                    'textarea[class*="inputarea"]',
+                                    'textarea[class*="input-area"]',
+                                    'textarea[class*="chat-input"]',
+                                    'textarea[aria-label*="chat"]',
+                                    'textarea[aria-label*="Chat"]',
+                                    'textarea[aria-label*="agent"]',
+                                    'textarea[aria-label*="Agent"]',
+                                    'textarea[placeholder*="message"]',
+                                    'textarea[placeholder*="Message"]',
+                                    'textarea[placeholder*="Ask"]',
+                                    'textarea[placeholder*="ask"]',
+                                    'div[class*="agent"] textarea',
+                                    'div[class*="chat"] textarea',
+                                    'div[class*="cascade"] textarea',
+                                    '.monaco-inputbox textarea',
+                                    'textarea.inputarea',
+                                    'textarea',
+                                ];
+                                const result = deepQuery(document, selectors);
+                                if (result) {
+                                    result.element.focus();
+                                    result.element.click();
+                                    return { found: true, selector: result.selector, depth: result.depth, tag: result.element.tagName };
+                                }
+                                return { found: false, searched: selectors.length };
+                            })()
+                        `;
+
+                        // Strategy: try multiple CDP targets to find the one with the agent textarea
+                        // Priority order: jetski-agent (Launchpad) > workbench > other pages
+                        let targets = [];
+                        try {
+                            targets = await CDP.List({ host: CONFIG.cdpHost, port: CONFIG.cdpPort });
+                        } catch (_) { }
+
+                        // Sort targets: jetski-agent first, then workbench, then others
+                        const pageTargets = targets.filter(t => t.type === 'page' && !t.url?.includes(`localhost:${CONFIG.port}`));
+                        pageTargets.sort((a, b) => {
+                            const aScore = a.url?.includes('jetski-agent') ? 3 : a.url?.includes('workbench.html') ? 2 : 1;
+                            const bScore = b.url?.includes('jetski-agent') ? 3 : b.url?.includes('workbench.html') ? 2 : 1;
+                            return bScore - aScore;
                         });
 
-                        const focusValue = focusResult.result && focusResult.result.value;
+                        let chatSent = false;
 
-                        if (focusValue && focusValue.found) {
-                            log('INFO', `Found textarea: ${focusValue.selector} (depth=${focusValue.depth})`);
+                        // First try with the current main CDP connection
+                        const mainResult = await cdpClient.Runtime.evaluate({ expression: deepSearchExpr, returnByValue: true });
+                        const mainValue = mainResult.result && mainResult.result.value;
 
-                            ws.send(JSON.stringify({
-                                type: 'chat-status',
-                                text: `Tìm thấy input (${focusValue.selector})`,
-                                status: 'success'
-                            }));
-
-                            // Use insertText for reliable text injection into Electron apps
+                        if (mainValue && mainValue.found) {
+                            log('INFO', `Found textarea on main target: ${mainValue.selector} (depth=${mainValue.depth})`);
+                            ws.send(JSON.stringify({ type: 'chat-status', text: `Input found on main target (${mainValue.selector})`, status: 'success' }));
                             await cdpClient.Input.insertText({ text: chatText });
-
-                            // Small delay then press Enter to submit
                             await new Promise(r => setTimeout(r, 150));
                             await sendKeyEvent('keyDown', 'Enter', 'Enter', 0);
                             await sendKeyEvent('keyUp', 'Enter', 'Enter', 0);
+                            chatSent = true;
+                        }
 
-                            // Wait a bit then capture the response
+                        // If not found on main target, try other targets
+                        if (!chatSent) {
+                            for (const target of pageTargets) {
+                                if (chatSent) break;
+                                log('INFO', `Trying target: ${target.title} (${target.url?.substring(0, 80)})`);
+                                ws.send(JSON.stringify({ type: 'chat-status', text: `Thử target: ${target.title || 'unknown'}...`, status: 'info' }));
+
+                                let tempClient = null;
+                                try {
+                                    tempClient = await CDP({ host: CONFIG.cdpHost, port: CONFIG.cdpPort, target });
+                                    await tempClient.Page.enable();
+                                    await tempClient.Runtime.enable();
+
+                                    const result = await tempClient.Runtime.evaluate({ expression: deepSearchExpr, returnByValue: true });
+                                    const val = result.result && result.result.value;
+
+                                    if (val && val.found) {
+                                        log('INFO', `Found textarea on target "${target.title}": ${val.selector} (depth=${val.depth})`);
+                                        ws.send(JSON.stringify({ type: 'chat-status', text: `Input found: ${target.title} (${val.selector})`, status: 'success' }));
+
+                                        // Focus and insert text on this target
+                                        await tempClient.Input.insertText({ text: chatText });
+                                        await new Promise(r => setTimeout(r, 150));
+
+                                        // Send Enter key via this target's Input domain
+                                        await tempClient.Input.dispatchKeyEvent({ type: 'keyDown', key: 'Enter', code: 'Enter', windowsVirtualKeyCode: 13, nativeVirtualKeyCode: 13 });
+                                        await tempClient.Input.dispatchKeyEvent({ type: 'keyUp', key: 'Enter', code: 'Enter', windowsVirtualKeyCode: 13, nativeVirtualKeyCode: 13 });
+                                        chatSent = true;
+                                    }
+                                } catch (err) {
+                                    log('WARN', `Failed to check target "${target.title}": ${err.message}`);
+                                } finally {
+                                    if (tempClient && !chatSent) {
+                                        try { await tempClient.close(); } catch (_) { }
+                                    } else if (tempClient && chatSent) {
+                                        // Keep connection briefly for response, then close
+                                        setTimeout(async () => {
+                                            try { await tempClient.close(); } catch (_) { }
+                                        }, 5000);
+                                    }
+                                }
+                            }
+                        }
+
+                        if (chatSent) {
+                            // Wait then try to capture response
                             await new Promise(r => setTimeout(r, 2000));
-
-                            // Try to read the latest response from the agent panel
-                            const responseResult = await cdpClient.Runtime.evaluate({
-                                expression: `
-                                    (function() {
-                                        function deepQueryAll(root, selectors) {
-                                            let results = [];
-                                            for (const sel of selectors) {
-                                                results.push(...root.querySelectorAll(sel));
-                                            }
-                                            const allEls = root.querySelectorAll('*');
-                                            for (const el of allEls) {
-                                                if (el.shadowRoot) {
-                                                    results.push(...deepQueryAll(el.shadowRoot, selectors));
+                            try {
+                                const responseResult = await cdpClient.Runtime.evaluate({
+                                    expression: `
+                                        (function() {
+                                            function deepQueryAll(root, selectors) {
+                                                let results = [];
+                                                for (const sel of selectors) { results.push(...root.querySelectorAll(sel)); }
+                                                const allEls = root.querySelectorAll('*');
+                                                for (const el of allEls) {
+                                                    if (el.shadowRoot) { results.push(...deepQueryAll(el.shadowRoot, selectors)); }
                                                 }
+                                                return results;
                                             }
-                                            return results;
-                                        }
-                                        // Look for the last assistant message
-                                        const msgSelectors = [
-                                            '[class*="assistant"]',
-                                            '[class*="response"]',
-                                            '[class*="markdown"]',
-                                            '[class*="message-body"]',
-                                        ];
-                                        const msgs = deepQueryAll(document, msgSelectors);
-                                        if (msgs.length) {
-                                            const last = msgs[msgs.length - 1];
-                                            return { text: last.textContent?.substring(0, 2000) || '', found: true };
-                                        }
-                                        return { text: '', found: false };
-                                    })()
-                                `,
-                                returnByValue: true,
-                            });
-
-                            const respValue = responseResult.result && responseResult.result.value;
-                            if (respValue && respValue.found && respValue.text) {
-                                addToHistory('assistant', respValue.text);
-                                ws.send(JSON.stringify({
-                                    type: 'chat-response',
-                                    text: respValue.text
-                                }));
-                            } else {
-                                const fallbackText = `✅ Đã gửi tin nhắn đến Antigravity Agent: "${chatText.substring(0, 100)}"\n\nAgent đang xử lý... Kiểm tra Antigravity để xem kết quả.`;
+                                            const msgs = deepQueryAll(document, ['[class*="assistant"]','[class*="response"]','[class*="markdown"]','[class*="message-body"]']);
+                                            if (msgs.length) {
+                                                return { text: msgs[msgs.length - 1].textContent?.substring(0, 2000) || '', found: true };
+                                            }
+                                            return { text: '', found: false };
+                                        })()
+                                    `,
+                                    returnByValue: true,
+                                });
+                                const respValue = responseResult.result && responseResult.result.value;
+                                if (respValue && respValue.found && respValue.text) {
+                                    addToHistory('assistant', respValue.text);
+                                    ws.send(JSON.stringify({ type: 'chat-response', text: respValue.text }));
+                                } else {
+                                    const fallbackText = `✅ Đã gửi tin nhắn đến Antigravity Agent: "${chatText.substring(0, 100)}"\n\nAgent đang xử lý... Kiểm tra Antigravity để xem kết quả.`;
+                                    addToHistory('assistant', fallbackText);
+                                    ws.send(JSON.stringify({ type: 'chat-response', text: fallbackText }));
+                                }
+                            } catch (_) {
+                                const fallbackText = `✅ Đã gửi tin nhắn: "${chatText.substring(0, 100)}"`;
                                 addToHistory('assistant', fallbackText);
-                                ws.send(JSON.stringify({
-                                    type: 'chat-response',
-                                    text: fallbackText
-                                }));
+                                ws.send(JSON.stringify({ type: 'chat-response', text: fallbackText }));
                             }
                         } else {
-                            log('WARN', 'Chat input not found in Antigravity');
+                            log('WARN', `Chat input not found in any of ${pageTargets.length} targets`);
                             ws.send(JSON.stringify({
                                 type: 'chat-response',
-                                text: `Không tìm thấy chat input trong Antigravity.\n\n🔧 Hãy đảm bảo:\n1. Agent panel đang mở (Cmd+I hoặc Ctrl+Shift+I)\n2. Antigravity đã được khởi chạy với --remote-debugging-port\n3. CDP target đúng (kiểm tra bằng List CDP Targets)`
+                                text: `Không tìm thấy chat input trong ${pageTargets.length} CDP targets.\n\n🔧 Hãy đảm bảo:\n1. Agent panel đang mở (Ctrl+Shift+I)\n2. Antigravity đã được khởi chạy với --remote-debugging-port\n3. Thử Reconnect CDP`
                             }));
                         }
                     } catch (chatErr) {
