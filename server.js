@@ -485,6 +485,73 @@ wss.on('connection', async (ws) => {
                         ws.send(JSON.stringify({ type: 'frame', data: freshSS }));
                     }
                     break;
+
+                case 'chat':
+                    if (!isConnected || !cdpClient) {
+                        ws.send(JSON.stringify({ type: 'chat-error', error: 'CDP chưa kết nối. Hãy kết nối Antigravity trước.' }));
+                        break;
+                    }
+                    try {
+                        const chatText = msg.text || '';
+                        log('INFO', `Chat message: ${chatText.substring(0, 50)}...`);
+
+                        // Use CDP to type into Antigravity's agent chat input
+                        // First, find and focus the chat input
+                        const focusResult = await cdpClient.Runtime.evaluate({
+                            expression: `
+                                (function() {
+                                    // Try to find the agent chat input in Antigravity
+                                    const selectors = [
+                                        'textarea[class*="input"]',
+                                        'textarea[placeholder*="message"]',
+                                        'textarea[placeholder*="Ask"]',
+                                        '.chat-input textarea',
+                                        '.agent-input textarea',
+                                        'div[class*="chat"] textarea',
+                                        'div[class*="agent"] textarea',
+                                        'textarea',
+                                    ];
+                                    for (const sel of selectors) {
+                                        const el = document.querySelector(sel);
+                                        if (el && el.offsetParent !== null) {
+                                            el.focus();
+                                            el.value = '';
+                                            return { found: true, selector: sel };
+                                        }
+                                    }
+                                    return { found: false };
+                                })()
+                            `,
+                            returnByValue: true,
+                        });
+
+                        if (focusResult.result && focusResult.result.value && focusResult.result.value.found) {
+                            // Type the message character by character
+                            for (const char of chatText) {
+                                await sendKeyEvent('char', char);
+                            }
+                            // Press Enter to submit
+                            await new Promise(r => setTimeout(r, 100));
+                            await sendKeyEvent('keyDown', 'Enter', 'Enter', 0);
+                            await sendKeyEvent('keyUp', 'Enter', 'Enter', 0);
+
+                            // Wait for response and send it back
+                            ws.send(JSON.stringify({
+                                type: 'chat-response',
+                                text: `Đã gửi tin nhắn đến Antigravity Agent: "${chatText.substring(0, 100)}"`
+                            }));
+                        } else {
+                            // Fallback: just execute the text as a notification
+                            ws.send(JSON.stringify({
+                                type: 'chat-response',
+                                text: `Không tìm thấy chat input trong Antigravity. Tin nhắn: "${chatText}"\n\nHãy đảm bảo agent panel đang mở trong Antigravity.`
+                            }));
+                        }
+                    } catch (chatErr) {
+                        log('ERROR', 'Chat error:', chatErr.message);
+                        ws.send(JSON.stringify({ type: 'chat-error', error: chatErr.message }));
+                    }
+                    break;
             }
         } catch (err) {
             log('ERROR', 'WS message error:', err.message);
