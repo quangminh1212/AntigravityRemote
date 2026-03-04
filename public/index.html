@@ -560,8 +560,15 @@
     }
 
     @keyframes pulse-glow {
-      0%, 100% { opacity: 1; }
-      50% { opacity: 0.5; }
+
+      0%,
+      100% {
+        opacity: 1;
+      }
+
+      50% {
+        opacity: 0.5;
+      }
     }
 
     .pulse {
@@ -581,7 +588,7 @@
       margin-bottom: 4px;
       z-index: 10;
       min-width: 180px;
-      box-shadow: 0 4px 16px rgba(0,0,0,0.4);
+      box-shadow: 0 4px 16px rgba(0, 0, 0, 0.4);
     }
 
     .mode-selector.show {
@@ -623,7 +630,7 @@
       right: 0;
       bottom: 0;
       z-index: 100;
-      background: rgba(0,0,0,0.5);
+      background: rgba(0, 0, 0, 0.5);
     }
 
     .history-overlay.show {
@@ -644,8 +651,13 @@
     }
 
     @keyframes slideIn {
-      from { transform: translateX(100%); }
-      to { transform: translateX(0); }
+      from {
+        transform: translateX(100%);
+      }
+
+      to {
+        transform: translateX(0);
+      }
     }
 
     .history-header {
@@ -685,7 +697,7 @@
     .history-item {
       padding: 10px 16px;
       cursor: default;
-      border-bottom: 1px solid rgba(255,255,255,0.03);
+      border-bottom: 1px solid rgba(255, 255, 255, 0.03);
     }
 
     .history-item:hover {
@@ -834,6 +846,9 @@
     <div class="recent-section" id="recentSection">
       <div class="action-row" data-action="reconnect">
         <span class="action-name">Reconnect CDP</span>
+      </div>
+      <div class="action-row" data-action="restart-cdp">
+        <span class="action-name">Restart Antigravity CDP</span>
       </div>
       <div class="action-row" data-action="screenshot">
         <span class="action-name">Capture Screenshot</span>
@@ -1219,6 +1234,22 @@
           case 'reconnect':
             send({ type: 'connect' });
             addStatusMsg('Đang kết nối lại CDP...', 'info');
+            break;
+          case 'restart-cdp':
+            addStatusMsg('Đang restart Antigravity với CDP...', 'info');
+            fetch('/api/launch', {
+              method: 'POST',
+              headers: { 'Content-Type': 'application/json' },
+              body: JSON.stringify({ restart: true })
+            }).then(r => r.json()).then(data => {
+              if (data.success) {
+                addStatusMsg('✅ Antigravity đã restart với CDP!', 'success');
+                send({ type: 'connect' });
+                fetchConfig();
+              } else {
+                addStatusMsg('❌ Restart thất bại: ' + (data.error || 'unknown'), 'error');
+              }
+            }).catch(err => addStatusMsg('❌ Lỗi: ' + err.message, 'error'));
             break;
           case 'screenshot':
             send({ type: 'refresh' });
