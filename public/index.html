@@ -1100,6 +1100,12 @@
           addStatusMsg(msg.text, msg.status || 'info');
           break;
 
+        case 'agent-sync':
+          // Live screenshot from Antigravity agent — update in-place
+          removeTyping();
+          updateAgentSync(msg.data, msg.frame);
+          break;
+
         case 'frame':
           if (state.mode === 'screen') {
             removeTyping();
@@ -1210,6 +1216,30 @@
     function removeTyping() {
       const el = document.getElementById('typingIndicator');
       if (el) el.remove();
+    }
+
+    // ─── Agent Sync: Live screenshot from Antigravity ───
+    function updateAgentSync(base64, frameNum) {
+      let syncEl = document.getElementById('agentSyncView');
+      if (!syncEl) {
+        syncEl = document.createElement('div');
+        syncEl.id = 'agentSyncView';
+        syncEl.className = 'msg-assistant animate-in';
+        syncEl.innerHTML = `
+          <div class="msg-assistant-header">🔴 Live — Antigravity Agent</div>
+          <div class="msg-assistant-body">
+            <img id="agentSyncImg" style="max-width:100%;border-radius:8px;border:1px solid var(--border);" />
+            <div id="agentSyncInfo" style="font-size:11px;color:var(--text-muted);margin-top:4px;"></div>
+          </div>
+        `;
+        chatMessages$.appendChild(syncEl);
+      }
+      const img = document.getElementById('agentSyncImg');
+      const info = document.getElementById('agentSyncInfo');
+      if (img) img.src = 'data:image/jpeg;base64,' + base64;
+      if (info) info.textContent = `Frame ${frameNum}/10 — ${new Date().toLocaleTimeString()}`;
+      scrollToBottom();
+      state.waiting = false;
     }
 
     function scrollToBottom() {
