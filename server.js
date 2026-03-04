@@ -15,24 +15,41 @@ function getCdpPortCandidates() {
 
     const candidates = new Set();
 
+    // Try to read --remote-debugging-port from Antigravity process command line
+    try {
+        const { execSync } = require('child_process');
+        const wmicOut = execSync('wmic process where "name like \'%Antigravity%\'" get CommandLine /value 2>nul', { encoding: 'utf8', timeout: 3000 });
+        const match = wmicOut.match(/--remote-debugging-port=(\d+)/);
+        if (match) {
+            const port = parseInt(match[1]);
+            if (port > 0 && port < 65536) {
+                console.log(`[AUTO-DETECT] Read port ${port} from Antigravity process args`);
+                candidates.add(port);
+            }
+        }
+    } catch (_) { /* wmic not available or failed */ }
+
     // Read DevToolsActivePort files
-    const dtapPaths = [
-        path.join(process.env.APPDATA || '', 'Antigravity', 'DevToolsActivePort'),
-        path.join(process.env.APPDATA || '', 'Windsurf', 'DevToolsActivePort'),
+    const userDataDirs = [
+        path.join(process.env.APPDATA || '', 'Antigravity'),
+        path.join(process.env.APPDATA || '', 'Windsurf'),
+        path.join(process.env.LOCALAPPDATA || '', 'Antigravity'),
+        path.join(process.env.LOCALAPPDATA || '', 'Windsurf'),
     ];
-    for (const dtap of dtapPaths) {
+    for (const dir of userDataDirs) {
+        const dtap = path.join(dir, 'DevToolsActivePort');
         try {
             const content = fs.readFileSync(dtap, 'utf8').trim();
             const port = parseInt(content.split('\n')[0].trim());
             if (port > 0 && port < 65536) {
-                console.log(`[AUTO-DETECT] Read port ${port} from ${path.basename(path.dirname(dtap))}/${path.basename(dtap)}`);
+                console.log(`[AUTO-DETECT] Read port ${port} from ${path.basename(dir)}/DevToolsActivePort`);
                 candidates.add(port);
             }
         } catch (_) { /* file not found */ }
     }
 
     // Always try common Electron/Chrome CDP ports
-    [9222, 9229, 9333].forEach(p => candidates.add(p));
+    [9222, 9229, 9333, 9000].forEach(p => candidates.add(p));
 
     return [...candidates];
 }
@@ -150,14 +167,24 @@ async function findAntigravityPath() {
     return null;
 }
 
-async function launchAntigravity() {
+async function launchAntigravity(killExisting = false) {
     const exePath = await findAntigravityPath();
     if (!exePath) {
         log('WARN', 'Antigravity executable not found');
         return false;
     }
 
-    log('INFO', `Launching Antigravity from: ${exePath}`);
+    // Kill existing Antigravity processes if requested
+    if (killExisting) {
+        try {
+            const { execSync } = require('child_process');
+            execSync('taskkill /f /im Antigravity.exe 2>nul', { encoding: 'utf8', timeout: 5000 });
+            log('INFO', 'Killed existing Antigravity processes');
+            await new Promise(r => setTimeout(r, 2000)); // Wait for cleanup
+        } catch (_) { /* no processes to kill */ }
+    }
+
+    log('INFO', `Launching Antigravity from: ${exePath} with --remote-debugging-port=${CONFIG.cdpPort}`);
     try {
         antigravityProcess = execFile(exePath, [
             `--remote-debugging-port=${CONFIG.cdpPort}`,
@@ -595,12 +622,21 @@ wss.on('connection', async (ws) => {
                             targets = await CDP.List({ host: CONFIG.cdpHost, port: CONFIG.cdpPort });
                         } catch (_) { }
 
-                        // Sort targets: jetski-agent first, then workbench, then others
-                        const pageTargets = targets.filter(t => t.type === 'page' && !t.url?.includes(`localhost:${CONFIG.port}`));
-                        pageTargets.sort((a, b) => {
-                            const aScore = a.url?.includes('jetski-agent') ? 3 : a.url?.includes('workbench.html') ? 2 : 1;
-                            const bScore = b.url?.includes('jetski-agent') ? 3 : b.url?.includes('workbench.html') ? 2 : 1;
-                            return bScore - aScore;
+                        // Sort targets: jetski-agent first, then webview iframes, then workbench, then others
+                        // Include both 'page' AND 'iframe' types (agent panel lives in an iframe webview)
+                        const candidateTargets = targets.filter(t =>
+                            (t.type === 'page' || t.type === 'iframe') &&
+                            !t.url?.includes(`localhost:${CONFIG.port}`)
+                        );
+                        candidateTargets.sort((a, b) => {
+                            const score = (t) => {
+                                if (t.url?.includes('jetski-agent')) return 5;
+                                if (t.type === 'iframe' && t.url?.includes('vscode-webview')) return 4;
+                                if (t.url?.includes('workbench.html')) return 3;
+                                if (t.type === 'iframe') return 2;
+                                return 1;
+                            };
+                            return score(b) - score(a);
                         });
 
                         let chatSent = false;
@@ -621,7 +657,7 @@ wss.on('connection', async (ws) => {
 
                         // If not found on main target, try other targets
                         if (!chatSent) {
-                            for (const target of pageTargets) {
+                            for (const target of candidateTargets) {
                                 if (chatSent) break;
                                 log('INFO', `Trying target: ${target.title} (${target.url?.substring(0, 80)})`);
                                 ws.send(JSON.stringify({ type: 'chat-status', text: `Thử target: ${target.title || 'unknown'}...`, status: 'info' }));
@@ -703,10 +739,10 @@ wss.on('connection', async (ws) => {
                                 ws.send(JSON.stringify({ type: 'chat-response', text: fallbackText }));
                             }
                         } else {
-                            log('WARN', `Chat input not found in any of ${pageTargets.length} targets`);
+                            log('WARN', `Chat input not found in any of ${candidateTargets.length} targets`);
                             ws.send(JSON.stringify({
                                 type: 'chat-response',
-                                text: `Không tìm thấy chat input trong ${pageTargets.length} CDP targets.\n\n🔧 Hãy đảm bảo:\n1. Agent panel đang mở (Ctrl+Shift+I)\n2. Antigravity đã được khởi chạy với --remote-debugging-port\n3. Thử Reconnect CDP`
+                                text: `Không tìm thấy chat input trong ${candidateTargets.length} CDP targets.\n\n🔧 Hãy đảm bảo:\n1. Agent panel đang mở (Ctrl+Shift+I)\n2. Antigravity đã được khởi chạy với --remote-debugging-port\n3. Thử Reconnect CDP`
                             }));
                         }
                     } catch (chatErr) {
@@ -777,7 +813,8 @@ app.get('/api/qr', async (req, res) => {
 
 app.post('/api/launch', async (req, res) => {
     try {
-        const launched = await launchAntigravity();
+        const killExisting = req.body?.restart === true;
+        const launched = await launchAntigravity(killExisting);
         if (launched) {
             const connected = await connectCDP();
             res.json({ success: true, connected });
