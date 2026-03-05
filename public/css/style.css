@@ -112,22 +112,24 @@ body {
 
 /* New Chat Button */
 .new-chat-btn {
-    background: var(--accent-gradient);
+    background: transparent;
     border: none;
-    color: #fff;
+    color: var(--text-muted);
     cursor: pointer;
-    padding: 7px;
-    border-radius: 8px;
+    width: 28px;
+    height: 28px;
+    padding: 0;
+    border-radius: 6px;
     display: flex;
     align-items: center;
     justify-content: center;
-    transition: all 0.3s cubic-bezier(0.16, 1, 0.3, 1);
-    box-shadow: 0 4px 12px var(--accent-glow);
+    transition: all 0.2s;
+    flex-shrink: 0;
 }
 
 .new-chat-btn:hover {
-    transform: scale(1.05) translateY(-1px);
-    box-shadow: 0 6px 16px var(--accent-glow);
+    color: var(--text-main);
+    background: rgba(255, 255, 255, 0.08);
 }
 
 .new-chat-btn:active {
