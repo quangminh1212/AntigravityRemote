@@ -228,12 +228,12 @@ function renderSnapshot(data) {
         cachedCssText = data.css;
         const darkModeOverrides = '/* --- BASE SNAPSHOT CSS --- */\n' +
             data.css +
-            '\n\n/* --- FORCE DARK MODE OVERRIDES --- */\n' +
+            '\n\n/* --- FORCE DARK MODE OVERRIDES (Neutral Gray Palette) --- */\n' +
             ':root {\n' +
-            '    --bg-app: #0f172a;\n' +
-            '    --text-main: #f8fafc;\n' +
-            '    --text-muted: #94a3b8;\n' +
-            '    --border-color: #334155;\n' +
+            '    --bg-app: #111215;\n' +
+            '    --text-main: #f0f0f2;\n' +
+            '    --text-muted: #8a8d92;\n' +
+            '    --border-color: #2a2b32;\n' +
             '}\n' +
             '\n' +
             '#conversation, #chat, #cascade {\n' +
@@ -259,14 +259,14 @@ function renderSnapshot(data) {
             '    color: inherit !important;\n' +
             '}\n' +
             '\n' +
-            '/* Force black inline text to white */\n' +
+            '/* Force black inline text to light */\n' +
             '[style*="color: rgb(0, 0, 0)"], [style*="color: black"],\n' +
             '[style*="color:#000"], [style*="color: #000"] {\n' +
-            '    color: #e2e8f0 !important;\n' +
+            '    color: #e0e0e4 !important;\n' +
             '}\n' +
             '\n' +
             '#conversation a, #chat a, #cascade a {\n' +
-            '    color: #60a5fa !important;\n' +
+            '    color: #818cf8 !important;\n' +
             '    text-decoration: underline;\n' +
             '}\n' +
             '\n' +
@@ -295,18 +295,18 @@ function renderSnapshot(data) {
             ':not(pre) > code {\n' +
             '    padding: 0px 2px !important;\n' +
             '    border-radius: 2px !important;\n' +
-            '    background-color: rgba(255, 255, 255, 0.1) !important;\n' +
+            '    background-color: rgba(255, 255, 255, 0.08) !important;\n' +
             '    font-size: 0.82em !important;\n' +
             '    line-height: 1 !important;\n' +
             '    white-space: normal !important;\n' +
             '}\n' +
             '\n' +
             'pre, code, .monaco-editor-background, [class*="terminal"] {\n' +
-            '    background-color: #1e293b !important;\n' +
-            '    color: #e2e8f0 !important;\n' +
+            '    background-color: #1a1b20 !important;\n' +
+            '    color: #e0e0e4 !important;\n' +
             '    font-family: \'JetBrains Mono\', monospace !important;\n' +
             '    border-radius: 3px;\n' +
-            '    border: 1px solid #334155;\n' +
+            '    border: 1px solid #2a2b32;\n' +
             '}\n' +
             '                \n' +
             '/* Multi-line Code Block - Minimal */\n' +
@@ -332,7 +332,7 @@ function renderSnapshot(data) {
             '    padding: 0px 4px !important;\n' +
             '    margin: 0px !important;\n' +
             '    vertical-align: middle !important;\n' +
-            '    background-color: #1e293b !important;\n' +
+            '    background-color: #1a1b20 !important;\n' +
             '    font-size: 0.85em !important;\n' +
             '}\n' +
             '                \n' +
@@ -355,8 +355,8 @@ function renderSnapshot(data) {
             '    position: absolute !important;\n' +
             '    top: 2px !important;\n' +
             '    right: 2px !important;\n' +
-            '    background: rgba(30, 41, 59, 0.5) !important;\n' +
-            '    color: #94a3b8 !important;\n' +
+            '    background: rgba(26, 27, 32, 0.6) !important;\n' +
+            '    color: #8a8d92 !important;\n' +
             '    border: none !important;\n' +
             '    width: 24px !important; \n' +
             '    height: 24px !important;\n' +
@@ -374,8 +374,8 @@ function renderSnapshot(data) {
             '                \n' +
             '.mobile-copy-btn:hover,\n' +
             '.mobile-copy-btn:focus {\n' +
-            '    background: rgba(59, 130, 246, 0.2) !important;\n' +
-            '    color: #60a5fa !important;\n' +
+            '    background: rgba(99, 102, 241, 0.2) !important;\n' +
+            '    color: #818cf8 !important;\n' +
             '}\n' +
             '                \n' +
             '.mobile-copy-btn svg {\n' +
@@ -387,9 +387,9 @@ function renderSnapshot(data) {
             '}\n' +
             '                \n' +
             'blockquote {\n' +
-            '    border-left: 3px solid #3b82f6 !important;\n' +
-            '    background: rgba(59, 130, 246, 0.1) !important;\n' +
-            '    color: #cbd5e1 !important;\n' +
+            '    border-left: 3px solid #6366f1 !important;\n' +
+            '    background: rgba(99, 102, 241, 0.08) !important;\n' +
+            '    color: #c8c8cc !important;\n' +
             '    padding: 8px 12px !important;\n' +
             '    margin: 8px 0 !important;\n' +
             '}\n' +
@@ -397,12 +397,12 @@ function renderSnapshot(data) {
             'table {\n' +
             '    border-collapse: collapse !important;\n' +
             '    width: 100% !important;\n' +
-            '    border: 1px solid #334155 !important;\n' +
+            '    border: 1px solid #2a2b32 !important;\n' +
             '}\n' +
             'th, td {\n' +
-            '    border: 1px solid #334155 !important;\n' +
+            '    border: 1px solid #2a2b32 !important;\n' +
             '    padding: 8px !important;\n' +
-            '    color: #e2e8f0 !important;\n' +
+            '    color: #e0e0e4 !important;\n' +
             '}\n' +
             '\n' +
             '::-webkit-scrollbar {\n' +
