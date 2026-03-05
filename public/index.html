@@ -33,9 +33,7 @@
                     <polyline points="12 6 12 12 16 14"></polyline>
                 </svg>
             </button>
-            <button class="stop-btn" id="stopBtn" aria-label="STOP">
-                <span>STOP</span>
-            </button>
+
             <button class="refresh-btn" id="refreshBtn" aria-label="Refresh">
                 <svg viewBox="0 0 24 24" stroke-linecap="round" stroke-linejoin="round">
                     <path d="M23 4v6h-6"></path>
@@ -99,11 +97,13 @@
                         <div class="dropdown-title">Conversation mode</div>
                         <div class="dropdown-option" data-value="Planning">
                             <div class="dropdown-option-name">Planning</div>
-                            <div class="dropdown-option-desc">Agent can plan before executing tasks. Use for deep research, complex tasks, or collaborative work</div>
+                            <div class="dropdown-option-desc">Agent can plan before executing tasks. Use for deep
+                                research, complex tasks, or collaborative work</div>
                         </div>
                         <div class="dropdown-option active" data-value="Fast">
                             <div class="dropdown-option-name">Fast</div>
-                            <div class="dropdown-option-desc">Agent will execute tasks directly. Use for simple tasks that can be completed faster</div>
+                            <div class="dropdown-option-desc">Agent will execute tasks directly. Use for simple tasks
+                                that can be completed faster</div>
                         </div>
                     </div>
                 </div>
@@ -133,6 +133,9 @@
                         <line x1="5" y1="12" x2="19" y2="12"></line>
                         <polyline points="12 5 19 12 12 19"></polyline>
                     </svg>
+                </button>
+                <button class="toolbar-stop-btn" id="stopBtn" aria-label="Stop" title="Stop generation">
+                    <div class="stop-icon"></div>
                 </button>
             </div>
         </div>

@@ -80,29 +80,9 @@ body {
     gap: 16px;
 }
 
-.stop-btn {
-    background: #ef4444;
-    color: #fff;
-    border: none;
-    padding: 4px 8px;
-    font-size: 11px;
-    font-weight: 600;
-    border-radius: 4px;
-    cursor: pointer;
-    text-transform: uppercase;
-    letter-spacing: 0.5px;
-    box-shadow: 0 0 10px rgba(239, 68, 68, 0.3);
-    display: none;
-    /* Only show when needed or always show? User asked for feature 1 */
-    /* I'll make it always visible or toggleable */
-    display: flex;
-    align-items: center;
-    gap: 4px;
-}
+/* Old header stop btn removed - now in toolbar */
 
-.stop-btn:active {
-    transform: scale(0.95);
-}
+
 
 .refresh-btn {
     background: transparent;
@@ -586,6 +566,49 @@ body {
     cursor: not-allowed;
     transform: none;
     box-shadow: none;
+}
+
+/* Stop button - replaces send when agent is running */
+.toolbar-stop-btn {
+    background: transparent;
+    border: 1.5px solid #ef4444;
+    color: #ef4444;
+    width: 26px;
+    height: 26px;
+    border-radius: 50%;
+    display: none;
+    align-items: center;
+    justify-content: center;
+    cursor: pointer;
+    transition: all 0.2s cubic-bezier(0.16, 1, 0.3, 1);
+    flex-shrink: 0;
+    margin-left: 4px;
+}
+
+.toolbar-stop-btn:hover {
+    background: rgba(239, 68, 68, 0.15);
+    transform: scale(1.08);
+    box-shadow: 0 2px 8px rgba(239, 68, 68, 0.3);
+}
+
+.toolbar-stop-btn:active {
+    transform: scale(0.9);
+}
+
+.stop-icon {
+    width: 10px;
+    height: 10px;
+    background: #ef4444;
+    border-radius: 2px;
+}
+
+/* Agent running state - toggle send/stop */
+body.agent-running .toolbar-send-btn {
+    display: none;
+}
+
+body.agent-running .toolbar-stop-btn {
+    display: flex;
 }
 
 /* Floating Action Button (Scroll Down) */

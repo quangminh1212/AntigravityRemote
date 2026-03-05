@@ -77,6 +77,9 @@ async function fetchAppState() {
             modelText.textContent = data.model;
         }
 
+        // Running state sync - toggle send/stop button
+        document.body.classList.toggle('agent-running', !!data.isRunning);
+
         console.log('[SYNC] State refreshed from Desktop:', data);
     } catch (e) { console.error('[SYNC] Failed to sync state', e); }
 }
@@ -766,12 +769,13 @@ stopBtn.addEventListener('click', async () => {
         const res = await fetchWithAuth('/stop', { method: 'POST' });
         const data = await res.json();
         if (data.success) {
-            // alert('Stopped');
-        } else {
-            // alert('Error: ' + data.error);
+            // Immediately switch back to send button
+            document.body.classList.remove('agent-running');
         }
     } catch (e) { }
     setTimeout(() => stopBtn.style.opacity = '1', 500);
+    // Re-sync state from desktop
+    setTimeout(fetchAppState, 1000);
 });
 
 // --- New Chat Logic ---
