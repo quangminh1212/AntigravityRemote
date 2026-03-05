@@ -268,14 +268,24 @@ function renderSnapshot(data) {
             '    position: absolute !important;\n' +
             '}\n' +
             '\n' +
-            '#conversation p, #chat p, #cascade p, #conversation h1, #chat h1, #cascade h1, #conversation h2, #chat h2, #cascade h2, #conversation h3, #chat h3, #cascade h3, #conversation h4, #chat h4, #cascade h4, #conversation h5, #chat h5, #cascade h5, #conversation span, #chat span, #cascade span, #conversation div, #chat div, #cascade div, #conversation li, #chat li, #cascade li {\n' +
-            '    color: inherit !important;\n' +
+            '/* Only set default text color on containers - do NOT override inline colors */\n' +
+            '#conversation, #chat, #cascade {\n' +
+            '    color: var(--text-main) !important;\n' +
             '}\n' +
             '\n' +
-            '/* Force black inline text to light */\n' +
+            '/* Force black/very dark inline text to light (preserve other colors) */\n' +
             '[style*="color: rgb(0, 0, 0)"], [style*="color: black"],\n' +
-            '[style*="color:#000"], [style*="color: #000"] {\n' +
-            '    color: #e0e0e4 !important;\n' +
+            '[style*="color:#000"], [style*="color: #000"],\n' +
+            '[style*="color: rgb(3"], [style*="color: rgb(2"],\n' +
+            '[style*="color: rgb(1, "], [style*="color: rgb(5, "],\n' +
+            '[style*="color: rgb(10,"], [style*="color: rgb(15,"],\n' +
+            '[style*="color: rgb(20,"], [style*="color: rgb(25,"],\n' +
+            '[style*="color: rgb(30,"], [style*="color: rgb(35,"],\n' +
+            '[style*="color: rgb(40,"], [style*="color: rgb(45,"],\n' +
+            '[style*="color: rgb(50,"], [style*="color: rgb(55,"],\n' +
+            '[style*="color: rgb(60,"], [style*="color: rgb(65,"],\n' +
+            '[style*="color: rgb(70,"], [style*="color: rgb(75,"] {\n' +
+            '    color: var(--text-main) !important;\n' +
             '}\n' +
             '\n' +
             '#conversation a, #chat a, #cascade a {\n' +
