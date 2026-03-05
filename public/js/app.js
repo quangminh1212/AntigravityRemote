@@ -1168,7 +1168,11 @@ function hideChatHistory() {
     }
 }
 
-historyBtn.addEventListener('click', showChatHistory);
+historyBtn.addEventListener('click', (e) => {
+    e.stopPropagation(); // Prevent settings dropdown from catching this click
+    settingsDropdown.classList.remove('open'); // Close settings dropdown
+    showChatHistory();
+});
 
 // --- Select Chat from History ---
 async function selectChat(title) {

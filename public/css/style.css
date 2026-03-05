@@ -239,6 +239,29 @@ body {
     flex-shrink: 0;
 }
 
+/* Settings dropdown status (Live indicator) */
+.settings-dropdown-status {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    padding: 8px 10px;
+    font-size: 12px;
+    color: var(--text-muted);
+}
+
+.settings-dropdown-status .status-dot {
+    width: 7px;
+    height: 7px;
+    border-radius: 50%;
+    flex-shrink: 0;
+}
+
+.settings-divider {
+    height: 1px;
+    background: var(--border);
+    margin: 2px 6px;
+}
+
 /* Light mode specific overrides */
 [data-theme="light"] .header {
     background: rgba(245, 245, 247, 0.85);

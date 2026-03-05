@@ -28,12 +28,7 @@
                     <line x1="5" y1="12" x2="19" y2="12"></line>
                 </svg>
             </button>
-            <button class="history-btn" id="historyBtn" aria-label="Chat History" title="Past Conversations">
-                <svg viewBox="0 0 24 24" stroke-linecap="round" stroke-linejoin="round">
-                    <circle cx="12" cy="12" r="10"></circle>
-                    <polyline points="12 6 12 12 16 14"></polyline>
-                </svg>
-            </button>
+
 
             <button class="refresh-btn" id="refreshBtn" aria-label="Refresh">
                 <svg viewBox="0 0 24 24" stroke-linecap="round" stroke-linejoin="round">
@@ -52,6 +47,20 @@
                     </svg>
                 </button>
                 <div class="settings-dropdown" id="settingsDropdown">
+                    <div class="settings-dropdown-status">
+                        <div class="status-dot disconnected" id="statusDot"></div>
+                        <span id="statusText">Connecting...</span>
+                    </div>
+                    <div class="settings-divider"></div>
+                    <button class="settings-option" id="historyBtn" aria-label="Chat History">
+                        <svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor"
+                            stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                            <circle cx="12" cy="12" r="10"></circle>
+                            <polyline points="12 6 12 12 16 14"></polyline>
+                        </svg>
+                        <span>Past Conversations</span>
+                    </button>
+                    <div class="settings-divider"></div>
                     <div class="settings-title">Theme</div>
                     <button class="settings-option" data-theme-value="dark">
                         <svg viewBox="0 0 24 24" width="16" height="16">
@@ -84,10 +93,7 @@
                     </button>
                 </div>
             </div>
-            <div class="status-badge">
-                <div class="status-dot disconnected" id="statusDot"></div>
-                <span id="statusText">Connecting...</span>
-            </div>
+
         </div>
     </header>
 
