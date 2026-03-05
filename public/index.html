@@ -66,13 +66,13 @@
             </svg>
             <span id="modelText">Select Model</span>
         </div>
-        <div class="setting-chip" id="syncStats" style="cursor: default; border: none; background: transparent;">
-            <span id="statsText" style="font-size: 10px; opacity: 0.6;">Syncing...</span>
+        <div class="setting-chip sync-stats" id="syncStats">
+            <span id="statsText" class="sync-stats-text">Syncing...</span>
         </div>
     </div>
 
     <!-- SSL Banner (shown when running HTTP) -->
-    <div class="ssl-banner" id="sslBanner" style="display: none;">
+    <div class="ssl-banner" id="sslBanner" hidden>
         <span>⚠️ Not Secure - Running on HTTP</span>
         <button id="enableHttpsBtn" onclick="enableHttps()" title="Enable HTTPS">Enable HTTPS</button>
         <button class="dismiss-btn" onclick="dismissSslBanner()" title="Dismiss SSL warning"
@@ -118,8 +118,7 @@
 
             <button class="send-btn" id="sendBtn" aria-label="Send">
                 <svg viewBox="0 0 24 24">
-                    <path d="M22 2L11 13M22 2l-7 20-4-9-9-4 20-7z"
-                        style="fill: none; stroke: currentColor; stroke-width: 2; stroke-linecap: round; stroke-linejoin: round;" />
+                    <path d="M22 2L11 13M22 2l-7 20-4-9-9-4 20-7z" />
                 </svg>
             </button>
         </div>
@@ -130,9 +129,8 @@
         <div class="modal-panel" id="modalPanel">
             <div class="modal-title" id="modalTitle">Select Option</div>
             <div id="modalList"></div>
-            <div style="margin-top:20px; text-align:center;">
-                <button onclick="closeModal()"
-                    style="background:transparent; border:none; color:var(--text-muted); padding:10px;">Cancel</button>
+            <div class="modal-footer">
+                <button onclick="closeModal()" class="modal-cancel-btn">Cancel</button>
             </div>
         </div>
     </div>
@@ -147,7 +145,7 @@
                 </svg>
             </button>
             <h2>Conversations</h2>
-            <div style="width: 24px;"></div> <!-- Spacer -->
+            <div class="header-spacer"></div> <!-- Spacer -->
         </div>
         <div class="history-content" id="historyList">
             <!-- Items injected here -->

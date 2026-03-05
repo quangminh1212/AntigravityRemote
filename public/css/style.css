@@ -47,8 +47,8 @@ body {
 /* Header */
 .header {
     background: rgba(30, 41, 59, 0.8);
-    backdrop-filter: blur(12px);
     -webkit-backdrop-filter: blur(12px);
+    backdrop-filter: blur(12px);
     padding: 14px 16px;
     border-bottom: 1px solid var(--border);
     display: flex;
@@ -338,8 +338,8 @@ body {
 
 .action-chip {
     background: rgba(255, 255, 255, 0.04);
-    backdrop-filter: blur(12px);
     -webkit-backdrop-filter: blur(12px);
+    backdrop-filter: blur(12px);
     border: 1px solid rgba(255, 255, 255, 0.08);
     color: var(--text-main);
     padding: 8px 18px;
@@ -550,8 +550,8 @@ textarea::-webkit-scrollbar {
 /* Settings Bar */
 .settings-bar {
     background: rgba(30, 41, 59, 0.6);
-    backdrop-filter: blur(12px);
     -webkit-backdrop-filter: blur(12px);
+    backdrop-filter: blur(12px);
     padding: 10px 16px;
     display: flex;
     align-items: center;
@@ -593,6 +593,7 @@ textarea::-webkit-scrollbar {
     position: fixed;
     inset: 0;
     background: rgba(0, 0, 0, 0.6);
+    -webkit-backdrop-filter: blur(2px);
     backdrop-filter: blur(2px);
     z-index: 2000;
     display: none;
@@ -705,8 +706,8 @@ textarea::-webkit-scrollbar {
     justify-content: space-between;
     padding: 16px;
     background: rgba(30, 41, 59, 0.8);
-    backdrop-filter: blur(12px);
     -webkit-backdrop-filter: blur(12px);
+    backdrop-filter: blur(12px);
     border-bottom: 1px solid var(--border);
 }
 
@@ -877,4 +878,44 @@ textarea::-webkit-scrollbar {
 
 .mt-4 {
     margin-top: 24px;
+}
+
+/* Sync Stats - non-interactive chip */
+.setting-chip.sync-stats {
+    cursor: default;
+    border: none;
+    background: transparent;
+}
+
+.sync-stats-text {
+    font-size: 10px;
+    opacity: 0.6;
+}
+
+/* Send button SVG path */
+.send-btn svg path {
+    fill: none;
+    stroke: currentColor;
+    stroke-width: 2;
+    stroke-linecap: round;
+    stroke-linejoin: round;
+}
+
+/* Modal footer */
+.modal-footer {
+    margin-top: 20px;
+    text-align: center;
+}
+
+.modal-cancel-btn {
+    background: transparent;
+    border: none;
+    color: var(--text-muted);
+    padding: 10px;
+    cursor: pointer;
+}
+
+/* History header spacer */
+.header-spacer {
+    width: 24px;
 }
