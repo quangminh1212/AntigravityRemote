@@ -498,6 +498,16 @@ function renderSnapshot(data) {
             '    padding: 0 !important;\n' +
             '    margin: 0 !important;\n' +
             '}\n' +
+            '/* Thinking/thought toggle section (.isolate wrapper) */\n' +
+            '.isolate, .isolate > button {\n' +
+            '    background-color: transparent !important;\n' +
+            '    border: none !important;\n' +
+            '    padding: 0 !important;\n' +
+            '    margin: 0 !important;\n' +
+            '    border-radius: 0 !important;\n' +
+            '    outline: none !important;\n' +
+            '    box-shadow: none !important;\n' +
+            '}\n' +
             '\n' +
             '/* User message bubble */\n' +
             '[data-role="user"] {\n' +
