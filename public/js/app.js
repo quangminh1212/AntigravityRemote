@@ -411,7 +411,24 @@ function renderSnapshot(data) {
             '                \n' +
             '[style*="background-color: rgb(255, 255, 255)"],\n' +
             '[style*="background-color: white"],\n' +
-            '[style*="background: white"] {\n' +
+            '[style*="background: white"],\n' +
+            '[style*="background-color: rgb(249"],\n' +
+            '[style*="background-color: rgb(248"],\n' +
+            '[style*="background-color: rgb(244"],\n' +
+            '[style*="background-color: rgb(243"],\n' +
+            '[style*="background-color: rgb(241"],\n' +
+            '[style*="background-color: rgb(31"],\n' +
+            '[style*="background-color: rgb(30"],\n' +
+            '[style*="background-color: rgb(15"],\n' +
+            '[style*="background-color: rgb(17"],\n' +
+            '[style*="background-color: rgb(24"],\n' +
+            '[style*="background-color: rgb(32"],\n' +
+            '[style*="background-color: rgb(38"],\n' +
+            '[class*="bg-gray"], [class*="bg-slate"],\n' +
+            '[class*="bg-neutral"], [class*="bg-zinc"] {\n' +
+            '    background-color: transparent !important;\n' +
+            '}\n' +
+            '#conversation > div > div, #chat > div > div, #cascade > div > div {\n' +
             '    background-color: transparent !important;\n' +
             '}';
         styleTag.textContent = darkModeOverrides;
