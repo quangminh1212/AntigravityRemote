@@ -49,6 +49,27 @@ const attachBtn = document.getElementById('attachBtn');
 const fileInput = document.getElementById('fileInput');
 const settingsBtn = document.getElementById('settingsBtn');
 const settingsDropdown = document.getElementById('settingsDropdown');
+const fullscreenBtn = document.getElementById('fullscreenBtn');
+
+// --- Fullscreen Toggle ---
+fullscreenBtn.addEventListener('click', () => {
+    if (!document.fullscreenElement) {
+        document.documentElement.requestFullscreen().catch(() => { });
+    } else {
+        document.exitFullscreen().catch(() => { });
+    }
+});
+
+document.addEventListener('fullscreenchange', () => {
+    const icon = document.getElementById('fullscreenIcon');
+    if (document.fullscreenElement) {
+        icon.innerHTML = '<path d="M4 14h3a2 2 0 0 1 2 2v3"></path><path d="M20 10h-3a2 2 0 0 1-2-2V5"></path><path d="M14 20v-3a2 2 0 0 1 2-2h3"></path><path d="M10 4v3a2 2 0 0 1-2 2H5"></path>';
+        fullscreenBtn.setAttribute('data-tooltip', 'Exit Fullscreen');
+    } else {
+        icon.innerHTML = '<path d="M8 3H5a2 2 0 0 0-2 2v3"></path><path d="M21 8V5a2 2 0 0 0-2-2h-3"></path><path d="M3 16v3a2 2 0 0 0 2 2h3"></path><path d="M16 21h3a2 2 0 0 0 2-2v-3"></path>';
+        fullscreenBtn.setAttribute('data-tooltip', 'Fullscreen');
+    }
+});
 
 // --- Theme management ---
 function applyTheme(theme) {
