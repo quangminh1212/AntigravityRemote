@@ -536,7 +536,7 @@ class ClipboardChatReader {
         log('INFO', `UI Automation read #${this.readCount} starting...`);
 
         try {
-            // Build PS command as regular string to avoid backtick conflicts
+            // Build PS command to extract chat panel text, grouped by Y position into lines
             const psCmd = [
                 'Add-Type -AssemblyName UIAutomationClient -ErrorAction SilentlyContinue',
                 'Add-Type -AssemblyName UIAutomationTypes -ErrorAction SilentlyContinue',
@@ -546,24 +546,58 @@ class ClipboardChatReader {
                 '',
                 'try {',
                 '    $root = [System.Windows.Automation.AutomationElement]::FromHandle($proc.MainWindowHandle)',
-                '    $textCond = New-Object System.Windows.Automation.PropertyCondition([System.Windows.Automation.AutomationElement]::IsEnabledProperty, $true)',
-                '    $allElements = $root.FindAll([System.Windows.Automation.TreeScope]::Descendants, $textCond)',
-                '    $texts = @()',
-                '    foreach ($el in $allElements) {',
+                '    $windowRect = $root.Current.BoundingRectangle',
+                '    $midX = $windowRect.X + ($windowRect.Width * 0.45)',
+                '',
+                '    $textTypeCond = New-Object System.Windows.Automation.PropertyCondition([System.Windows.Automation.AutomationElement]::ControlTypeProperty, [System.Windows.Automation.ControlType]::Text)',
+                '    $textElements = $root.FindAll([System.Windows.Automation.TreeScope]::Descendants, $textTypeCond)',
+                '',
+                '    # Collect text with Y positions for grouping',
+                '    $items = @()',
+                '    foreach ($el in $textElements) {',
                 '        try {',
                 '            $name = $el.Current.Name',
-                '            if ($name -and $name.Length -gt 3 -and $name.Length -lt 10000) {',
-                '                $controlType = $el.Current.ControlType.ProgrammaticName',
-                '                if ($controlType -match "Text|Edit|Document|Group|Custom|Pane") {',
-                '                    $texts += $name',
-                '                }',
+                '            if (-not $name -or $name.Length -lt 2 -or $name.Length -gt 10000) { continue }',
+                '            $rect = $el.Current.BoundingRectangle',
+                '            if ($rect.X -ge $midX -and $rect.Width -gt 5 -and $rect.Height -gt 3) {',
+                '                $items += [PSCustomObject]@{X=[int]$rect.X; Y=[int]$rect.Y; T=$name}',
                 '            }',
                 '        } catch { }',
                 '    }',
-                '    if ($texts.Count -eq 0) { "ERROR:no_text_found"; return }',
-                '    $sep = [char]10 + "===MSGSEP===" + [char]10',
-                '    $joined = $texts -join $sep',
-                '    $bytes = [System.Text.Encoding]::UTF8.GetBytes($joined)',
+                '    if ($items.Count -eq 0) { "ERROR:no_chat_text"; return }',
+                '',
+                '    # Sort by Y then X, group by Y (same line = same Y within 5px)',
+                '    $sorted = $items | Sort-Object Y, X',
+                '    $lines = [System.Collections.ArrayList]@()',
+                '    $lineYs = [System.Collections.ArrayList]@()',
+                '    $curLine = @()',
+                '    $curY = -999',
+                '    foreach ($item in $sorted) {',
+                '        if ([Math]::Abs($item.Y - $curY) -gt 5) {',
+                '            if ($curLine.Count -gt 0) {',
+                '                [void]$lines.Add(($curLine -join " "))',
+                '                [void]$lineYs.Add($curY)',
+                '            }',
+                '            $curLine = @($item.T)',
+                '            $curY = $item.Y',
+                '        } else {',
+                '            $curLine += $item.T',
+                '        }',
+                '    }',
+                '    if ($curLine.Count -gt 0) {',
+                '        [void]$lines.Add(($curLine -join " "))',
+                '        [void]$lineYs.Add($curY)',
+                '    }',
+                '',
+                '    # Build result with ===MSGSEP=== between blocks (Y gap > 30px)',
+                '    $result = ""',
+                '    for ($i = 0; $i -lt $lines.Count; $i++) {',
+                '        if ($i -gt 0 -and ($lineYs[$i] - $lineYs[$i-1]) -gt 30) {',
+                '            $result += [char]10 + "===MSGSEP===" + [char]10',
+                '        }',
+                '        $result += $lines[$i] + [char]10',
+                '    }',
+                '    $bytes = [System.Text.Encoding]::UTF8.GetBytes($result)',
                 '    [Convert]::ToBase64String($bytes)',
                 '} catch {',
                 '    "ERROR:uia_failed:$($_.Exception.Message)"',
@@ -605,70 +639,49 @@ class ClipboardChatReader {
 
     /**
      * Parse UI Automation text into structured messages
-     * UIA returns text segments separated by ===MSGSEP===
-     * Filters out VS Code UI chrome to extract actual chat content
+     * Text blocks separated by ===MSGSEP=== (Y-gap > 30px between messages)
      */
     parseUIAText(text) {
-        const segments = text.split('===MSGSEP===')
-            .map(s => s.trim())
-            .filter(s => s.length > 20); // Only keep segments > 20 chars (chat msgs are longer)
+        // Split by message separator first
+        const blocks = text.split('===MSGSEP===')
+            .map(b => b.trim())
+            .filter(b => b.length > 3);
 
         const messages = [];
         let msgId = 0;
 
-        // Skip patterns for VS Code / Antigravity UI chrome
-        const skipPatterns = [
-            /^(File|Edit|View|Run|Terminal|Help|Source Control|Extensions)$/i,
-            /^(Search|Debug|Testing|Output|Problems|Ports|Comments)$/i,
-            /^\d+$/,                        // Line numbers
-            /^[A-Z]:\\/i,                   // File paths
-            /\(Ctrl\+/i,                    // Keyboard shortcuts
-            /^(Accept|Reject|Allow|Deny|Cancel|OK|Yes|No|Close|Open|Save)$/i,
-            /^Antigravity/i,                // Window titles
-            /^(Connected|Disconnected|Connecting)$/i,
-            /^\s*$/,
-            /^(Explorer|Profile|Outline|Timeline|Git|npm|Accounts)$/i,
-            /^(Tab|Panel|Editor|Sidebar|Activity Bar|Status Bar)/i,
-            /^(Maximize|Minimize|Restore|Go Back|Go Forward)/i,
-            /\.(js|ts|css|html|json|md|py|txt|log|pb)$/i, // File names
-            /^(server|public|node_modules|package|debug|index)/i,
-            /^[A-Za-z_][A-Za-z0-9_]*\.[A-Za-z_]/,  // Object.property patterns
-            /^(const|let|var|function|class|import|export|if|for|while|return)\s/,  // Code
-            /^\{.*\}$/,                     // JSON objects
-            /^\[.*\]$/,                     // Arrays
-            /^\/\//,                        // Comments
-            /^#\s/,                         // Markdown headings (likely from code)
-        ];
-
-        for (const seg of segments) {
-            // Skip UI chrome
-            if (skipPatterns.some(p => p.test(seg))) continue;
-
-            // Skip very short segments (likely UI labels)
-            if (seg.length < 30) continue;
-
-            // Skip segments that look like code (high ratio of special chars)
-            const specialChars = (seg.match(/[{}()=>;:,\[\]]/g) || []).length;
-            if (specialChars / seg.length > 0.15) continue;
-
-            // Determine role based on content patterns
-            const isUserLike = seg.length < 300 && !seg.includes('\n');
-
-            messages.push({
-                id: msgId++,
-                role: isUserLike && msgId % 2 === 1 ? 'user' : 'assistant',
-                content: seg.substring(0, 5000),
-                ts: Date.now(),
-            });
+        for (const block of blocks) {
+            // Each block is one message (multi-line text from chat panel)
+            const content = block.trim();
+            if (content.length > 5) {
+                messages.push(this._makeMessage(msgId++, content));
+            }
         }
 
-        // If too many messages, likely still picking up chrome - keep only longer ones
-        if (messages.length > 50) {
-            const filtered = messages.filter(m => m.content.length > 50);
-            return filtered.length > 0 ? filtered.slice(-50) : messages.slice(-50);
+        // If too many messages, keep tail (latest messages most relevant)
+        if (messages.length > 100) {
+            return messages.slice(-100);
         }
 
         return messages;
+    }
+
+    /**
+     * Create a message object, auto-detecting role
+     */
+    _makeMessage(id, content) {
+        // Heuristic: user messages tend to be short, single-line, no markdown
+        const isShort = content.length < 300;
+        const noNewlines = !content.includes('\n');
+        const noMarkdown = !content.includes('```') && !content.includes('**');
+        const isUserLike = isShort && noNewlines && noMarkdown;
+
+        return {
+            id,
+            role: isUserLike && id % 2 === 0 ? 'user' : 'assistant',
+            content: content.substring(0, 5000),
+            ts: Date.now(),
+        };
     }
 
     /**
