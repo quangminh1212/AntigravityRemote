@@ -1,8 +1,8 @@
 {
-    "name": "ag-mobile-monitor",
+    "name": "antigravity-remote",
     "version": "1.0.0",
     "type": "module",
-    "description": "Mobile web interface for monitoring Antigravity chat via visual snapshots",
+    "description": "Antigravity Remote - Mobile web interface for monitoring and controlling Antigravity AI sessions",
     "scripts": {
         "start": "node server.js",
         "dev": "npx nodemon --watch server.js --watch public --ext js,html,css server.js"

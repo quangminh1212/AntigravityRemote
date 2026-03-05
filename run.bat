@@ -1,12 +1,12 @@
 @echo off
 setlocal enabledelayedexpansion
-title Antigravity Phone Connect - Quick Run
+title Antigravity Remote - Quick Run
 
 :: Navigate to script directory
 cd /d "%~dp0"
 
 echo ============================================
-echo  Antigravity Phone Connect - Quick Run
+echo  Antigravity Remote - Quick Run
 echo ============================================
 echo.
 

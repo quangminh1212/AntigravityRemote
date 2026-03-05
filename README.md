@@ -1,13 +1,13 @@
 <div align="center">
-  <img src="./assets/antigravity.png" alt="Antigravity Phone Connect" width="300">
-  <h1>Antigravity Phone Connect 📱</h1>
+  <img src="./assets/antigravity.png" alt="Antigravity Remote" width="300">
+  <h1>Antigravity Remote 📱</h1>
 </div>
 
 [![License: GPL v3](https://img.shields.io/badge/License-GPLv3-blue.svg)](https://www.gnu.org/licenses/gpl-3.0)
 
-**Antigravity Phone Connect** is a high-performance, real-time mobile monitor and remote control for your Antigravity AI sessions. It allows you to step away from your desk while keeping full sight and control over your AI's thinking process and generations.
+**Antigravity Remote** is a high-performance, real-time mobile monitor and remote control for your Antigravity AI sessions. It allows you to step away from your desk while keeping full sight and control over your AI's thinking process and generations.
 
-![Antigravity Phone Connect](./assets/global_access_hero_2.png)
+![Antigravity Remote](./assets/global_access_hero_2.png)
 
 **Note:** This project is a refined fork/extension based on the original [Antigravity Shit-Chat](https://github.com/gherghett/Antigravity-Shit-Chat) by gherghett.
 
@@ -286,7 +286,7 @@ graph TD
 Developing with powerful AI models in Antigravity often involves long "thinking" times. Developers are "tethered" to their desks, waiting for a prompt to finish.
 
 ### Solution
-Antigravity Phone Connect is a **wireless viewport** — not a replacement for the desktop IDE. It mirrors the state of the desktop session to any device on the local network.
+Antigravity Remote is a **wireless viewport** — not a replacement for the desktop IDE. It mirrors the state of the desktop session to any device on the local network.
 
 ### Principles
 1. **Robustness Over Precision**: Text-based selection with fuzzy matching + occurrence index tracking + leaf-node isolation for 100% click accuracy

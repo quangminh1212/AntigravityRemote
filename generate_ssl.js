@@ -104,7 +104,7 @@ x509_extensions = v3_req
 
 [dn]
 C = US
-O = AntigravityPhoneConnect
+O = AntigravityRemote
 CN = localhost
 
 [v3_req]
@@ -229,7 +229,7 @@ function generateWithNodeCrypto() {
     const serialNumber = Buffer.from(Array.from({ length: 8 }, () => Math.floor(Math.random() * 256)));
 
     const commonName = asn1Sequence(asn1OID('2.5.4.3'), asn1UTF8String('localhost'));
-    const orgName = asn1Sequence(asn1OID('2.5.4.10'), asn1UTF8String('AntigravityPhoneConnect'));
+    const orgName = asn1Sequence(asn1OID('2.5.4.10'), asn1UTF8String('AntigravityRemote'));
     const countryName = asn1Sequence(asn1OID('2.5.4.6'), asn1PrintableString('US'));
 
     const name = asn1Sequence(

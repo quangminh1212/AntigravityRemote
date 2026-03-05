@@ -73,7 +73,7 @@ process.on('unhandledRejection', (reason) => {
 });
 
 console.log('========================================');
-console.log('🚀 AntigravityRemote starting...');
+console.log('🚀 Antigravity Remote starting...');
 console.log(`   PID: ${process.pid}`);
 console.log(`   Node: ${process.version}`);
 console.log(`   Time: ${new Date().toISOString()}`);

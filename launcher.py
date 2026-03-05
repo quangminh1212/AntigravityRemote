@@ -94,7 +94,7 @@ def print_qr(url):
 # Main Execution
 # -----------------------------------------------------------------------------
 def main():
-    parser = argparse.ArgumentParser(description="Antigravity Phone Connect Launcher")
+    parser = argparse.ArgumentParser(description="Antigravity Remote Launcher")
     parser.add_argument('--mode', choices=['local', 'web'], default='web', help="Mode to run in: 'local' (WiFi) or 'web' (Internet)")
     args = parser.parse_args()
 
