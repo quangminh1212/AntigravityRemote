@@ -1010,7 +1010,7 @@ body.agent-running .toolbar-stop-btn {
 }
 
 .history-item.current {
-    background: var(--accent);
+    background: #094771;
     color: #fff;
 }
 
