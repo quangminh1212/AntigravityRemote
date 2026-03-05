@@ -94,17 +94,17 @@ let lastSnapshot = null;
 let lastSnapshotHash = null;
 
 // Kill any existing process on the server port (prevents EADDRINUSE)
-function killPortProcess(port) {
+async function killPortProcess(port) {
+    // Step 1: Find and kill processes on the port
     try {
         if (process.platform === 'win32') {
-            // Windows: Find PID using netstat and kill it
             const result = execSync(`netstat -ano | findstr :${port} | findstr LISTENING`, { encoding: 'utf8', stdio: ['pipe', 'pipe', 'pipe'] });
             const lines = result.trim().split('\n');
             const pids = new Set();
             for (const line of lines) {
                 const parts = line.trim().split(/\s+/);
                 const pid = parts[parts.length - 1];
-                if (pid && pid !== '0') pids.add(pid);
+                if (pid && pid !== '0' && pid !== String(process.pid)) pids.add(pid);
             }
             for (const pid of pids) {
                 try {
@@ -113,7 +113,6 @@ function killPortProcess(port) {
                 } catch (e) { /* Process may have already exited */ }
             }
         } else {
-            // Linux/macOS: Use lsof and kill
             const result = execSync(`lsof -ti:${port}`, { encoding: 'utf8', stdio: ['pipe', 'pipe', 'pipe'] });
             const pids = result.trim().split('\n').filter(p => p);
             for (const pid of pids) {
@@ -123,12 +122,30 @@ function killPortProcess(port) {
                 } catch (e) { /* Process may have already exited */ }
             }
         }
-        // Small delay to let the port be released
-        return new Promise(resolve => setTimeout(resolve, 500));
     } catch (e) {
         // No process found on port - this is fine
-        return Promise.resolve();
     }
+
+    // Step 2: Wait until port is actually free (max 5 seconds)
+    const maxWait = 5000;
+    const checkInterval = 200;
+    const start = Date.now();
+    while (Date.now() - start < maxWait) {
+        const isFree = await new Promise(resolve => {
+            const testServer = http.createServer();
+            testServer.once('error', () => resolve(false));
+            testServer.once('listening', () => {
+                testServer.close(() => resolve(true));
+            });
+            testServer.listen(port, '0.0.0.0');
+        });
+        if (isFree) {
+            console.log(`✅ Port ${port} is free`);
+            return;
+        }
+        await new Promise(r => setTimeout(r, checkInterval));
+    }
+    console.warn(`⚠️  Port ${port} may still be in use after ${maxWait}ms wait`);
 }
 
 // Get local IP address for mobile access
@@ -1550,6 +1567,7 @@ async function createServer() {
         });
         const httpRedirectServer = http.createServer(redirectApp);
         const HTTP_REDIRECT_PORT = parseInt(SERVER_PORT) + 1;
+        await killPortProcess(HTTP_REDIRECT_PORT);
         httpRedirectServer.listen(HTTP_REDIRECT_PORT, '0.0.0.0', () => {
             console.log(`🔀 HTTP redirect: http://localhost:${HTTP_REDIRECT_PORT} → https://localhost:${SERVER_PORT}`);
         }).on('error', () => {
@@ -2077,15 +2095,36 @@ async function main() {
         // Kill any existing process on the port before starting
         await killPortProcess(SERVER_PORT);
 
-        // Start server
+        // Start server with EADDRINUSE retry
         const localIP = getLocalIP();
         const protocol = hasSSL ? 'https' : 'http';
-        server.listen(SERVER_PORT, '0.0.0.0', () => {
-            console.log(`🚀 Server running on ${protocol}://${localIP}:${SERVER_PORT}`);
-            if (hasSSL) {
-                console.log(`💡 First time on phone? Accept the security warning to proceed.`);
+        let listenRetries = 0;
+        const MAX_LISTEN_RETRIES = 3;
+
+        const startListening = () => {
+            server.listen(SERVER_PORT, '0.0.0.0', () => {
+                console.log(`🚀 Server running on ${protocol}://${localIP}:${SERVER_PORT}`);
+                if (hasSSL) {
+                    console.log(`💡 First time on phone? Accept the security warning to proceed.`);
+                }
+            });
+        };
+
+        server.on('error', async (err) => {
+            if (err.code === 'EADDRINUSE' && listenRetries < MAX_LISTEN_RETRIES) {
+                listenRetries++;
+                console.warn(`⚠️  Port ${SERVER_PORT} busy, retry ${listenRetries}/${MAX_LISTEN_RETRIES}...`);
+                await killPortProcess(SERVER_PORT);
+                setTimeout(startListening, 1000);
+            } else if (err.code === 'EADDRINUSE') {
+                console.error(`❌ Port ${SERVER_PORT} still in use after ${MAX_LISTEN_RETRIES} retries. Exiting.`);
+                process.exit(1);
+            } else {
+                console.error('❌ Server error:', err.message);
             }
         });
+
+        startListening();
 
         // Graceful shutdown handlers
         const gracefulShutdown = (signal) => {
