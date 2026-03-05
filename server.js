@@ -1426,6 +1426,13 @@ async function getAppState(cdp) {
             state.model = modelEl.innerText.trim();
         }
 
+        // 3. Detect if agent is currently running (generating)
+        // Check for cancel/stop button visibility
+        const cancelBtn = document.querySelector('[data-tooltip-id="input-send-button-cancel-tooltip"]');
+        const stopIcon = document.querySelector('button svg.lucide-square')?.closest('button');
+        state.isRunning = (cancelBtn && cancelBtn.offsetParent !== null) || 
+                          (stopIcon && stopIcon.offsetParent !== null) || false;
+
         return state;
     } catch (e) { return { error: e.toString() }; }
 })()`;
