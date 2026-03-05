@@ -1,3 +1,38 @@
+// --- Touch Long-Press Tooltip System ---
+(function () {
+    let longPressTimer = null;
+    let activeTooltip = null;
+
+    function showTooltip(el) {
+        hideTooltip();
+        el.classList.add('tooltip-visible');
+        activeTooltip = el;
+    }
+
+    function hideTooltip() {
+        if (activeTooltip) {
+            activeTooltip.classList.remove('tooltip-visible');
+            activeTooltip = null;
+        }
+    }
+
+    document.addEventListener('touchstart', (e) => {
+        const el = e.target.closest('[data-tooltip]');
+        if (!el) { hideTooltip(); return; }
+        longPressTimer = setTimeout(() => showTooltip(el), 500);
+    }, { passive: true });
+
+    document.addEventListener('touchend', () => {
+        clearTimeout(longPressTimer);
+        setTimeout(hideTooltip, 1500); // auto-hide after 1.5s
+    }, { passive: true });
+
+    document.addEventListener('touchmove', () => {
+        clearTimeout(longPressTimer);
+        hideTooltip();
+    }, { passive: true });
+})();
+
 // --- Elements ---
 const chatContainer = document.getElementById('chatContainer');
 const chatContent = document.getElementById('chatContent');

@@ -17,6 +17,63 @@
     color-scheme: dark;
 }
 
+/* Custom Tooltip System */
+[data-tooltip] {
+    position: relative;
+}
+
+[data-tooltip]::after {
+    content: attr(data-tooltip);
+    position: absolute;
+    top: calc(100% + 8px);
+    left: 50%;
+    transform: translateX(-50%) translateY(-4px);
+    background: #2a2a2e;
+    color: #e0e0e0;
+    font-size: 12px;
+    font-weight: 400;
+    padding: 5px 10px;
+    border-radius: 6px;
+    white-space: nowrap;
+    pointer-events: none;
+    opacity: 0;
+    transition: opacity 0.15s, transform 0.15s;
+    z-index: 9999;
+    box-shadow: 0 4px 12px rgba(0, 0, 0, 0.4);
+    border: 1px solid rgba(255, 255, 255, 0.08);
+    font-family: inherit;
+}
+
+[data-tooltip]:hover::after,
+[data-tooltip].tooltip-visible::after {
+    opacity: 1;
+    transform: translateX(-50%) translateY(0);
+}
+
+/* Tooltip above for toolbar buttons (input area at bottom) */
+.input-toolbar [data-tooltip]::after {
+    top: auto;
+    bottom: calc(100% + 8px);
+    transform: translateX(-50%) translateY(4px);
+}
+
+.input-toolbar [data-tooltip]:hover::after,
+.input-toolbar [data-tooltip].tooltip-visible::after {
+    transform: translateX(-50%) translateY(0);
+}
+
+/* Align right-edge tooltips */
+.settings-btn[data-tooltip]::after {
+    left: auto;
+    right: 0;
+    transform: translateX(0) translateY(-4px);
+}
+
+.settings-btn[data-tooltip]:hover::after,
+.settings-btn[data-tooltip].tooltip-visible::after {
+    transform: translateX(0) translateY(0);
+}
+
 [data-theme="light"] {
     /* Light Theme Tokens */
     --bg-app: #ffffff;

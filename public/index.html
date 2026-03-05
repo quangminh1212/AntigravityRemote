@@ -22,7 +22,7 @@
         </h1>
 
         <div class="header-controls">
-            <button class="new-chat-btn" id="newChatBtn" aria-label="New Chat" title="New Chat (Ctrl+Shift+L)">
+            <button class="new-chat-btn" id="newChatBtn" aria-label="New Chat" data-tooltip="New Chat">
                 <svg viewBox="0 0 24 24" stroke-linecap="round" stroke-linejoin="round">
                     <line x1="12" y1="5" x2="12" y2="19"></line>
                     <line x1="5" y1="12" x2="19" y2="12"></line>
@@ -30,7 +30,7 @@
             </button>
 
 
-            <button class="refresh-btn" id="refreshBtn" aria-label="Refresh">
+            <button class="refresh-btn" id="refreshBtn" aria-label="Refresh" data-tooltip="Refresh">
                 <svg viewBox="0 0 24 24" stroke-linecap="round" stroke-linejoin="round">
                     <path d="M23 4v6h-6"></path>
                     <path d="M1 20v-6h6"></path>
@@ -38,7 +38,7 @@
                 </svg>
             </button>
             <div class="settings-wrapper">
-                <button class="settings-btn" id="settingsBtn" aria-label="Settings" title="Settings">
+                <button class="settings-btn" id="settingsBtn" aria-label="Settings" data-tooltip="Settings">
                     <svg viewBox="0 0 24 24" stroke-linecap="round" stroke-linejoin="round">
                         <circle cx="12" cy="12" r="3"></circle>
                         <path
@@ -116,7 +116,7 @@
     </div>
 
     <!-- Scroll to Bottom FAB -->
-    <button class="fab" id="scrollToBottom" aria-label="Scroll to bottom">
+    <button class="fab" id="scrollToBottom" aria-label="Scroll to bottom" data-tooltip="Scroll to bottom">
         <svg viewBox="0 0 24 24" fill="none">
             <path d="M12 5v14M19 12l-7 7-7-7" stroke-linecap="round" stroke-linejoin="round" />
         </svg>
@@ -131,7 +131,7 @@
         <div class="input-box">
             <textarea id="messageInput" placeholder="Ask anything, @ to mention, / for workflows" rows="1"></textarea>
             <div class="input-toolbar">
-                <button class="toolbar-icon-btn" id="attachBtn" aria-label="Attach" title="Attach file">
+                <button class="toolbar-icon-btn" id="attachBtn" aria-label="Attach" data-tooltip="Attach file">
                     <svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" stroke-width="2"
                         stroke-linecap="round" stroke-linejoin="round">
                         <line x1="12" y1="5" x2="12" y2="19"></line>
@@ -171,14 +171,14 @@
                     <div class="dropdown-menu" id="modelMenu"></div>
                 </div>
                 <div class="toolbar-spacer"></div>
-                <button class="toolbar-send-btn" id="sendBtn" aria-label="Send">
+                <button class="toolbar-send-btn" id="sendBtn" aria-label="Send" data-tooltip="Send">
                     <svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="2.5"
                         stroke-linecap="round" stroke-linejoin="round">
                         <line x1="5" y1="12" x2="19" y2="12"></line>
                         <polyline points="12 5 19 12 12 19"></polyline>
                     </svg>
                 </button>
-                <button class="toolbar-stop-btn" id="stopBtn" aria-label="Stop" title="Stop generation">
+                <button class="toolbar-stop-btn" id="stopBtn" aria-label="Stop" data-tooltip="Stop">
                     <div class="stop-icon"></div>
                 </button>
             </div>
@@ -191,7 +191,7 @@
     <!-- History Layer (Full Screen) -->
     <div class="history-layer" id="historyLayer">
         <div class="history-header">
-            <button class="icon-btn" onclick="hideChatHistory()" aria-label="Back">
+            <button class="icon-btn" onclick="hideChatHistory()" aria-label="Back" data-tooltip="Back">
                 <svg viewBox="0 0 24 24" width="24" height="24">
                     <path d="M19 12H5M12 19l-7-7 7-7" stroke="currentColor" stroke-width="2" stroke-linecap="round"
                         stroke-linejoin="round" />
