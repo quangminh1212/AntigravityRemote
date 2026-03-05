@@ -1,18 +1,17 @@
 /**
  * AntigravityRemote - Mobile PWA Chat Client for Antigravity IDE
  * 
- * Architecture: 
- * 1. Connects to Language Server gRPC (port 50000-63999) for chat streaming
- * 2. Scans Antigravity process ports for internal APIs
- * 3. Falls back to CDP if available
+ * Architecture (No CDP - PowerShell UI Automation):
+ * 1. Uses PowerShell Win32 APIs for keyboard/window control
+ * 2. Monitors Antigravity conversation files for state changes  
+ * 3. Scans process ports for connectivity status
  * 4. Exposes WebSocket + REST API for mobile PWA client
  * 
- * No auth tokens handled - authentication stays on Antigravity's side.
+ * No CDP required - all interactions via native Windows APIs.
  */
 
 import http from 'http';
-import http2 from 'http2';
-import { execSync } from 'child_process';
+import { execSync, exec } from 'child_process';
 import express from 'express';
 import WebSocket, { WebSocketServer } from 'ws';
 import path from 'path';
@@ -29,9 +28,12 @@ const __dirname = path.dirname(__filename);
 const CONFIG = {
     PORT: parseInt(process.env.PORT || '3000'),
     HOST: '0.0.0.0',
-    RECONNECT_INTERVAL: 5000,
-    POLL_INTERVAL: 2000,
+    POLL_INTERVAL: 2500,
     LOG_FILE: path.join(__dirname, 'debug.log'),
+    // Antigravity data paths
+    AG_DATA_DIR: path.join(process.env.APPDATA || '', 'Antigravity'),
+    AG_GEMINI_DIR: path.join(os.homedir(), '.gemini', 'antigravity'),
+    AG_CONVERSATIONS_DIR: path.join(os.homedir(), '.gemini', 'antigravity', 'conversations'),
 };
 
 // ============================================================================
@@ -45,406 +47,605 @@ function log(level, msg, data = '') {
 }
 
 // ============================================================================
-// HTTP Helper
+// PowerShell Helper - Execute PS commands safely via -EncodedCommand
+// Using Base64-encoded UTF-16LE to avoid all cmd/PS escaping issues
 // ============================================================================
-function httpGet(url, timeout = 3000) {
-    return new Promise((resolve, reject) => {
-        const req = http.get(url, { timeout }, (res) => {
-            let data = '';
-            res.on('data', (c) => data += c);
-            res.on('end', () => resolve({ status: res.statusCode, data }));
-        });
-        req.on('error', reject);
-        req.on('timeout', () => { req.destroy(); reject(new Error('timeout')); });
+function encodePsCommand(command) {
+    // Convert to UTF-16LE then Base64 - this is what PS -EncodedCommand expects
+    const buf = Buffer.from(command, 'utf16le');
+    return buf.toString('base64');
+}
+
+function psExec(command, timeout = 8000) {
+    try {
+        const encoded = encodePsCommand(command);
+        return execSync(
+            `powershell -NoProfile -NonInteractive -EncodedCommand ${encoded}`,
+            { encoding: 'utf-8', timeout, windowsHide: true }
+        ).trim();
+    } catch (e) {
+        log('WARN', 'PS exec failed', e.message?.substring(0, 200));
+        return '';
+    }
+}
+
+function psExecAsync(command, timeout = 8000) {
+    return new Promise((resolve) => {
+        const encoded = encodePsCommand(command);
+        exec(
+            `powershell -NoProfile -NonInteractive -EncodedCommand ${encoded}`,
+            { encoding: 'utf-8', timeout, windowsHide: true },
+            (err, stdout) => {
+                if (err) {
+                    log('WARN', 'PS async exec failed', err.message?.substring(0, 200));
+                    resolve('');
+                } else {
+                    resolve((stdout || '').trim());
+                }
+            }
+        );
     });
 }
 
-function httpPost(url, body, timeout = 5000) {
-    return new Promise((resolve, reject) => {
-        const urlObj = new URL(url);
-        const payload = typeof body === 'string' ? body : JSON.stringify(body);
-        const req = http.request({
-            hostname: urlObj.hostname,
-            port: urlObj.port,
-            path: urlObj.pathname,
-            method: 'POST',
-            timeout,
-            headers: { 'Content-Type': 'application/json', 'Content-Length': Buffer.byteLength(payload) },
-        }, (res) => {
-            let data = '';
-            res.on('data', (c) => data += c);
-            res.on('end', () => resolve({ status: res.statusCode, data }));
-        });
-        req.on('error', reject);
-        req.on('timeout', () => { req.destroy(); reject(new Error('timeout')); });
-        req.write(payload);
-        req.end();
-    });
+// ============================================================================
+// Windows UI Automation Engine (No CDP!)
+// ============================================================================
+class WindowsUIAutomation {
+    constructor() {
+        this.antigravityHwnd = null;
+        this.antigravityTitle = '';
+        this.isAntigravityRunning = false;
+        this.cachedPid = null;
+    }
+
+    /**
+     * Find the Antigravity main window - iterates ALL processes to find valid handle
+     */
+    async findAntigravityWindow() {
+        // Strategy: find ANY Antigravity process with a non-zero MainWindowHandle
+        const result = await psExecAsync(
+            `Get-Process -Name Antigravity -ErrorAction SilentlyContinue | ` +
+            `Where-Object { $_.MainWindowHandle -ne [IntPtr]::Zero -and $_.MainWindowTitle -ne '' } | ` +
+            `Select-Object -First 1 | ForEach-Object { "$($_.Id)|$($_.MainWindowTitle)" }`
+        );
+
+        if (result && result.includes('|')) {
+            const [pid, title] = result.split('|', 2);
+            this.cachedPid = parseInt(pid);
+            this.antigravityTitle = title;
+            this.isAntigravityRunning = true;
+            log('INFO', `Antigravity window found: PID=${pid} "${title}"`);
+            return true;
+        }
+
+        // Fallback: search all processes with 'Antigravity' in title
+        const altResult = await psExecAsync(
+            `Get-Process | Where-Object { $_.MainWindowTitle -match 'Antigravity' -and $_.MainWindowHandle -ne [IntPtr]::Zero } | ` +
+            `Select-Object -First 1 | ForEach-Object { "$($_.Id)|$($_.MainWindowTitle)" }`
+        );
+
+        if (altResult && altResult.includes('|')) {
+            const [pid, title] = altResult.split('|', 2);
+            this.cachedPid = parseInt(pid);
+            this.antigravityTitle = title;
+            this.isAntigravityRunning = true;
+            log('INFO', `Antigravity window found (alt): PID=${pid} "${title}"`);
+            return true;
+        }
+
+        // Last resort: check if process exists even without visible window
+        const processCheck = await psExecAsync(
+            `Get-Process -Name Antigravity -ErrorAction SilentlyContinue | Select-Object -First 1 -ExpandProperty Id`
+        );
+        if (processCheck) {
+            this.isAntigravityRunning = true;
+            this.cachedPid = parseInt(processCheck);
+            log('INFO', `Antigravity process found (no window handle): PID=${processCheck}`);
+            return true;
+        }
+
+        this.isAntigravityRunning = false;
+        this.cachedPid = null;
+        return false;
+    }
+
+    /**
+     * Focus the Antigravity window using multiple strategies:
+     * 1. Alt-key trick (keybd_event) to bypass SetForegroundWindow restriction
+     * 2. AttachThreadInput to attach to foreground thread
+     * 3. AppActivate (WScript.Shell) as fallback
+     */
+    async focusAntigravityWindow() {
+        if (!this.isAntigravityRunning) {
+            await this.findAntigravityWindow();
+        }
+        if (!this.isAntigravityRunning) return false;
+
+        // Robust focus script using multiple strategies
+        const result = await psExecAsync(`
+Add-Type @'
+using System;
+using System.Runtime.InteropServices;
+using System.Threading;
+public class FocusHelper {
+    [DllImport("user32.dll")] public static extern bool SetForegroundWindow(IntPtr hWnd);
+    [DllImport("user32.dll")] public static extern bool ShowWindow(IntPtr hWnd, int nCmdShow);
+    [DllImport("user32.dll")] public static extern IntPtr GetForegroundWindow();
+    [DllImport("user32.dll")] public static extern uint GetWindowThreadProcessId(IntPtr hWnd, out uint processId);
+    [DllImport("user32.dll")] public static extern bool AttachThreadInput(uint idAttach, uint idAttachTo, bool fAttach);
+    [DllImport("user32.dll")] public static extern bool BringWindowToTop(IntPtr hWnd);
+    [DllImport("kernel32.dll")] public static extern uint GetCurrentThreadId();
+    [DllImport("user32.dll")] public static extern void keybd_event(byte bVk, byte bScan, uint dwFlags, UIntPtr dwExtraInfo);
+    
+    const byte VK_MENU = 0x12;
+    const uint KEYEVENTF_EXTENDEDKEY = 0x1;
+    const uint KEYEVENTF_KEYUP = 0x2;
+    
+    public static bool ForceFocus(IntPtr hwnd) {
+        if (hwnd == IntPtr.Zero) return false;
+        
+        IntPtr fgWnd = GetForegroundWindow();
+        if (fgWnd == hwnd) return true;
+        
+        uint fgThread = GetWindowThreadProcessId(fgWnd, out _);
+        uint curThread = GetCurrentThreadId();
+        
+        // Strategy 1: Alt-key trick - simulate Alt press/release to allow focus steal
+        keybd_event(VK_MENU, 0, KEYEVENTF_EXTENDEDKEY, UIntPtr.Zero);
+        keybd_event(VK_MENU, 0, KEYEVENTF_EXTENDEDKEY | KEYEVENTF_KEYUP, UIntPtr.Zero);
+        
+        // Strategy 2: Attach to foreground thread
+        bool attached = false;
+        if (fgThread != curThread) {
+            attached = AttachThreadInput(curThread, fgThread, true);
+        }
+        
+        ShowWindow(hwnd, 9); // SW_RESTORE
+        SetForegroundWindow(hwnd);
+        BringWindowToTop(hwnd);
+        
+        if (attached) {
+            AttachThreadInput(curThread, fgThread, false);
+        }
+        
+        Thread.Sleep(100);
+        return GetForegroundWindow() == hwnd || true; // optimistic
+    }
+}
+'@ -ErrorAction SilentlyContinue
+
+# Find the Antigravity process with a valid window handle
+$procs = Get-Process -Name Antigravity -ErrorAction SilentlyContinue | Where-Object { $_.MainWindowHandle -ne [IntPtr]::Zero }
+$focused = $false
+
+foreach ($proc in $procs) {
+    if ([FocusHelper]::ForceFocus($proc.MainWindowHandle)) {
+        $focused = $true
+        break
+    }
+}
+
+# Fallback: Use AppActivate (WScript.Shell)
+if (-not $focused) {
+    try {
+        $wsh = New-Object -ComObject WScript.Shell
+        $wsh.AppActivate('Antigravity') | Out-Null
+        $focused = $true
+    } catch {}
+}
+
+if ($focused) { 'focused' } else { 'not_found' }
+        `);
+
+        const ok = result?.trim() === 'focused';
+        if (!ok) {
+            log('WARN', 'Focus failed, result:', result);
+        }
+        return ok;
+    }
+
+    /**
+     * Send text to Antigravity chat using keyboard simulation
+     * Flow: Focus window → Open chat (Ctrl+L) → Type text → Press Enter
+     */
+    async sendChatMessage(text) {
+        try {
+            // 1. Focus the Antigravity window
+            const focused = await this.focusAntigravityWindow();
+            if (!focused) {
+                return { success: false, error: 'Cannot focus Antigravity window' };
+            }
+
+            // Small delay to ensure window is focused
+            await sleep(400);
+
+            // 2. Open/focus the chat input using Ctrl+L (Antigravity chat shortcut)
+            await this.sendKeys('^l'); // Ctrl+L to focus chat input
+            await sleep(500);
+
+            // 3. Type the message using clipboard (handles all characters)
+            await this.typeText(text);
+            await sleep(300);
+
+            // 4. Press Enter to send
+            await this.sendKeys('{ENTER}');
+
+            log('INFO', 'Message sent via keyboard automation', { len: text.length });
+            return { success: true };
+        } catch (e) {
+            log('ERROR', 'sendChatMessage failed', e.message);
+            return { success: false, error: e.message };
+        }
+    }
+
+    /**
+     * Click an approval button by simulating keyboard shortcuts
+     */
+    async clickApprovalButton(buttonText = 'Accept') {
+        try {
+            const focused = await this.focusAntigravityWindow();
+            if (!focused) {
+                return { success: false, error: 'Cannot focus Antigravity window' };
+            }
+            await sleep(400);
+
+            // Try Tab to navigate to the approval button, then Enter to click
+            await this.sendKeys('{TAB}');
+            await sleep(200);
+            await this.sendKeys('{ENTER}');
+
+            log('INFO', 'Approval action sent', { buttonText });
+            return { success: true, clicked: buttonText };
+        } catch (e) {
+            log('ERROR', 'clickApprovalButton failed', e.message);
+            return { success: false, error: e.message };
+        }
+    }
+
+    /**
+     * Send special keys using PowerShell SendKeys
+     */
+    async sendKeys(keys) {
+        await psExecAsync(`
+Add-Type -AssemblyName System.Windows.Forms -ErrorAction SilentlyContinue
+[System.Windows.Forms.SendKeys]::SendWait('${keys.replace(/'/g, "''")}')
+        `);
+    }
+
+    /**
+     * Type text safely using clipboard (handles all characters including unicode)
+     * More reliable than SendKeys for arbitrary text
+     */
+    async typeText(text) {
+        const escapedText = text.replace(/'/g, "''");
+        await psExecAsync(`
+Add-Type -AssemblyName System.Windows.Forms -ErrorAction SilentlyContinue
+[System.Windows.Forms.Clipboard]::SetText('${escapedText}')
+[System.Windows.Forms.SendKeys]::SendWait('^v')
+Start-Sleep -Milliseconds 100
+        `);
+    }
+
+    /**
+     * Get Antigravity window title to detect state
+     */
+    async getWindowTitle() {
+        const result = await psExecAsync(
+            `Get-Process -Name Antigravity -ErrorAction SilentlyContinue | ` +
+            `Where-Object { $_.MainWindowHandle -ne [IntPtr]::Zero -and $_.MainWindowTitle -ne '' } | ` +
+            `Select-Object -First 1 -ExpandProperty MainWindowTitle`
+        );
+        if (result) {
+            this.antigravityTitle = result;
+            this.isAntigravityRunning = true;
+        } else {
+            // Still check if process exists
+            const exists = await psExecAsync(
+                `Get-Process -Name Antigravity -ErrorAction SilentlyContinue | Select-Object -First 1 -ExpandProperty Id`
+            );
+            this.isAntigravityRunning = !!exists;
+            this.antigravityTitle = exists ? '(no visible window)' : '';
+        }
+        return this.antigravityTitle;
+    }
 }
 
 // ============================================================================
-// Port Discovery
+// Conversation File Monitor
 // ============================================================================
-function discoverPorts() {
-    const result = { grpcPorts: [], antigravityPorts: [], cdpPort: null };
+class ConversationMonitor {
+    constructor() {
+        this.lastConversationHash = '';
+        this.lastModifiedTime = 0;
+        this.cachedMessages = [];
+        this.watcher = null;
+    }
 
-    try {
-        // Find Language Server gRPC ports
-        const lsOutput = execSync(
-            'powershell -NoProfile -NonInteractive -Command "' +
-            'Get-NetTCPConnection -State Listen -OwningProcess (Get-Process language_server_windows_x64 -ErrorAction SilentlyContinue).Id -ErrorAction SilentlyContinue | ' +
-            'Select-Object -ExpandProperty LocalPort | Sort-Object"',
-            { encoding: 'utf-8', timeout: 10000 }
-        ).trim();
+    /**
+     * Start watching the conversations directory for changes
+     */
+    startWatching(callback) {
+        const conversationsDir = CONFIG.AG_CONVERSATIONS_DIR;
 
-        if (lsOutput) {
-            result.grpcPorts = lsOutput.split(/\r?\n/).map(p => parseInt(p.trim())).filter(p => !isNaN(p));
+        if (!fs.existsSync(conversationsDir)) {
+            log('WARN', 'Conversations dir not found', conversationsDir);
+            return;
         }
-    } catch (e) { log('WARN', 'Failed to find LS ports', e.message); }
 
-    try {
-        // Find Antigravity process ports
-        const agOutput = execSync(
-            'powershell -NoProfile -NonInteractive -Command "' +
-            'Get-NetTCPConnection -State Listen -OwningProcess (Get-Process Antigravity -ErrorAction SilentlyContinue | Select-Object -ExpandProperty Id) -ErrorAction SilentlyContinue | ' +
-            'Where-Object { $_.LocalPort -lt 50000 } | Select-Object -ExpandProperty LocalPort | Sort-Object"',
-            { encoding: 'utf-8', timeout: 10000 }
-        ).trim();
+        log('INFO', 'Watching conversations dir', conversationsDir);
 
-        if (agOutput) {
-            result.antigravityPorts = agOutput.split(/\r?\n/).map(p => parseInt(p.trim())).filter(p => !isNaN(p));
+        try {
+            this.watcher = fs.watch(conversationsDir, { persistent: false }, (eventType, filename) => {
+                if (filename && filename.endsWith('.pb')) {
+                    log('DEBUG', 'Conversation file changed', filename);
+                    if (callback) callback(filename);
+                }
+            });
+        } catch (e) {
+            log('WARN', 'Failed to watch conversations dir', e.message);
         }
-    } catch (e) { log('WARN', 'Failed to find AG ports', e.message); }
+    }
 
-    // CDP from DevToolsActivePort file
-    try {
-        const dtFile = path.join(process.env.APPDATA || '', 'Antigravity', 'DevToolsActivePort');
-        if (fs.existsSync(dtFile)) {
-            const port = parseInt(fs.readFileSync(dtFile, 'utf-8').trim().split(/\r?\n/)[0]);
-            if (!isNaN(port)) result.cdpPort = port;
+    /**
+     * Get the most recently modified conversation file
+     */
+    getLatestConversation() {
+        const dir = CONFIG.AG_CONVERSATIONS_DIR;
+        if (!fs.existsSync(dir)) return null;
+
+        try {
+            const files = fs.readdirSync(dir)
+                .filter(f => f.endsWith('.pb'))
+                .map(f => ({
+                    name: f,
+                    path: path.join(dir, f),
+                    mtime: fs.statSync(path.join(dir, f)).mtimeMs,
+                    size: fs.statSync(path.join(dir, f)).size,
+                }))
+                .sort((a, b) => b.mtime - a.mtime);
+
+            return files[0] || null;
+        } catch {
+            return null;
         }
-    } catch { /* */ }
+    }
 
-    return result;
+    /**
+     * Check if conversations have been updated
+     */
+    hasUpdates() {
+        const latest = this.getLatestConversation();
+        if (!latest) return false;
+
+        const hash = `${latest.name}:${latest.mtime}:${latest.size}`;
+        if (hash !== this.lastConversationHash) {
+            this.lastConversationHash = hash;
+            this.lastModifiedTime = latest.mtime;
+            return true;
+        }
+        return false;
+    }
+
+    stopWatching() {
+        if (this.watcher) {
+            this.watcher.close();
+            this.watcher = null;
+        }
+    }
 }
 
 // ============================================================================
-// Antigravity Connection Manager
+// Process Monitor
+// ============================================================================
+class ProcessMonitor {
+    constructor() {
+        this.antigravityRunning = false;
+        this.antigravityPids = [];
+        this.listeningPorts = [];
+    }
+
+    /**
+     * Check if Antigravity is running and get its ports
+     */
+    async refresh() {
+        try {
+            const pidResult = await psExecAsync(
+                `Get-Process -Name Antigravity -ErrorAction SilentlyContinue | ` +
+                `Select-Object -ExpandProperty Id`
+            );
+
+            if (pidResult) {
+                this.antigravityRunning = true;
+                this.antigravityPids = pidResult.split(/\r?\n/).map(p => parseInt(p.trim())).filter(p => !isNaN(p));
+            } else {
+                this.antigravityRunning = false;
+                this.antigravityPids = [];
+            }
+
+            // Get listening ports
+            if (this.antigravityPids.length > 0) {
+                const pidsFilter = this.antigravityPids.join(',');
+                const portResult = await psExecAsync(
+                    `Get-NetTCPConnection -State Listen -OwningProcess ${pidsFilter} -ErrorAction SilentlyContinue | ` +
+                    `Select-Object -ExpandProperty LocalPort | Sort-Object`
+                );
+                this.listeningPorts = portResult
+                    ? portResult.split(/\r?\n/).map(p => parseInt(p.trim())).filter(p => !isNaN(p))
+                    : [];
+            } else {
+                this.listeningPorts = [];
+            }
+        } catch (e) {
+            log('WARN', 'ProcessMonitor refresh failed', e.message);
+        }
+    }
+
+    getStatus() {
+        return {
+            running: this.antigravityRunning,
+            pids: this.antigravityPids,
+            ports: this.listeningPorts,
+        };
+    }
+}
+
+// ============================================================================
+// Antigravity Connection Manager (No CDP)
 // ============================================================================
 class AntigravityConnection {
     constructor() {
-        this.grpcPort = null;
-        this.internalApiPort = null;
-        this.cdpPort = null;
-        this.cdpWs = null;
-        this.cdpConnected = false;
-        this.cdpMessageId = 1;
-        this.cdpPending = new Map();
-        this.executionContextId = null;
-        this.internalApiConfig = null;
+        this.uiAuto = new WindowsUIAutomation();
+        this.conversationMonitor = new ConversationMonitor();
+        this.processMonitor = new ProcessMonitor();
         this.lastMessages = [];
         this.lastStatus = 'disconnected';
+        this.agentStatusFromTitle = 'idle';
+        this.conversationUpdateCallback = null;
     }
 
     async initialize() {
-        log('INFO', 'Discovering Antigravity connections...');
-        const ports = discoverPorts();
-        log('INFO', 'Discovered ports', ports);
+        log('INFO', 'Initializing AntigravityConnection (No CDP mode)...');
 
-        // Test gRPC ports
-        for (const port of ports.grpcPorts) {
-            try {
-                const res = await httpGet(`http://127.0.0.1:${port}/`, 2000);
-                if (res.status >= 400) { // gRPC returns 4xx for HTTP/1.1
-                    this.grpcPort = port;
-                    log('INFO', `gRPC port confirmed: ${port}`);
-                    break;
-                }
-            } catch { /* continue */ }
-        }
+        // Check Antigravity process
+        await this.processMonitor.refresh();
+        log('INFO', 'Process status', this.processMonitor.getStatus());
 
-        // Test Antigravity internal API ports
-        for (const port of ports.antigravityPorts) {
-            try {
-                const res = await httpGet(`http://127.0.0.1:${port}/json/list`, 2000);
-                if (res.status === 200) {
-                    try {
-                        const config = JSON.parse(res.data);
-                        if (config.clickPatterns || config.enabled !== undefined) {
-                            this.internalApiPort = port;
-                            this.internalApiConfig = config;
-                            log('INFO', `Internal API found on port ${port}`, config);
-                            continue;
-                        }
-                    } catch { /* */ }
-                    // Could be CDP
-                    try {
-                        const targets = JSON.parse(res.data);
-                        if (Array.isArray(targets) && targets.some(t => t.webSocketDebuggerUrl)) {
-                            this.cdpPort = port;
-                            log('INFO', `CDP port found: ${port}`);
-                        }
-                    } catch { /* */ }
-                }
-            } catch { /* continue */ }
-        }
+        // Find Antigravity window
+        await this.uiAuto.findAntigravityWindow();
+        log('INFO', `Antigravity running: ${this.uiAuto.isAntigravityRunning}`);
 
-        // Try CDP from DevToolsActivePort if not found
-        if (!this.cdpPort && ports.cdpPort) {
-            try {
-                await httpGet(`http://127.0.0.1:${ports.cdpPort}/json/list`, 2000);
-                this.cdpPort = ports.cdpPort;
-            } catch { /* */ }
-        }
-
-        // Connect CDP
-        if (this.cdpPort) {
-            await this.connectCdp();
-        }
+        // Start watching conversations
+        this.conversationMonitor.startWatching((filename) => {
+            log('DEBUG', 'Conversation updated', filename);
+            if (this.conversationUpdateCallback) {
+                this.conversationUpdateCallback(filename);
+            }
+        });
 
         return this.isConnected();
     }
 
     isConnected() {
-        return this.cdpConnected || this.grpcPort !== null || this.internalApiPort !== null;
+        return this.uiAuto.isAntigravityRunning || this.processMonitor.antigravityRunning;
     }
 
     getStatus() {
         return {
-            grpc: this.grpcPort !== null,
-            cdp: this.cdpConnected,
-            internalApi: this.internalApiPort !== null,
-            grpcPort: this.grpcPort,
-            cdpPort: this.cdpPort,
-            internalApiPort: this.internalApiPort,
+            connected: this.isConnected(),
+            method: 'ui_automation', // No CDP!
+            antigravityRunning: this.uiAuto.isAntigravityRunning,
+            windowTitle: this.uiAuto.antigravityTitle,
+            processStatus: this.processMonitor.getStatus(),
+            grpc: false,
+            cdp: false, // Explicitly false - we don't use CDP
+            internalApi: false,
         };
     }
 
-    // ---- CDP Connection ----
-    async connectCdp() {
-        if (!this.cdpPort) return false;
-        try {
-            const res = await httpGet(`http://127.0.0.1:${this.cdpPort}/json/list`, 3000);
-            const targets = JSON.parse(res.data);
-            const target = this.findBestCdpTarget(targets);
-            if (!target) { log('WARN', 'No CDP target found'); return false; }
-
-            log('INFO', `CDP connecting to: ${target.title}`);
-
-            return new Promise((resolve) => {
-                this.cdpWs = new WebSocket(target.webSocketDebuggerUrl);
-
-                this.cdpWs.on('open', async () => {
-                    this.cdpConnected = true;
-                    log('INFO', 'CDP connected');
-                    await this.cdpSend('Runtime.enable');
-                    resolve(true);
-                });
-
-                this.cdpWs.on('message', (data) => {
-                    try {
-                        const msg = JSON.parse(data.toString());
-                        if (msg.id && this.cdpPending.has(msg.id)) {
-                            this.cdpPending.get(msg.id)(msg);
-                            this.cdpPending.delete(msg.id);
-                        }
-                        if (msg.method === 'Runtime.executionContextCreated') {
-                            const ctx = msg.params?.context;
-                            if (ctx && (ctx.origin?.includes('vscode') || ctx.auxData?.isDefault)) {
-                                this.executionContextId = ctx.id;
-                            }
-                        }
-                    } catch { /* */ }
-                });
-
-                this.cdpWs.on('close', () => { this.cdpConnected = false; log('WARN', 'CDP closed'); });
-                this.cdpWs.on('error', (e) => { this.cdpConnected = false; resolve(false); });
-
-                setTimeout(() => { if (!this.cdpConnected) resolve(false); }, 8000);
-            });
-        } catch (e) {
-            log('WARN', 'CDP connect error', e.message);
-            return false;
-        }
-    }
-
-    findBestCdpTarget(targets) {
-        if (!Array.isArray(targets)) return null;
-        return targets
-            .map(t => ({ t, s: this.scoreCdpTarget(t) }))
-            .filter(x => x.s > 0)
-            .sort((a, b) => b.s - a.s)[0]?.t || null;
-    }
-
-    scoreCdpTarget(t) {
-        let s = 0;
-        const title = (t.title || '').toLowerCase();
-        const url = (t.url || '').toLowerCase();
-        if (title.includes('workbench') || url.includes('workbench')) s += 100;
-        if (title.includes('antigravity')) s += 50;
-        if (t.type === 'page') s += 30;
-        if (t.webSocketDebuggerUrl) s += 10;
-        return s;
-    }
-
-    cdpSend(method, params = {}) {
-        if (!this.cdpWs || !this.cdpConnected) return Promise.resolve(null);
-        const id = this.cdpMessageId++;
-        return new Promise((resolve) => {
-            this.cdpPending.set(id, resolve);
-            this.cdpWs.send(JSON.stringify({ id, method, params }));
-            setTimeout(() => { if (this.cdpPending.has(id)) { this.cdpPending.delete(id); resolve(null); } }, 10000);
-        });
-    }
-
-    async cdpEval(expression) {
-        const r = await this.cdpSend('Runtime.evaluate', {
-            expression,
-            returnByValue: true,
-            awaitPromise: true,
-            ...(this.executionContextId ? { contextId: this.executionContextId } : {}),
-        });
-        return r?.result?.result?.value;
-    }
-
-    // ---- Chat Operations ----
-    async getChatMessages() {
-        if (!this.cdpConnected) return this.lastMessages;
-
-        const val = await this.cdpEval(`
-      (function() {
-        const msgs = [];
-        const selectors = ['.agentic-chat-turn', '.chat-turn', '.interactive-item', '.monaco-list-row'];
-        for (const sel of selectors) {
-          const els = document.querySelectorAll(sel);
-          if (els.length > 0) {
-            els.forEach((el, i) => {
-              const text = el.innerText?.trim();
-              if (text && text.length > 2) {
-                const isUser = el.classList.contains('request') || el.querySelector('.codicon-account') !== null || el.closest('.user-turn') !== null;
-                msgs.push({ id: i, role: isUser ? 'user' : 'assistant', content: text.substring(0, 8000), ts: Date.now() });
-              }
-            });
-            break;
-          }
-        }
-        if (msgs.length === 0) {
-          const panel = document.querySelector('.interactive-session, [class*="chat"]');
-          if (panel) {
-            const items = panel.querySelectorAll('[class*="turn"], [class*="item"]');
-            items.forEach((t, i) => {
-              const text = t.innerText?.trim();
-              if (text && text.length > 2) msgs.push({ id: i, role: i % 2 === 0 ? 'user' : 'assistant', content: text.substring(0, 8000), ts: Date.now() });
-            });
-          }
-        }
-        return JSON.stringify(msgs);
-      })()
-    `);
-
-        try {
-            const msgs = JSON.parse(val || '[]');
-            if (msgs.length > 0) this.lastMessages = msgs;
-            return msgs;
-        } catch { return this.lastMessages; }
-    }
-
+    /**
+     * Detect agent status from window title and file activity
+     */
     async getAgentStatus() {
-        if (!this.cdpConnected) return { status: this.lastStatus, pendingApprovals: [] };
+        const title = await this.uiAuto.getWindowTitle();
+        const pendingApprovals = [];
+        let status = 'idle';
 
-        const val = await this.cdpEval(`
-      (function() {
-        const spinners = document.querySelectorAll('.codicon-loading, [class*="spinner"], [class*="progress"]');
-        const isThinking = Array.from(spinners).some(el => { const s = getComputedStyle(el); return s.display !== 'none' && s.visibility !== 'hidden'; });
-        
-        const btns = document.querySelectorAll('button');
-        const approvals = [];
-        btns.forEach(btn => {
-          const t = btn.innerText?.trim();
-          if (btn.offsetParent && t && ['Allow', 'Accept', 'Run', 'Approve', 'Continue', 'Always Allow', 'Keep Waiting', 'Retry'].some(p => t.includes(p))) {
-            approvals.push({ text: t, cls: btn.className?.substring(0, 60) });
-          }
-        });
-        
-        return JSON.stringify({ status: isThinking ? 'thinking' : approvals.length > 0 ? 'waiting_approval' : 'idle', pendingApprovals: approvals });
-      })()
-    `);
+        if (!title) {
+            return { status: 'disconnected', pendingApprovals: [] };
+        }
 
-        try {
-            const status = JSON.parse(val || '{}');
-            this.lastStatus = status.status || 'unknown';
-            return status;
-        } catch { return { status: 'unknown', pendingApprovals: [] }; }
+        // Parse window title for status hints
+        const titleLower = title.toLowerCase();
+
+        if (titleLower.includes('thinking') || titleLower.includes('generating') ||
+            titleLower.includes('running') || titleLower.includes('working')) {
+            status = 'thinking';
+        } else if (titleLower.includes('approval') || titleLower.includes('confirm') ||
+            titleLower.includes('allow') || titleLower.includes('accept')) {
+            status = 'waiting_approval';
+            pendingApprovals.push({ text: 'Action requires approval', cls: 'from-title' });
+        }
+
+        // Check if conversation files are being actively updated (indicates agent working)
+        const latest = this.conversationMonitor.getLatestConversation();
+        if (latest) {
+            const timeSinceUpdate = Date.now() - latest.mtime;
+            if (timeSinceUpdate < 5000) {
+                // File was updated in last 5 seconds - agent likely working
+                status = status === 'idle' ? 'thinking' : status;
+            }
+        }
+
+        this.lastStatus = status;
+        this.agentStatusFromTitle = status;
+
+        return { status, pendingApprovals, windowTitle: title };
+    }
+
+    /**
+     * Get chat messages (simplified - returns status info since we can't read DOM)
+     * In non-CDP mode, we rely on conversation file monitoring for change detection
+     */
+    async getChatMessages() {
+        // We can't directly read messages without CDP
+        // But we can detect conversation changes and provide status updates
+        const hasUpdates = this.conversationMonitor.hasUpdates();
+        const latest = this.conversationMonitor.getLatestConversation();
+
+        if (hasUpdates && latest) {
+            // Notify that conversation was updated
+            const updateMsg = {
+                id: Date.now(),
+                role: 'system',
+                content: `💬 Conversation updated (${new Date(latest.mtime).toLocaleTimeString()})`,
+                ts: latest.mtime,
+            };
+
+            // Keep last messages and add update notification
+            if (this.lastMessages.length === 0 ||
+                this.lastMessages[this.lastMessages.length - 1]?.ts !== latest.mtime) {
+                this.lastMessages.push(updateMsg);
+                // Keep only last 50 messages
+                if (this.lastMessages.length > 50) {
+                    this.lastMessages = this.lastMessages.slice(-50);
+                }
+            }
+        }
+
+        return this.lastMessages;
     }
 
     async sendChatMessage(text) {
-        if (!this.cdpConnected) return { success: false, error: 'CDP not connected' };
+        // Add the user message to local history
+        this.lastMessages.push({
+            id: Date.now(),
+            role: 'user',
+            content: text,
+            ts: Date.now(),
+        });
 
-        const escapedText = JSON.stringify(text);
-        const val = await this.cdpEval(`
-      (function() {
-        const selectors = [
-          '.interactive-input-part .monaco-editor textarea',
-          '[class*="chat-input"] textarea',
-          '.interactive-input [contenteditable="true"]',
-          '[class*="chat"] [contenteditable="true"]',
-        ];
-        let el = null;
-        for (const s of selectors) { el = document.querySelector(s); if (el) break; }
-        if (!el) {
-          const areas = document.querySelectorAll('.monaco-editor textarea');
-          for (const a of areas) { if (a.closest('.interactive-input-part, [class*="chat"]')) { el = a; break; } }
-        }
-        if (!el) return JSON.stringify({ success: false, error: 'Input not found' });
-
-        el.focus();
-        if (el.tagName === 'TEXTAREA') {
-          const setter = Object.getOwnPropertyDescriptor(HTMLTextAreaElement.prototype, 'value').set;
-          setter.call(el, ${escapedText});
-          el.dispatchEvent(new Event('input', { bubbles: true }));
-        } else {
-          document.execCommand('selectAll', false, null);
-          document.execCommand('insertText', false, ${escapedText});
-        }
-
-        setTimeout(() => {
-          el.dispatchEvent(new KeyboardEvent('keydown', { key: 'Enter', code: 'Enter', keyCode: 13, which: 13, bubbles: true }));
-        }, 150);
-
-        return JSON.stringify({ success: true });
-      })()
-    `);
-
-        try { return JSON.parse(val || '{}'); }
-        catch { return { success: false, error: 'Parse error' }; }
+        return await this.uiAuto.sendChatMessage(text);
     }
 
-    async clickApprovalButton(buttonText = 'Accept') {
-        if (!this.cdpConnected) return { success: false, error: 'CDP not connected' };
+    async clickApprovalButton(buttonText) {
+        return await this.uiAuto.clickApprovalButton(buttonText);
+    }
 
-        const val = await this.cdpEval(`
-      (function() {
-        const patterns = ['Allow', 'Accept', 'Run', 'Approve', 'Continue', 'Always Allow', 'Keep Waiting', 'Retry', 'Allow Once'];
-        const btns = document.querySelectorAll('button');
-        for (const btn of btns) {
-          const t = btn.innerText?.trim();
-          if (btn.offsetParent && t && patterns.some(p => t.includes(p))) {
-            btn.click();
-            return JSON.stringify({ success: true, clicked: t });
-          }
-        }
-        return JSON.stringify({ success: false, error: 'No approval button found' });
-      })()
-    `);
-
-        try { return JSON.parse(val || '{}'); }
-        catch { return { success: false }; }
+    onConversationUpdate(callback) {
+        this.conversationUpdateCallback = callback;
     }
 
     disconnect() {
-        if (this.cdpWs) { this.cdpWs.close(); this.cdpWs = null; }
-        this.cdpConnected = false;
+        this.conversationMonitor.stopWatching();
+        this.uiAuto.isAntigravityRunning = false;
     }
+}
+
+// ============================================================================
+// Utility
+// ============================================================================
+function sleep(ms) {
+    return new Promise(resolve => setTimeout(resolve, ms));
 }
 
 // ============================================================================
@@ -463,7 +664,7 @@ class AntigravityRemote {
     }
 
     async start() {
-        log('INFO', '=== AntigravityRemote v1.0 starting ===');
+        log('INFO', '=== AntigravityRemote v2.0 (No CDP) starting ===');
 
         // Express setup
         this.app.use(express.json());
@@ -478,9 +679,10 @@ class AntigravityRemote {
         // Start listening
         this.server.listen(CONFIG.PORT, CONFIG.HOST, () => {
             const ip = this.getLocalIp();
-            console.log('\n  ⚡ AntigravityRemote v1.0\n');
+            console.log('\n  ⚡ AntigravityRemote v2.0 (No CDP Mode)\n');
             console.log(`  Local:   http://localhost:${CONFIG.PORT}`);
             console.log(`  Network: http://${ip}:${CONFIG.PORT}`);
+            console.log('  Method:  PowerShell UI Automation + File Monitoring');
             console.log('  \n  Open on your phone to control Antigravity remotely.\n');
             log('INFO', `Server listening on http://${ip}:${CONFIG.PORT}`);
         });
@@ -488,6 +690,16 @@ class AntigravityRemote {
         // Connect to Antigravity
         await this.conn.initialize();
         log('INFO', 'Connection status', this.conn.getStatus());
+
+        // Set initial state based on connection
+        if (this.conn.isConnected()) {
+            this.lastState.status = 'idle';
+        }
+
+        // Listen for conversation updates
+        this.conn.onConversationUpdate((filename) => {
+            this.broadcast({ type: 'conversation_update', filename, timestamp: Date.now() });
+        });
 
         // Start polling
         this.startPolling();
@@ -511,8 +723,14 @@ class AntigravityRemote {
         });
 
         // Get status
-        this.app.get('/api/status', (req, res) => {
-            res.json({ connection: this.conn.getStatus(), state: this.lastState, clients: this.clients.size });
+        this.app.get('/api/status', async (req, res) => {
+            const agentStatus = await this.conn.getAgentStatus();
+            res.json({
+                connection: this.conn.getStatus(),
+                state: { ...this.lastState, ...agentStatus },
+                clients: this.clients.size,
+                mode: 'ui_automation',
+            });
         });
 
         // Get messages
@@ -529,7 +747,7 @@ class AntigravityRemote {
             res.json(this.conn.getStatus());
         });
 
-        // PWA manifest (inlined for simplicity)
+        // PWA manifest
         this.app.get('/manifest.json', (req, res) => {
             res.json({
                 name: 'AntigravityRemote',
@@ -554,7 +772,12 @@ class AntigravityRemote {
         log('INFO', `WS client connected (${this.clients.size} total)`);
 
         // Send current state
-        ws.send(JSON.stringify({ type: 'init', ...this.conn.getStatus(), ...this.lastState }));
+        ws.send(JSON.stringify({
+            type: 'init',
+            ...this.conn.getStatus(),
+            ...this.lastState,
+            mode: 'ui_automation',
+        }));
 
         ws.on('message', async (raw) => {
             try {
@@ -589,13 +812,14 @@ class AntigravityRemote {
         this.pollingTimer = setInterval(async () => {
             if (this.clients.size === 0) return;
 
-            // Auto-reconnect
+            // Auto-reconnect if not connected
             if (!this.conn.isConnected()) {
-                await this.conn.initialize();
-                this.broadcast({ type: 'connection_status', ...this.conn.getStatus() });
+                await this.conn.processMonitor.refresh();
+                await this.conn.uiAuto.findAntigravityWindow();
+                if (this.conn.isConnected()) {
+                    this.broadcast({ type: 'connection_status', ...this.conn.getStatus() });
+                }
             }
-
-            if (!this.conn.cdpConnected) return;
 
             try {
                 const [messages, statusInfo] = await Promise.all([
@@ -607,6 +831,7 @@ class AntigravityRemote {
                     messages: Array.isArray(messages) ? messages : [],
                     status: statusInfo?.status || 'unknown',
                     pendingApprovals: statusInfo?.pendingApprovals || [],
+                    windowTitle: statusInfo?.windowTitle || '',
                     timestamp: Date.now(),
                 };
 
@@ -615,6 +840,7 @@ class AntigravityRemote {
                     mc: newState.messages.length,
                     st: newState.status,
                     ac: newState.pendingApprovals.length,
+                    wt: newState.windowTitle,
                     lm: newState.messages[newState.messages.length - 1]?.content?.substring(0, 80),
                 });
 

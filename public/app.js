@@ -9,8 +9,9 @@
 const state = {
     ws: null,
     connected: false,
-    cdpConnected: false,
-    grpcConnected: false,
+    ideConnected: false,
+    connectionMode: 'ui_automation',
+    windowTitle: '',
     messages: [],
     agentStatus: 'disconnected',
     pendingApprovals: [],
@@ -107,8 +108,8 @@ function scheduleReconnect() {
 function handleMessage(data) {
     switch (data.type) {
         case 'init':
-            state.cdpConnected = data.cdp;
-            state.grpcConnected = data.grpc;
+            state.ideConnected = data.connected || data.antigravityRunning;
+            state.connectionMode = data.mode || 'ui_automation';
             if (data.messages && data.messages.length > 0) {
                 state.messages = data.messages;
                 renderMessages();
@@ -131,27 +132,29 @@ function handleMessage(data) {
                     renderMessages();
                 }
             }
+            if (data.windowTitle) {
+                state.windowTitle = data.windowTitle;
+            }
             updateAgentStatus(data.status);
             updateApprovalBanner(data.pendingApprovals || []);
             break;
 
         case 'connection_status':
-            state.cdpConnected = data.cdp;
-            state.grpcConnected = data.grpc;
+            state.ideConnected = data.connected || data.antigravityRunning;
+            state.connectionMode = data.mode || 'ui_automation';
             updateConnectionBadge();
             break;
 
-        case 'grpc_messages':
-            // gRPC stream data - merge with existing messages
-            if (data.messages && data.messages.length > 0) {
-                state.messages = data.messages;
-                renderMessages();
-            }
+        case 'conversation_update':
+            // File-based conversation update notification
+            showToast('💬 Conversation updated');
             break;
 
         case 'send_result':
             if (!data.success) {
                 showToast('Failed to send message: ' + (data.error || 'Unknown error'));
+            } else {
+                showToast('Message sent via keyboard ✓');
             }
             break;
 
@@ -178,10 +181,9 @@ function updateConnectionBadge() {
 
     badge.classList.remove('connected', 'disconnected');
 
-    if (state.cdpConnected || state.grpcConnected) {
+    if (state.ideConnected) {
         badge.classList.add('connected');
-        const via = state.grpcConnected ? 'gRPC' : 'CDP';
-        label.textContent = `Connected (${via})`;
+        label.textContent = 'Connected (UI Auto)';
     } else if (state.connected) {
         label.textContent = 'Server OK · No IDE';
     } else {
