@@ -523,6 +523,14 @@ function renderSnapshot(data) {
             '    padding: 10px 14px !important;\n' +
             '    margin-bottom: 4px !important;\n' +
             '}\n' +
+            '/* Remove inner background/border inside user message */\n' +
+            '[data-role="user"] .rounded-lg,\n' +
+            '[data-role="user"] [class*="bg-gray-500"] {\n' +
+            '    background-color: transparent !important;\n' +
+            '    border: none !important;\n' +
+            '    padding: 0 !important;\n' +
+            '    margin: 0 !important;\n' +
+            '}\n' +
             '\n' +
             '/* IDE text color class sync */\n' +
             '.text-ide-text-color {\n' +
