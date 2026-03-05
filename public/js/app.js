@@ -151,15 +151,10 @@ function connectWebSocket() {
             window.location.href = '/login.html';
             return;
         }
-        // Handle direct snapshot data from server (no HTTP roundtrip needed)
-        if (data.type === 'snapshot_data' && autoRefreshEnabled && !userIsScrolling) {
-            if (data.hash && data.hash === lastRenderedHash) return; // Skip identical
-            pendingSnapshot = data.snapshot;
-            lastRenderedHash = data.hash || '';
-            scheduleRender();
-        }
-        // Legacy: support old snapshot_update notification
+        // Hash-based dedup: only fetch if content actually changed
         if (data.type === 'snapshot_update' && autoRefreshEnabled && !userIsScrolling) {
+            if (data.hash && data.hash === lastRenderedHash) return; // Skip identical
+            lastRenderedHash = data.hash || '';
             loadSnapshot();
         }
     };

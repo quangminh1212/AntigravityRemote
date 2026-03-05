@@ -1421,16 +1421,15 @@ async function startPolling(wss) {
                     lastSnapshot = snapshot;
                     lastSnapshotHash = hash;
 
-                    // Broadcast snapshot data directly via WebSocket (eliminates HTTP roundtrip)
-                    const wsPayload = JSON.stringify({
-                        type: 'snapshot_data',
-                        hash: hash,
-                        snapshot: snapshot,
-                        timestamp: new Date().toISOString()
+                    // Broadcast lightweight notification via WebSocket (hash only)
+                    // Full snapshot data stays on server, client fetches via HTTP only when hash changes
+                    const wsNotify = JSON.stringify({
+                        type: 'snapshot_update',
+                        hash: hash
                     });
                     wss.clients.forEach(client => {
                         if (client.readyState === WebSocket.OPEN) {
-                            client.send(wsPayload);
+                            try { client.send(wsNotify); } catch (e) { /* ignore dead sockets */ }
                         }
                     });
 
