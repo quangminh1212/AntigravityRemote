@@ -18,7 +18,7 @@ const __filename = fileURLToPath(import.meta.url);
 const __dirname = dirname(__filename);
 
 const PORTS = [9000, 9001, 9002, 9003];
-const POLL_INTERVAL = 1000; // 1 second
+const POLL_INTERVAL = 500; // 500ms for smoother updates
 const SERVER_PORT = process.env.PORT || 3000;
 const APP_PASSWORD = process.env.APP_PASSWORD || 'antigravity';
 const AUTH_COOKIE_NAME = 'ag_auth_token';
@@ -1421,13 +1421,16 @@ async function startPolling(wss) {
                     lastSnapshot = snapshot;
                     lastSnapshotHash = hash;
 
-                    // Broadcast to all connected clients
+                    // Broadcast snapshot data directly via WebSocket (eliminates HTTP roundtrip)
+                    const wsPayload = JSON.stringify({
+                        type: 'snapshot_data',
+                        hash: hash,
+                        snapshot: snapshot,
+                        timestamp: new Date().toISOString()
+                    });
                     wss.clients.forEach(client => {
                         if (client.readyState === WebSocket.OPEN) {
-                            client.send(JSON.stringify({
-                                type: 'snapshot_update',
-                                timestamp: new Date().toISOString()
-                            }));
+                            client.send(wsPayload);
                         }
                     });
 
