@@ -1,6 +1,6 @@
 /**
  * AntigravityRemote - Frontend Application
- * PWA Chat Client for Antigravity IDE
+ * PWA Chat Client mirroring Antigravity IDE chat panel
  */
 
 // ============================================================================
@@ -18,27 +18,35 @@ const state = {
     reconnectAttempts: 0,
     maxReconnectAttempts: 50,
     reconnectDelay: 2000,
+    screenshotInterval: null,
+    screenshotRefreshMs: 2500,
+    settingsOpen: false,
 };
 
 // ============================================================================
-// DOM Elements
+// DOM Elements (lazy init after DOMContentLoaded)
 // ============================================================================
-const $ = (sel) => document.querySelector(sel);
-const $$ = (sel) => document.querySelectorAll(sel);
+let DOM = {};
 
-const DOM = {
-    chatMessages: $('#chatMessages'),
-    chatContainer: $('#chatContainer'),
-    messageInput: $('#messageInput'),
-    sendBtn: $('#sendBtn'),
-    connectionBadge: $('#connectionBadge'),
-    approvalBanner: $('#approvalBanner'),
-    approvalDesc: $('#approvalDesc'),
-    agentStatus: $('#agentStatus'),
-    statusIndicator: $('#statusIndicator'),
-    statusText: $('#statusText'),
-    reconnectOverlay: $('#reconnectOverlay'),
-};
+function initDOM() {
+    DOM = {
+        chatContainer: document.getElementById('chatContainer'),
+        chatContent: document.getElementById('chatContent'),
+        messageInput: document.getElementById('messageInput'),
+        sendBtn: document.getElementById('sendBtn'),
+        headerTitle: document.getElementById('headerTitle'),
+        connectionDot: document.getElementById('connectionDot'),
+        approvalBanner: document.getElementById('approvalBanner'),
+        approvalDesc: document.getElementById('approvalDesc'),
+        agentDot: document.getElementById('agentDot'),
+        agentStatusText: document.getElementById('agentStatusText'),
+        modelName: document.getElementById('modelName'),
+        reconnectOverlay: document.getElementById('reconnectOverlay'),
+        settingsPanel: document.getElementById('settingsPanel'),
+        connStatus: document.getElementById('connStatus'),
+        screenshotImg: document.getElementById('screenshotImg'),
+    };
+}
 
 // ============================================================================
 // WebSocket Connection
@@ -47,14 +55,20 @@ function connectWebSocket() {
     const protocol = window.location.protocol === 'https:' ? 'wss:' : 'ws:';
     const wsUrl = `${protocol}//${window.location.host}`;
 
-    state.ws = new WebSocket(wsUrl);
+    try {
+        state.ws = new WebSocket(wsUrl);
+    } catch (e) {
+        console.error('[WS] Failed to create:', e);
+        scheduleReconnect();
+        return;
+    }
 
     state.ws.onopen = () => {
         console.log('[WS] Connected');
         state.connected = true;
         state.reconnectAttempts = 0;
-        DOM.reconnectOverlay.classList.add('hidden');
-        updateConnectionBadge();
+        DOM.reconnectOverlay?.classList.add('hidden');
+        updateConnectionDot();
     };
 
     state.ws.onmessage = (event) => {
@@ -69,16 +83,18 @@ function connectWebSocket() {
     state.ws.onclose = () => {
         console.log('[WS] Disconnected');
         state.connected = false;
-        updateConnectionBadge();
+        updateConnectionDot();
         scheduleReconnect();
     };
 
-    state.ws.onerror = (err) => {
-        console.error('[WS] Error:', err);
-    };
+    state.ws.onerror = () => { };
+}
 
-    // Heartbeat
-    setInterval(() => {
+// Heartbeat
+let heartbeatTimer = null;
+function startHeartbeat() {
+    if (heartbeatTimer) clearInterval(heartbeatTimer);
+    heartbeatTimer = setInterval(() => {
         if (state.ws && state.ws.readyState === WebSocket.OPEN) {
             state.ws.send(JSON.stringify({ type: 'ping' }));
         }
@@ -87,7 +103,7 @@ function connectWebSocket() {
 
 function scheduleReconnect() {
     if (state.reconnectAttempts >= state.maxReconnectAttempts) {
-        DOM.reconnectOverlay.classList.remove('hidden');
+        DOM.reconnectOverlay?.classList.remove('hidden');
         return;
     }
 
@@ -110,15 +126,17 @@ function handleMessage(data) {
         case 'init':
             state.ideConnected = data.connected || data.antigravityRunning;
             state.connectionMode = data.mode || 'ui_automation';
+            state.windowTitle = data.windowTitle || '';
             if (data.messages && data.messages.length > 0) {
                 state.messages = data.messages;
-                renderMessages();
             }
             updateAgentStatus(data.status || 'idle');
-            updateConnectionBadge();
+            updateConnectionDot();
+            updateHeader();
             if (data.pendingApprovals) {
                 updateApprovalBanner(data.pendingApprovals);
             }
+            refreshScreenshot();
             break;
 
         case 'state_update':
@@ -129,11 +147,12 @@ function handleMessage(data) {
 
                 if (changed) {
                     state.messages = data.messages;
-                    renderMessages();
+                    refreshScreenshot();
                 }
             }
             if (data.windowTitle) {
                 state.windowTitle = data.windowTitle;
+                updateHeader();
             }
             updateAgentStatus(data.status);
             updateApprovalBanner(data.pendingApprovals || []);
@@ -142,28 +161,27 @@ function handleMessage(data) {
         case 'connection_status':
             state.ideConnected = data.connected || data.antigravityRunning;
             state.connectionMode = data.mode || 'ui_automation';
-            updateConnectionBadge();
+            updateConnectionDot();
             break;
 
         case 'conversation_update':
-            // File-based conversation update notification
-            showToast('💬 Conversation updated');
+            refreshScreenshot();
             break;
 
         case 'send_result':
             if (!data.success) {
-                showToast('Failed to send message: ' + (data.error || 'Unknown error'));
+                showToast('❌ ' + (data.error || 'Send failed'));
             } else {
-                showToast('Message sent via keyboard ✓');
+                showToast('✓ Message sent');
             }
             break;
 
         case 'approve_result':
             if (data.success) {
-                showToast('Action approved ✓');
-                DOM.approvalBanner.classList.add('hidden');
+                showToast('✓ Approved');
+                DOM.approvalBanner?.classList.add('hidden');
             } else {
-                showToast('Failed to approve: ' + (data.error || 'Unknown error'));
+                showToast('❌ ' + (data.error || 'Approve failed'));
             }
             break;
 
@@ -175,50 +193,83 @@ function handleMessage(data) {
 // ============================================================================
 // UI Updates
 // ============================================================================
-function updateConnectionBadge() {
-    const badge = DOM.connectionBadge;
-    const label = badge.querySelector('.label');
+function updateConnectionDot() {
+    const dot = DOM.connectionDot;
+    if (!dot) return;
 
-    badge.classList.remove('connected', 'disconnected');
+    dot.classList.remove('connected', 'disconnected');
 
     if (state.ideConnected) {
-        badge.classList.add('connected');
-        const modes = { hybrid: 'Hybrid', clipboard_reader: 'Clipboard', ui_automation: 'UI Auto' };
-        const modeLabel = modes[state.connectionMode] || 'Connected';
-        label.textContent = `Connected (${modeLabel})`;
+        dot.classList.add('connected');
+        dot.title = 'Connected to Antigravity';
     } else if (state.connected) {
-        label.textContent = 'Server OK · No IDE';
+        dot.title = 'Server OK · No IDE';
     } else {
-        badge.classList.add('disconnected');
-        label.textContent = 'Disconnected';
+        dot.classList.add('disconnected');
+        dot.title = 'Disconnected';
+    }
+
+    // Update settings panel connection status
+    if (DOM.connStatus) {
+        if (state.ideConnected) {
+            DOM.connStatus.textContent = 'IDE Connected';
+            DOM.connStatus.style.color = 'var(--success)';
+        } else if (state.connected) {
+            DOM.connStatus.textContent = 'Server Only';
+            DOM.connStatus.style.color = 'var(--warning)';
+        } else {
+            DOM.connStatus.textContent = 'Disconnected';
+            DOM.connStatus.style.color = 'var(--danger)';
+        }
+    }
+}
+
+function updateHeader() {
+    if (!DOM.headerTitle) return;
+
+    if (state.windowTitle) {
+        // Extract conversation title from window title
+        // e.g. "Refine Antigravity Chat Reader" from "en Agent Manager ... Refine Antigravity Chat Reader + ..."
+        const cleaned = state.windowTitle.replace(/^\s*en\s+Agent\s+Manager\s*/i, '').trim();
+        DOM.headerTitle.textContent = cleaned || 'Antigravity Chat';
+    }
+
+    // Extract model name from window title if available
+    if (state.windowTitle && DOM.modelName) {
+        const modelMatch = state.windowTitle.match(/Claude\s+[\w.]+(?:\s*\([^)]+\))?/i);
+        if (modelMatch) {
+            DOM.modelName.textContent = modelMatch[0];
+        }
     }
 }
 
 function updateAgentStatus(status) {
     state.agentStatus = status;
-    const indicator = DOM.statusIndicator;
-    const text = DOM.statusText;
+    const dot = DOM.agentDot;
+    const text = DOM.agentStatusText;
+    if (!dot || !text) return;
 
-    indicator.className = 'status-indicator';
+    dot.className = 'agent-dot';
 
     switch (status) {
         case 'thinking':
-            indicator.classList.add('thinking');
-            text.textContent = 'Agent is working...';
+            dot.classList.add('working');
+            text.textContent = 'Working';
             break;
         case 'waiting_approval':
-            indicator.classList.add('waiting');
+            dot.classList.add('waiting');
             text.textContent = 'Waiting for approval';
             break;
         case 'idle':
-            indicator.classList.add('idle');
-            text.textContent = 'Agent idle';
+            dot.classList.add('idle');
+            text.textContent = 'Idle';
             break;
         case 'disconnected':
-            text.textContent = 'Not connected';
+            dot.classList.add('disconnected');
+            text.textContent = 'Disconnected';
             break;
         default:
-            text.textContent = 'Unknown state';
+            text.textContent = status || 'Unknown';
     }
 }
 
@@ -226,79 +277,53 @@ function updateApprovalBanner(approvals) {
     state.pendingApprovals = approvals;
 
     if (approvals.length > 0) {
-        DOM.approvalBanner.classList.remove('hidden');
-        DOM.approvalDesc.textContent = approvals.map(a => a.text).join(', ') || 'Pending action';
-
-        // Vibrate on mobile if supported
+        DOM.approvalBanner?.classList.remove('hidden');
+        if (DOM.approvalDesc) {
+            DOM.approvalDesc.textContent = approvals.map(a => a.text).join(', ') || 'Pending action';
+        }
+        // Vibrate on mobile
         if (navigator.vibrate) {
-            navigator.vibrate([100, 50, 100]);
+            navigator.vibrate([80, 40, 80]);
         }
     } else {
-        DOM.approvalBanner.classList.add('hidden');
+        DOM.approvalBanner?.classList.add('hidden');
     }
 }
 
 // ============================================================================
-// Chat Rendering
+// Screenshot Refresh
 // ============================================================================
-function renderMessages() {
-    // Refresh screenshot image to show latest chat panel state
-    refreshScreenshot();
-}
-
-let screenshotInterval = null;
-
 function refreshScreenshot() {
-    const img = document.getElementById('screenshotImg');
-    if (img) {
-        // Add timestamp to bust cache
-        img.src = '/api/screenshot?t=' + Date.now();
-    }
+    const img = DOM.screenshotImg;
+    if (!img) return;
+
+    const newSrc = '/api/screenshot?t=' + Date.now();
+    img.src = newSrc;
 }
 
 function startScreenshotRefresh() {
-    if (screenshotInterval) return;
-    // Refresh every 2.5 seconds
-    screenshotInterval = setInterval(refreshScreenshot, 2500);
-    // Also refresh immediately
+    stopScreenshotRefresh();
+    if (state.screenshotRefreshMs <= 0) return;
+
+    state.screenshotInterval = setInterval(refreshScreenshot, state.screenshotRefreshMs);
     refreshScreenshot();
 }
 
-function formatMessage(text) {
-    if (!text) return '';
-
-    // Escape HTML
-    let html = text
-        .replace(/&/g, '&amp;')
-        .replace(/</g, '&lt;')
-        .replace(/>/g, '&gt;');
-
-    // Code blocks
-    html = html.replace(/```(\w*)\n?([\s\S]*?)```/g, (_, lang, code) => {
-        return `<pre><code>${code.trim()}</code></pre>`;
-    });
-
-    // Inline code
-    html = html.replace(/`([^`]+)`/g, '<code>$1</code>');
-
-    // Bold
-    html = html.replace(/\*\*(.+?)\*\*/g, '<strong>$1</strong>');
-
-    // Line breaks
-    html = html.replace(/\n/g, '<br>');
-
-    return html;
+function stopScreenshotRefresh() {
+    if (state.screenshotInterval) {
+        clearInterval(state.screenshotInterval);
+        state.screenshotInterval = null;
+    }
 }
 
-function isScrolledToBottom() {
-    const container = DOM.chatContainer;
-    return container.scrollHeight - container.clientHeight <= container.scrollTop + 50;
+function updateRefreshInterval(ms) {
+    state.screenshotRefreshMs = parseInt(ms) || 0;
+    startScreenshotRefresh();
 }
 
-function scrollToBottom() {
-    requestAnimationFrame(() => {
-        DOM.chatContainer.scrollTop = DOM.chatContainer.scrollHeight;
-    });
+function forceRefresh() {
+    refreshScreenshot();
+    showToast('Refreshed');
 }
 
 // ============================================================================
@@ -306,18 +331,9 @@ function scrollToBottom() {
 // ============================================================================
 async function sendMessage() {
     const input = DOM.messageInput;
+    if (!input) return;
     const text = input.value.trim();
     if (!text) return;
-
-    // Add to local state immediately
-    state.messages.push({
-        id: Date.now(),
-        role: 'user',
-        content: text,
-        timestamp: Date.now(),
-    });
-    renderMessages();
-    scrollToBottom();
 
     // Clear input
     input.value = '';
@@ -337,12 +353,17 @@ async function sendMessage() {
             });
             const result = await res.json();
             if (!result.success) {
-                showToast('Send failed: ' + (result.error || 'Unknown'));
+                showToast('❌ ' + (result.error || 'Send failed'));
+            } else {
+                showToast('✓ Sent');
             }
-        } catch (err) {
-            showToast('Connection error');
+        } catch {
+            showToast('❌ Connection error');
         }
     }
+
+    // Refresh screenshot after a delay to see the result
+    setTimeout(refreshScreenshot, 1500);
 }
 
 async function approveAction() {
@@ -357,24 +378,23 @@ async function approveAction() {
             });
             const result = await res.json();
             if (result.success) {
-                showToast('Action approved ✓');
-                DOM.approvalBanner.classList.add('hidden');
+                showToast('✓ Approved');
+                DOM.approvalBanner?.classList.add('hidden');
             }
-        } catch (err) {
-            showToast('Failed to approve');
+        } catch {
+            showToast('❌ Failed');
         }
     }
 }
 
 function rejectAction() {
-    // Just hide the banner - agent will timeout
-    DOM.approvalBanner.classList.add('hidden');
-    showToast('Action dismissed');
+    DOM.approvalBanner?.classList.add('hidden');
+    showToast('Dismissed');
 }
 
 async function reconnect() {
     state.reconnectAttempts = 0;
-    DOM.reconnectOverlay.classList.add('hidden');
+    DOM.reconnectOverlay?.classList.add('hidden');
 
     try {
         await fetch('/api/reconnect', { method: 'POST' });
@@ -383,39 +403,31 @@ async function reconnect() {
     connectWebSocket();
 }
 
+function toggleSettings() {
+    state.settingsOpen = !state.settingsOpen;
+    if (state.settingsOpen) {
+        DOM.settingsPanel?.classList.remove('hidden');
+    } else {
+        DOM.settingsPanel?.classList.add('hidden');
+    }
+}
+
 // ============================================================================
 // Toast Notification
 // ============================================================================
-function showToast(message, duration = 3000) {
-    // Remove existing toast
+function showToast(message, duration = 2500) {
     const existing = document.querySelector('.toast');
     if (existing) existing.remove();
 
     const toast = document.createElement('div');
     toast.className = 'toast';
     toast.textContent = message;
-    toast.style.cssText = `
-    position: fixed;
-    bottom: 80px;
-    left: 50%;
-    transform: translateX(-50%);
-    background: var(--bg-elevated);
-    color: var(--text-primary);
-    padding: 10px 20px;
-    border-radius: var(--radius-md);
-    font-size: 13px;
-    font-family: var(--font-sans);
-    border: 1px solid var(--border-strong);
-    box-shadow: var(--shadow-lg);
-    z-index: 500;
-    animation: fadeInUp 0.25s ease;
-  `;
     document.body.appendChild(toast);
 
     setTimeout(() => {
         toast.style.opacity = '0';
-        toast.style.transition = 'opacity 0.3s';
-        setTimeout(() => toast.remove(), 300);
+        toast.style.transition = 'opacity 0.25s';
+        setTimeout(() => toast.remove(), 250);
     }, duration);
 }
 
@@ -425,15 +437,14 @@ function showToast(message, duration = 3000) {
 function setupInputHandlers() {
     const input = DOM.messageInput;
     const sendBtn = DOM.sendBtn;
+    if (!input || !sendBtn) return;
 
-    // Auto-resize textarea
     input.addEventListener('input', () => {
         input.style.height = 'auto';
-        input.style.height = Math.min(input.scrollHeight, 120) + 'px';
+        input.style.height = Math.min(input.scrollHeight, 100) + 'px';
         sendBtn.disabled = !input.value.trim();
     });
 
-    // Enter to send (Shift+Enter for new line)
     input.addEventListener('keydown', (e) => {
         if (e.key === 'Enter' && !e.shiftKey) {
             e.preventDefault();
@@ -450,11 +461,8 @@ function setupInputHandlers() {
 async function registerServiceWorker() {
     if ('serviceWorker' in navigator) {
         try {
-            const reg = await navigator.serviceWorker.register('/sw.js');
-            console.log('[SW] Registered', reg.scope);
-        } catch (err) {
-            console.log('[SW] Registration failed:', err);
-        }
+            await navigator.serviceWorker.register('/sw.js');
+        } catch { /* ignore */ }
     }
 }
 
@@ -462,15 +470,22 @@ async function registerServiceWorker() {
 // Initialize
 // ============================================================================
 document.addEventListener('DOMContentLoaded', () => {
+    initDOM();
     setupInputHandlers();
     connectWebSocket();
+    startHeartbeat();
     registerServiceWorker();
     startScreenshotRefresh();
 
-    // Handle visibility change - reconnect when app comes to foreground
+    // Handle visibility change
     document.addEventListener('visibilitychange', () => {
-        if (!document.hidden && !state.connected) {
-            connectWebSocket();
+        if (document.hidden) {
+            stopScreenshotRefresh();
+        } else {
+            startScreenshotRefresh();
+            if (!state.connected) {
+                connectWebSocket();
+            }
         }
     });
 });

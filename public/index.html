@@ -6,8 +6,8 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
     <meta name="apple-mobile-web-app-capable" content="yes">
     <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
-    <meta name="theme-color" content="#0a0a0f">
-    <meta name="description" content="Mobile chat client for Antigravity IDE - approve actions, send messages remotely">
+    <meta name="theme-color" content="#1e1e1e">
+    <meta name="description" content="Mobile chat client for Antigravity IDE - mirror chat panel remotely">
     <title>AntigravityRemote</title>
     <link rel="manifest" href="/manifest.json">
     <link rel="icon" href="/icon-192.svg" type="image/svg+xml">
@@ -19,94 +19,139 @@
 </head>
 
 <body>
-    <!-- Status Bar -->
-    <header id="statusBar">
-        <div class="status-left">
-            <div class="logo">
-                <svg width="24" height="24" viewBox="0 0 24 24" fill="none">
-                    <circle cx="12" cy="12" r="10" stroke="url(#grad)" stroke-width="2" />
-                    <path d="M12 6L8 14h3v4l4-8h-3V6z" fill="url(#grad)" />
-                    <defs>
-                        <linearGradient id="grad" x1="0" y1="0" x2="24" y2="24">
-                            <stop offset="0%" stop-color="#818cf8" />
-                            <stop offset="100%" stop-color="#6366f1" />
-                        </linearGradient>
-                    </defs>
+    <!-- Antigravity-style Header -->
+    <header id="headerBar">
+        <div class="header-left">
+            <div class="ag-logo">
+                <svg width="18" height="18" viewBox="0 0 24 24" fill="none">
+                    <circle cx="12" cy="12" r="10" stroke="currentColor" stroke-width="1.5" opacity="0.6" />
+                    <path d="M12 6L8 14h3v4l4-8h-3V6z" fill="currentColor" />
                 </svg>
-                <span class="logo-text">AG Remote</span>
             </div>
+            <span class="header-title" id="headerTitle">Antigravity Chat</span>
         </div>
-        <div class="status-right">
-            <div class="connection-badge" id="connectionBadge">
-                <span class="dot"></span>
-                <span class="label">Connecting...</span>
-            </div>
+        <div class="header-right">
+            <div class="connection-dot" id="connectionDot" title="Connection status"></div>
+            <button class="header-btn" id="btnRefresh" onclick="forceRefresh()" title="Refresh">
+                <svg width="14" height="14" viewBox="0 0 16 16" fill="none">
+                    <path d="M14 8A6 6 0 1 1 8 2" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" />
+                    <path d="M8 0L11 2L8 4" stroke="currentColor" stroke-width="1.5" stroke-linecap="round"
+                        stroke-linejoin="round" />
+                </svg>
+            </button>
+            <button class="header-btn" id="btnSettings" onclick="toggleSettings()" title="Settings">
+                <svg width="14" height="14" viewBox="0 0 16 16" fill="none">
+                    <circle cx="8" cy="2" r="1.5" fill="currentColor" />
+                    <circle cx="8" cy="8" r="1.5" fill="currentColor" />
+                    <circle cx="8" cy="14" r="1.5" fill="currentColor" />
+                </svg>
+            </button>
         </div>
     </header>
 
     <!-- Approval Banner -->
     <div id="approvalBanner" class="approval-banner hidden">
         <div class="approval-content">
-            <div class="approval-icon">⚡</div>
-            <div class="approval-text">
-                <span class="approval-title">Action pending approval</span>
-                <span class="approval-desc" id="approvalDesc"></span>
-            </div>
+            <div class="approval-pulse"></div>
+            <span class="approval-label">Action requires approval</span>
+            <span class="approval-desc" id="approvalDesc"></span>
         </div>
         <div class="approval-actions">
             <button class="btn-approve" id="btnApprove" onclick="approveAction()">
-                <svg width="16" height="16" viewBox="0 0 16 16" fill="none">
+                <svg width="14" height="14" viewBox="0 0 16 16" fill="none">
                     <path d="M13 4L6 11L3 8" stroke="currentColor" stroke-width="2" stroke-linecap="round"
                         stroke-linejoin="round" />
                 </svg>
-                Approve
+                Accept
             </button>
-            <button class="btn-reject" id="btnReject" onclick="rejectAction()">
-                <svg width="16" height="16" viewBox="0 0 16 16" fill="none">
-                    <path d="M4 4L12 12M12 4L4 12" stroke="currentColor" stroke-width="2" stroke-linecap="round" />
-                </svg>
-                Reject
-            </button>
+            <button class="btn-reject" id="btnReject" onclick="rejectAction()">Dismiss</button>
         </div>
     </div>
 
-    <!-- Agent Status -->
-    <div id="agentStatus" class="agent-status">
-        <div class="status-indicator" id="statusIndicator">
-            <div class="pulse"></div>
-            <span id="statusText">Initializing...</span>
-        </div>
-    </div>
-
-    <!-- Chat Panel Screenshot (Live Mirror) -->
+    <!-- Main Chat Area - Screenshot Mirror -->
     <main id="chatContainer" class="chat-container">
-        <div id="chatMessages" class="chat-messages">
+        <div id="chatContent" class="chat-content">
+            <!-- Screenshot mode (primary) -->
             <div id="screenshotView" class="screenshot-view">
                 <img id="screenshotImg" src="/api/screenshot" alt="Antigravity Chat" class="screenshot-img"
-                    onerror="this.style.display='none'; document.getElementById('welcomeMsg').style.display='flex';"
-                    onload="this.style.display='block'; document.getElementById('welcomeMsg').style.display='none';" />
-                <div id="welcomeMsg" class="welcome-message">
-                    <div class="welcome-icon">🚀</div>
-                    <h2>AntigravityRemote</h2>
-                    <p>Mobile chat client for Antigravity IDE</p>
-                    <p class="welcome-sub">Waiting for Antigravity chat panel screenshot...</p>
+                    onerror="this.style.display='none'; document.getElementById('welcomeScreen').style.display='flex';"
+                    onload="this.style.display='block'; document.getElementById('welcomeScreen').style.display='none';" />
+            </div>
+            <!-- Welcome / Fallback -->
+            <div id="welcomeScreen" class="welcome-screen">
+                <div class="welcome-logo">
+                    <svg width="48" height="48" viewBox="0 0 24 24" fill="none">
+                        <circle cx="12" cy="12" r="10" stroke="url(#wgrad)" stroke-width="1.5" />
+                        <path d="M12 6L8 14h3v4l4-8h-3V6z" fill="url(#wgrad)" />
+                        <defs>
+                            <linearGradient id="wgrad" x1="4" y1="4" x2="20" y2="20">
+                                <stop offset="0%" stop-color="#7c7cff" />
+                                <stop offset="100%" stop-color="#5856D6" />
+                            </linearGradient>
+                        </defs>
+                    </svg>
                 </div>
+                <h2>AntigravityRemote</h2>
+                <p>Waiting for Antigravity IDE connection...</p>
+                <p class="welcome-hint">Make sure Antigravity is running on your PC</p>
             </div>
         </div>
     </main>
 
-    <!-- Chat Input -->
+    <!-- Bottom Status Bar - Antigravity style -->
+    <div id="statusBar" class="status-bar">
+        <div class="status-left-section">
+            <div class="agent-indicator" id="agentIndicator">
+                <div class="agent-dot" id="agentDot"></div>
+                <span id="agentStatusText">Connecting...</span>
+            </div>
+        </div>
+        <div class="status-right-section">
+            <span class="model-badge" id="modelBadge">
+                <svg width="10" height="10" viewBox="0 0 16 16" fill="none">
+                    <path d="M8 1L2 5v6l6 4 6-4V5L8 1z" stroke="currentColor" stroke-width="1.5" />
+                </svg>
+                <span id="modelName">Claude</span>
+            </span>
+        </div>
+    </div>
+
+    <!-- Chat Input - Antigravity style -->
     <footer id="chatInput" class="chat-input-bar">
         <div class="input-wrapper">
-            <textarea id="messageInput" placeholder="Send a message to Antigravity..." rows="1"
+            <textarea id="messageInput" placeholder="Ask anything, @ to mention, / for workflows" rows="1"
                 maxlength="10000"></textarea>
             <button id="sendBtn" class="send-btn" onclick="sendMessage()" disabled>
-                <svg width="20" height="20" viewBox="0 0 20 20" fill="none">
-                    <path d="M3 10L17 3L10 17L9 11L3 10Z" fill="currentColor" />
+                <svg width="16" height="16" viewBox="0 0 16 16" fill="none">
+                    <path d="M14 8L2 14V9l7-1-7-1V2l12 6z" fill="currentColor" />
                 </svg>
             </button>
         </div>
     </footer>
+
+    <!-- Settings Panel -->
+    <div id="settingsPanel" class="settings-panel hidden">
+        <div class="settings-overlay" onclick="toggleSettings()"></div>
+        <div class="settings-card">
+            <h3>Settings</h3>
+            <div class="setting-row">
+                <label>Auto-refresh interval</label>
+                <select id="refreshInterval" title="Auto-refresh interval" onchange="updateRefreshInterval(this.value)">
+                    <option value="1500">1.5s (fast)</option>
+                    <option value="2500" selected>2.5s (normal)</option>
+                    <option value="5000">5s (slow)</option>
+                    <option value="0">Manual only</option>
+                </select>
+            </div>
+            <div class="setting-row">
+                <label>Connection</label>
+                <span class="setting-value" id="connStatus">--</span>
+            </div>
+            <div class="setting-row">
+                <button class="btn-reconnect" onclick="reconnect()">Reconnect</button>
+            </div>
+        </div>
+    </div>
 
     <!-- Reconnect Overlay -->
     <div id="reconnectOverlay" class="reconnect-overlay hidden">
