@@ -475,11 +475,20 @@ function renderSnapshot(data) {
             '[class*="bg-gray"], [class*="bg-slate"],\n' +
             '[class*="bg-neutral"], [class*="bg-zinc"],\n' +
             '[class*="bg-ide-"], [class*="from-ide-"],\n' +
-            '[class*="bg-white"], .rounded-lg {\n' +
+            '[class*="bg-white"] {\n' +
             '    background-color: transparent !important;\n' +
             '}\n' +
             '#conversation > div > div, #chat > div > div, #cascade > div > div {\n' +
             '    background-color: transparent !important;\n' +
+            '}\n' +
+            '\n' +
+            '/* IDE-style framed panels (command blocks, thinking sections) */\n' +
+            '.rounded-lg {\n' +
+            '    background-color: rgba(128, 128, 128, 0.06) !important;\n' +
+            '    border: 1px solid var(--border-color, #2a2b32) !important;\n' +
+            '    border-radius: 8px !important;\n' +
+            '    padding: 8px !important;\n' +
+            '    margin: 4px 0 !important;\n' +
             '}\n' +
             '\n' +
             '/* User message bubble */\n' +
