@@ -131,12 +131,12 @@ function dismissSslBanner() {
 checkSslStatus();
 // --- Models ---
 const MODELS = [
-    "Gemini 3.1 Pro (High)",
-    "Gemini 3.1 Pro (Low)",
-    "Gemini 3 Flash",
-    "Claude Sonnet 4.6 (Thinking)",
-    "Claude Opus 4.6 (Thinking)",
-    "GPT-OSS 120B (Medium)"
+    { name: "Gemini 3.1 Pro (High)", badge: "New" },
+    { name: "Gemini 3.1 Pro (Low)", badge: "New" },
+    { name: "Gemini 3 Flash" },
+    { name: "Claude Sonnet 4.6 (Thinking)" },
+    { name: "Claude Opus 4.6 (Thinking)" },
+    { name: "GPT-OSS 120B (Medium)" }
 ];
 
 // --- WebSocket ---
@@ -1046,13 +1046,14 @@ modeMenu.addEventListener('click', async (e) => {
 // --- Model dropdown - build options dynamically ---
 function buildModelMenu() {
     const currentModel = modelText.textContent;
-    modelMenu.innerHTML = '<div class="dropdown-title">Select model</div>';
-    MODELS.forEach(model => {
-        const isActive = model === currentModel;
+    modelMenu.innerHTML = '<div class="dropdown-title">Model</div>';
+    MODELS.forEach(item => {
+        const isActive = item.name === currentModel;
         const div = document.createElement('div');
-        div.className = 'dropdown-option' + (isActive ? ' active' : '');
-        div.dataset.value = model;
-        div.innerHTML = `<div class="dropdown-option-name">${model}</div>`;
+        div.className = 'dropdown-option model-option' + (isActive ? ' active' : '');
+        div.dataset.value = item.name;
+        const badgeHtml = item.badge ? `<span class="model-badge">${item.badge}</span>` : '';
+        div.innerHTML = `<span class="model-option-name">${item.name}</span>${badgeHtml}`;
         modelMenu.appendChild(div);
     });
 }
@@ -1066,6 +1067,7 @@ modelMenu.addEventListener('click', async (e) => {
     const opt = e.target.closest('.dropdown-option');
     if (!opt) return;
     const model = opt.dataset.value;
+    if (!model) return;
     closeAllDropdowns();
 
     const prev = modelText.textContent;

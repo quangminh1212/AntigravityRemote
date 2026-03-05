@@ -534,6 +534,40 @@ body {
     line-height: 1.4;
 }
 
+/* Model dropdown option - compact single-line layout */
+.dropdown-option.model-option {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    padding: 9px 14px;
+}
+
+.model-option-name {
+    font-size: 13.5px;
+    font-weight: 500;
+    color: #e0e0e0;
+}
+
+.dropdown-option.model-option.active .model-option-name {
+    color: #ffffff;
+    font-weight: 600;
+}
+
+.dropdown-option.model-option.active {
+    background: rgba(99, 102, 241, 0.18);
+}
+
+/* "New" badge */
+.model-badge {
+    font-size: 10px;
+    font-weight: 600;
+    color: #818cf8;
+    background: rgba(99, 102, 241, 0.15);
+    padding: 1px 6px;
+    border-radius: 4px;
+    letter-spacing: 0.02em;
+}
+
 /* Send button - filled dark circle with white arrow */
 .toolbar-send-btn {
     background: #3a3a3f;
