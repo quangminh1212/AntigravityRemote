@@ -37,8 +37,19 @@ let currentMode = 'Fast';
 let chatIsOpen = true; // Track if a chat is currently open
 let cachedCssText = ''; // Cache CSS to avoid unnecessary re-injection
 let lastRenderedHash = ''; // Track last rendered HTML hash to skip identical updates
+let lastRenderedHtmlHash = ''; // Track content hash to avoid unnecessary DOM rebuilds
 let pendingSnapshot = null; // Buffer for incoming WebSocket snapshots
 let renderScheduled = false; // Prevent multiple rAF calls
+
+// Fast string hash (FNV-1a) to compare HTML content
+function fastHash(str) {
+    let hash = 0x811c9dc5;
+    for (let i = 0; i < str.length; i++) {
+        hash ^= str.charCodeAt(i);
+        hash = (hash * 0x01000193) >>> 0;
+    }
+    return hash.toString(36);
+}
 
 
 // --- Auth Utilities ---
@@ -436,11 +447,15 @@ function renderSnapshot(data) {
         styleTag.textContent = darkModeOverrides;
     }
 
-    // --- HTML UPDATE ---
-    chatContent.innerHTML = data.html;
+    // --- HTML UPDATE (skip if unchanged to prevent text jittering) ---
+    const htmlHash = fastHash(data.html);
+    if (htmlHash !== lastRenderedHtmlHash) {
+        lastRenderedHtmlHash = htmlHash;
+        chatContent.innerHTML = data.html;
 
-    // Add mobile copy buttons to all code blocks
-    addMobileCopyButtons();
+        // Add mobile copy buttons to all code blocks
+        addMobileCopyButtons();
+    }
 
     // Smart scroll behavior: respect user scroll, only auto-scroll when appropriate
     if (isUserScrollLocked) {
