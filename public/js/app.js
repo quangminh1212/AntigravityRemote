@@ -231,28 +231,20 @@ function renderSnapshot(data) {
     // --- SYNC THEME FROM IDE ---
     if (data.backgroundColor || data.themeVars) {
         const tv = data.themeVars || {};
+        const root = document.documentElement.style;
         // Determine best background: prefer VS Code theme var > effective cascade bg > body bg
         const bg = tv['--vscode-editor-background'] || data.backgroundColor || data.bodyBackgroundColor;
         const fg = tv['--vscode-editor-foreground'] || tv['--vscode-foreground'] || data.color || data.bodyColor;
         const panelBg = tv['--vscode-panel-background'] || tv['--vscode-sideBar-background'] || bg;
         const inputBg = tv['--vscode-input-background'] || panelBg;
+        const mutedFg = tv['--vscode-descriptionForeground'] || '';
 
-        if (bg && document.body.style.backgroundColor !== bg) {
-            document.body.style.backgroundColor = bg;
-            chatContainer.style.backgroundColor = bg;
-            // Sync input section and header
-            const inputSection = document.querySelector('.input-section');
-            if (inputSection) inputSection.style.backgroundColor = bg;
-            const header = document.querySelector('.header');
-            if (header) header.style.backgroundColor = panelBg;
-            // Sync input box
-            const inputBox = document.querySelector('.input-box');
-            if (inputBox) inputBox.style.backgroundColor = inputBg;
-        }
-        // Sync text color
-        if (fg && document.body.style.color !== fg) {
-            document.body.style.color = fg;
-        }
+        // Update CSS custom properties so ALL elements using var(--bg-app) etc. auto-sync
+        if (bg) root.setProperty('--bg-app', bg);
+        if (panelBg) root.setProperty('--bg-panel', panelBg);
+        if (inputBg) root.setProperty('--bg-input', inputBg);
+        if (fg) root.setProperty('--text-main', fg);
+        if (mutedFg) root.setProperty('--text-muted', mutedFg);
     }
 
     // --- CSS INJECTION (Cached - only update when CSS changes) ---
