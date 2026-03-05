@@ -482,13 +482,21 @@ function renderSnapshot(data) {
             '    background-color: transparent !important;\n' +
             '}\n' +
             '\n' +
-            '/* IDE-style framed panels (command blocks, thinking sections) */\n' +
+            '/* IDE-style framed panels (command blocks) */\n' +
             '.rounded-lg {\n' +
             '    background-color: rgba(128, 128, 128, 0.06) !important;\n' +
             '    border: 1px solid var(--border-color, #2a2b32) !important;\n' +
             '    border-radius: 8px !important;\n' +
             '    padding: 8px !important;\n' +
             '    margin: 4px 0 !important;\n' +
+            '}\n' +
+            '/* Thinking/thought sections - no frame like IDE */\n' +
+            '.rounded-lg:has(> details), .rounded-lg:has(> summary),\n' +
+            'details.rounded-lg, .rounded-lg > details {\n' +
+            '    background-color: transparent !important;\n' +
+            '    border: none !important;\n' +
+            '    padding: 0 !important;\n' +
+            '    margin: 0 !important;\n' +
             '}\n' +
             '\n' +
             '/* User message bubble */\n' +
