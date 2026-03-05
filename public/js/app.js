@@ -290,6 +290,11 @@ function renderSnapshot(data) {
             '    position: absolute !important;\n' +
             '}\n' +
             '\n' +
+            '/* Force all chat text to inherit light color */\n' +
+            '#conversation p, #chat p, #cascade p, #conversation h1, #chat h1, #cascade h1, #conversation h2, #chat h2, #cascade h2, #conversation h3, #chat h3, #cascade h3, #conversation h4, #chat h4, #cascade h4, #conversation h5, #chat h5, #cascade h5, #conversation span, #chat span, #cascade span, #conversation div, #chat div, #cascade div, #conversation li, #chat li, #cascade li {\n' +
+            '    color: inherit !important;\n' +
+            '}\n' +
+            '\n' +
             '/* Force black/very dark inline text to light (preserve other colors) */\n' +
             '[style*="color: rgb(0, 0, 0)"], [style*="color: black"],\n' +
             '[style*="color:#000"], [style*="color: #000"],\n' +
