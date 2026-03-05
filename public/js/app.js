@@ -508,6 +508,13 @@ function renderSnapshot(data) {
             '    outline: none !important;\n' +
             '    box-shadow: none !important;\n' +
             '}\n' +
+            '/* Good/Bad feedback row - no frame */\n' +
+            '.rounded-lg:has([data-tooltip-id^="up-"], [data-tooltip-id^="down-"]) {\n' +
+            '    background-color: transparent !important;\n' +
+            '    border: none !important;\n' +
+            '    padding: 0 !important;\n' +
+            '    margin: 0 !important;\n' +
+            '}\n' +
             '\n' +
             '/* User message bubble */\n' +
             '[data-role="user"] {\n' +
