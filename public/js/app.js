@@ -1025,24 +1025,6 @@ function toggleDropdown(menu, chip) {
 
 dropdownBackdrop.addEventListener('click', closeAllDropdowns);
 
-// --- Context menu (+ button) ---
-const contextMenu = document.getElementById('contextMenu');
-attachBtn.addEventListener('click', () => {
-    toggleDropdown(contextMenu, attachBtn);
-});
-
-contextMenu.addEventListener('click', (e) => {
-    const opt = e.target.closest('.context-option');
-    if (!opt) return;
-    const action = opt.dataset.action;
-    closeAllDropdowns();
-
-    // Insert shortcut text into input
-    if (action === 'mentions') messageInput.value = '@';
-    else if (action === 'workflows') messageInput.value = '/';
-    messageInput.focus();
-});
-
 // --- Mode dropdown ---
 modeBtn.addEventListener('click', () => {
     toggleDropdown(modeMenu, modeBtn);
