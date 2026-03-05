@@ -258,7 +258,29 @@ async function connectCDP(url) {
         } catch (e) { }
     });
 
+    // Handle CDP WebSocket disconnect - triggers auto-reconnect in polling loop
+    ws.on('close', () => {
+        console.warn('🔌 CDP WebSocket closed - will auto-reconnect');
+        // Reject all pending calls
+        for (const [id, { reject, timeoutId }] of pendingCalls) {
+            clearTimeout(timeoutId);
+            reject(new Error('CDP connection closed'));
+        }
+        pendingCalls.clear();
+        cdpConnection = null;
+    });
+
+    ws.on('error', (err) => {
+        console.error('🔌 CDP WebSocket error:', err.message);
+        // Don't null cdpConnection here - 'close' event will handle it
+    });
+
     const call = (method, params) => new Promise((resolve, reject) => {
+        // Check if WebSocket is still open before sending
+        if (!ws || ws.readyState !== WebSocket.OPEN) {
+            return reject(new Error('CDP WebSocket not open'));
+        }
+
         const id = idCounter++;
 
         // Setup timeout to prevent memory leaks from never-resolved calls
@@ -270,7 +292,14 @@ async function connectCDP(url) {
         }, CDP_CALL_TIMEOUT);
 
         pendingCalls.set(id, { resolve, reject, timeoutId });
-        ws.send(JSON.stringify({ id, method, params }));
+
+        try {
+            ws.send(JSON.stringify({ id, method, params }));
+        } catch (e) {
+            clearTimeout(timeoutId);
+            pendingCalls.delete(id);
+            reject(new Error(`CDP send failed: ${e.message}`));
+        }
     });
 
     await call("Runtime.enable", {});
