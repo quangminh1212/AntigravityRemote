@@ -380,6 +380,21 @@ async function captureSnapshot(cdp) {
             });
         } catch (globalErr) { }
 
+        // Mark user messages vs assistant messages for styling
+        try {
+            const turnsContainer = clone.querySelector('.relative.flex.flex-col.gap-y-3.px-4') || clone;
+            const turns = Array.from(turnsContainer.children).filter(el => el.tagName === 'DIV');
+            turns.forEach(turn => {
+                const children = Array.from(turn.children).filter(c => c.tagName === 'DIV');
+                if (children.length >= 1) {
+                    children[0].setAttribute('data-role', 'user');
+                    for (let i = 1; i < children.length; i++) {
+                        children[i].setAttribute('data-role', 'assistant');
+                    }
+                }
+            });
+        } catch(e) {}
+
         // Convert local images to base64
         const images = clone.querySelectorAll('img');
         const promises = Array.from(images).map(async (img) => {

@@ -480,6 +480,19 @@ function renderSnapshot(data) {
             '}\n' +
             '#conversation > div > div, #chat > div > div, #cascade > div > div {\n' +
             '    background-color: transparent !important;\n' +
+            '}\n' +
+            '\n' +
+            '/* User message bubble */\n' +
+            '[data-role="user"] {\n' +
+            '    background-color: rgba(128, 128, 128, 0.1) !important;\n' +
+            '    border-radius: 12px !important;\n' +
+            '    padding: 10px 14px !important;\n' +
+            '    margin-bottom: 4px !important;\n' +
+            '}\n' +
+            '\n' +
+            '/* IDE text color class sync */\n' +
+            '.text-ide-text-color {\n' +
+            '    color: var(--text-main) !important;\n' +
             '}';
         styleTag.textContent = darkModeOverrides;
     }
