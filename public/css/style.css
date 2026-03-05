@@ -534,13 +534,13 @@ body {
     line-height: 1.4;
 }
 
-/* Send button - small circle with outline style */
+/* Send button - filled dark circle with white arrow */
 .toolbar-send-btn {
-    background: transparent;
-    border: 1.5px solid #c8872a;
-    color: #c8872a;
-    width: 26px;
-    height: 26px;
+    background: #3a3a3f;
+    border: none;
+    color: #e0e0e0;
+    width: 28px;
+    height: 28px;
     border-radius: 50%;
     display: flex;
     align-items: center;
@@ -552,9 +552,8 @@ body {
 }
 
 .toolbar-send-btn:hover {
+    background: #4a4a50;
     transform: scale(1.08);
-    background: rgba(200, 135, 42, 0.1);
-    box-shadow: 0 2px 8px rgba(200, 135, 42, 0.2);
 }
 
 .toolbar-send-btn:active {
@@ -565,7 +564,6 @@ body {
     opacity: 0.35;
     cursor: not-allowed;
     transform: none;
-    box-shadow: none;
 }
 
 /* Stop button - replaces send when agent is running */
