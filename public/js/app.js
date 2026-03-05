@@ -31,6 +31,10 @@ let idleTimer = null;
 let lastHash = '';
 let currentMode = 'Fast';
 let chatIsOpen = true; // Track if a chat is currently open
+let cachedCssText = ''; // Cache CSS to avoid unnecessary re-injection
+let lastRenderedHash = ''; // Track last rendered HTML hash to skip identical updates
+let pendingSnapshot = null; // Buffer for incoming WebSocket snapshots
+let renderScheduled = false; // Prevent multiple rAF calls
 
 
 // --- Auth Utilities ---
@@ -138,7 +142,7 @@ function connectWebSocket() {
     ws.onopen = () => {
         console.log('WS Connected');
         updateStatus(true);
-        loadSnapshot();
+        loadSnapshot(); // Initial load via HTTP
     };
 
     ws.onmessage = (event) => {
@@ -147,6 +151,14 @@ function connectWebSocket() {
             window.location.href = '/login.html';
             return;
         }
+        // Handle direct snapshot data from server (no HTTP roundtrip needed)
+        if (data.type === 'snapshot_data' && autoRefreshEnabled && !userIsScrolling) {
+            if (data.hash && data.hash === lastRenderedHash) return; // Skip identical
+            pendingSnapshot = data.snapshot;
+            lastRenderedHash = data.hash || '';
+            scheduleRender();
+        }
+        // Legacy: support old snapshot_update notification
         if (data.type === 'snapshot_update' && autoRefreshEnabled && !userIsScrolling) {
             loadSnapshot();
         }
@@ -171,54 +183,49 @@ function updateStatus(connected) {
     }
 }
 
-// --- Rendering ---
-async function loadSnapshot() {
-    try {
-        // Add spin animation to refresh button
-        const icon = refreshBtn.querySelector('svg');
-        icon.classList.remove('spin-anim');
-        void icon.offsetWidth; // trigger reflow
-        icon.classList.add('spin-anim');
-
-        const response = await fetchWithAuth('/snapshot');
-        if (!response.ok) {
-            if (response.status === 503) {
-                // No snapshot available - likely no chat open
-                chatIsOpen = false;
-                showEmptyState();
-                return;
-            }
-            throw new Error('Failed to load');
+// --- Schedule render with requestAnimationFrame (prevents layout thrashing) ---
+function scheduleRender() {
+    if (renderScheduled) return;
+    renderScheduled = true;
+    requestAnimationFrame(() => {
+        renderScheduled = false;
+        if (pendingSnapshot) {
+            renderSnapshot(pendingSnapshot);
+            pendingSnapshot = null;
         }
+    });
+}
 
-        // Mark chat as open since we got a valid snapshot
-        chatIsOpen = true;
+// --- Core render function (used by both WS and HTTP paths) ---
+function renderSnapshot(data) {
+    chatIsOpen = true;
 
-        const data = await response.json();
+    // Capture scroll state BEFORE updating content
+    const scrollPos = chatContainer.scrollTop;
+    const scrollHeight = chatContainer.scrollHeight;
+    const clientHeight = chatContainer.clientHeight;
+    const isNearBottom = scrollHeight - scrollPos - clientHeight < 120;
+    const isUserScrollLocked = Date.now() < userScrollLockUntil;
 
-        // Capture scroll state BEFORE updating content
-        const scrollPos = chatContainer.scrollTop;
-        const scrollHeight = chatContainer.scrollHeight;
-        const clientHeight = chatContainer.clientHeight;
-        const isNearBottom = scrollHeight - scrollPos - clientHeight < 120;
-        const isUserScrollLocked = Date.now() < userScrollLockUntil;
+    // --- UPDATE STATS ---
+    if (data.stats) {
+        const kbs = Math.round((data.stats.htmlSize + data.stats.cssSize) / 1024);
+        const nodes = data.stats.nodes;
+        const statsText = document.getElementById('statsText');
+        if (statsText) statsText.textContent = `${nodes} Nodes · ${kbs}KB`;
+    }
 
-        // --- UPDATE STATS ---
-        if (data.stats) {
-            const kbs = Math.round((data.stats.htmlSize + data.stats.cssSize) / 1024);
-            const nodes = data.stats.nodes;
-            const statsText = document.getElementById('statsText');
-            if (statsText) statsText.textContent = `${nodes} Nodes · ${kbs}KB`;
-        }
+    // --- CSS INJECTION (Cached - only update when CSS changes) ---
+    let styleTag = document.getElementById('cdp-styles');
+    if (!styleTag) {
+        styleTag = document.createElement('style');
+        styleTag.id = 'cdp-styles';
+        document.head.appendChild(styleTag);
+    }
 
-        // --- CSS INJECTION (Cached) ---
-        let styleTag = document.getElementById('cdp-styles');
-        if (!styleTag) {
-            styleTag = document.createElement('style');
-            styleTag.id = 'cdp-styles';
-            document.head.appendChild(styleTag);
-        }
-
+    // Only rebuild CSS if the source CSS from snapshot changed
+    if (data.css !== cachedCssText) {
+        cachedCssText = data.css;
         const darkModeOverrides = '/* --- BASE SNAPSHOT CSS --- */\n' +
             data.css +
             '\n\n/* --- FORCE DARK MODE OVERRIDES --- */\n' +
@@ -408,26 +415,51 @@ async function loadSnapshot() {
             '    background-color: transparent !important;\n' +
             '}';
         styleTag.textContent = darkModeOverrides;
-        chatContent.innerHTML = data.html;
+    }
 
+    // --- HTML UPDATE ---
+    chatContent.innerHTML = data.html;
 
-        // Add mobile copy buttons to all code blocks
-        addMobileCopyButtons();
+    // Add mobile copy buttons to all code blocks
+    addMobileCopyButtons();
 
-        // Smart scroll behavior: respect user scroll, only auto-scroll when appropriate
-        if (isUserScrollLocked) {
-            // User recently scrolled - try to maintain their approximate position
-            // Use percentage-based restoration for better accuracy
-            const scrollPercent = scrollHeight > 0 ? scrollPos / scrollHeight : 0;
-            const newScrollPos = chatContainer.scrollHeight * scrollPercent;
-            chatContainer.scrollTop = newScrollPos;
-        } else if (isNearBottom || scrollPos === 0) {
-            // User was at bottom or hasn't scrolled - auto scroll to bottom
-            scrollToBottom();
-        } else {
-            // Preserve exact scroll position
-            chatContainer.scrollTop = scrollPos;
+    // Smart scroll behavior: respect user scroll, only auto-scroll when appropriate
+    if (isUserScrollLocked) {
+        // User recently scrolled - try to maintain their approximate position
+        const scrollPercent = scrollHeight > 0 ? scrollPos / scrollHeight : 0;
+        const newScrollPos = chatContainer.scrollHeight * scrollPercent;
+        chatContainer.scrollTop = newScrollPos;
+    } else if (isNearBottom || scrollPos === 0) {
+        // User was at bottom or hasn't scrolled - instant scroll (no smooth during updates)
+        chatContainer.scrollTop = chatContainer.scrollHeight;
+    } else {
+        // Preserve exact scroll position
+        chatContainer.scrollTop = scrollPos;
+    }
+}
+
+// --- Rendering (HTTP fallback - used for initial load and manual refresh) ---
+async function loadSnapshot() {
+    try {
+        // Add spin animation to refresh button
+        const icon = refreshBtn.querySelector('svg');
+        icon.classList.remove('spin-anim');
+        void icon.offsetWidth; // trigger reflow
+        icon.classList.add('spin-anim');
+
+        const response = await fetchWithAuth('/snapshot');
+        if (!response.ok) {
+            if (response.status === 503) {
+                // No snapshot available - likely no chat open
+                chatIsOpen = false;
+                showEmptyState();
+                return;
+            }
+            throw new Error('Failed to load');
         }
+
+        const data = await response.json();
+        renderSnapshot(data);
 
     } catch (err) {
         console.error(err);
