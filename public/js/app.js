@@ -290,16 +290,6 @@ function renderSnapshot(data) {
             '    position: absolute !important;\n' +
             '}\n' +
             '\n' +
-            '/* Force all chat text to use light color - wildcard for maximum coverage */\n' +
-            '.chat-content *, .chat-content *::before, .chat-content *::after {\n' +
-            '    color: inherit !important;\n' +
-            '}\n' +
-            '/* Preserve syntax highlighting in code blocks */\n' +
-            '.chat-content pre *, .chat-content code *, .chat-content [class*="hljs"] *,\n' +
-            '.chat-content [class*="token"] *, .chat-content [class*="syntax"] * {\n' +
-            '    color: revert !important;\n' +
-            '}\n' +
-            '\n' +
             '/* Force black/very dark inline text to light (preserve other colors) */\n' +
             '[style*="color: rgb(0, 0, 0)"], [style*="color: black"],\n' +
             '[style*="color:#000"], [style*="color: #000"],\n' +
