@@ -2050,6 +2050,33 @@ async function createServer() {
         });
     });
 
+    // --- Live Reload: Watch public/ for file changes ---
+    const publicDir = join(__dirname, 'public');
+    let reloadTimeout = null;
+    const watchDirs = [publicDir, join(publicDir, 'css'), join(publicDir, 'js')];
+
+    watchDirs.forEach(dir => {
+        try {
+            fs.watch(dir, (eventType, filename) => {
+                if (!filename) return;
+                // Debounce: only reload once per batch of changes
+                clearTimeout(reloadTimeout);
+                reloadTimeout = setTimeout(() => {
+                    console.log(`🔄 File changed: ${filename} → Sending reload to clients`);
+                    const reloadMsg = JSON.stringify({ type: 'reload' });
+                    wss.clients.forEach(client => {
+                        if (client.readyState === WebSocket.OPEN) {
+                            try { client.send(reloadMsg); } catch (e) { }
+                        }
+                    });
+                }, 500);
+            });
+        } catch (e) {
+            console.warn(`⚠️ Could not watch ${dir}:`, e.message);
+        }
+    });
+    console.log('👁️ Live-reload watching public/ for changes');
+
     return { server, wss, app, hasSSL };
 }
 

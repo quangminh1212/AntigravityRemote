@@ -156,6 +156,12 @@ function connectWebSocket() {
             window.location.href = '/login.html';
             return;
         }
+        // Live-reload: server detected file change
+        if (data.type === 'reload') {
+            console.log('[LIVE-RELOAD] File changed, reloading...');
+            window.location.reload();
+            return;
+        }
         // Hash-based dedup: only fetch if content actually changed
         if (data.type === 'snapshot_update' && autoRefreshEnabled && !userIsScrolling) {
             if (data.hash && data.hash === lastRenderedHash) return; // Skip identical
