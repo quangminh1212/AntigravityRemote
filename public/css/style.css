@@ -303,7 +303,7 @@ body {
 /* Input Section - Antigravity Style */
 .input-section {
     background: var(--bg-app);
-    border-top: 1px solid rgba(255, 255, 255, 0.04);
+    border-top: none;
     padding: 6px 10px;
     padding-bottom: max(6px, env(safe-area-inset-bottom));
     flex-shrink: 0;
