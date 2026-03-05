@@ -10,6 +10,8 @@ const refreshBtn = document.getElementById('refreshBtn');
 const stopBtn = document.getElementById('stopBtn');
 const newChatBtn = document.getElementById('newChatBtn');
 const historyBtn = document.getElementById('historyBtn');
+const attachBtn = document.getElementById('attachBtn');
+const fileInput = document.getElementById('fileInput');
 
 const modeBtn = document.getElementById('modeBtn');
 const modelBtn = document.getElementById('modelBtn');
@@ -714,6 +716,103 @@ messageInput.addEventListener('input', function () {
     this.style.height = 'auto';
     this.style.height = (this.scrollHeight) + 'px';
 });
+
+// --- File Attach Logic ---
+attachBtn.addEventListener('click', () => {
+    fileInput.click();
+});
+
+fileInput.addEventListener('change', async () => {
+    const files = Array.from(fileInput.files);
+    if (!files.length) return;
+
+    // Create or get preview bar
+    let previewBar = document.querySelector('.file-preview-bar');
+    if (!previewBar) {
+        previewBar = document.createElement('div');
+        previewBar.className = 'file-preview-bar';
+        // Insert before textarea inside input-box
+        const inputBox = document.querySelector('.input-box');
+        inputBox.insertBefore(previewBar, inputBox.firstChild);
+    }
+
+    // Upload each file
+    for (const file of files) {
+        const fileId = `file-${Date.now()}-${Math.random().toString(36).slice(2, 7)}`;
+
+        // Create preview item
+        const item = document.createElement('div');
+        item.className = 'file-preview-item uploading';
+        item.id = fileId;
+        item.innerHTML = `
+            <span class="file-preview-name" title="${file.name}">${file.name}</span>
+            <span class="file-preview-size">${formatFileSize(file.size)}</span>
+            <div class="file-preview-spinner"></div>
+        `;
+        previewBar.appendChild(item);
+
+        // Upload
+        try {
+            const formData = new FormData();
+            formData.append('file', file);
+
+            const res = await fetchWithAuth('/upload', {
+                method: 'POST',
+                body: formData
+            });
+            const data = await res.json();
+
+            if (data.success) {
+                item.classList.remove('uploading');
+                item.classList.add('uploaded');
+                item.querySelector('.file-preview-spinner').outerHTML = '<span class="file-preview-check">✓</span>';
+                // Add remove button
+                const removeBtn = document.createElement('button');
+                removeBtn.className = 'file-preview-remove';
+                removeBtn.innerHTML = '×';
+                removeBtn.setAttribute('aria-label', 'Remove file');
+                removeBtn.addEventListener('click', () => {
+                    item.remove();
+                    if (previewBar.children.length === 0) previewBar.remove();
+                });
+                item.appendChild(removeBtn);
+
+                // Auto-remove after 5s
+                setTimeout(() => {
+                    item.style.transition = 'opacity 0.3s';
+                    item.style.opacity = '0';
+                    setTimeout(() => {
+                        item.remove();
+                        if (previewBar && previewBar.children.length === 0) previewBar.remove();
+                    }, 300);
+                }, 5000);
+            } else {
+                item.classList.remove('uploading');
+                item.classList.add('error');
+                item.querySelector('.file-preview-spinner').outerHTML = '<span style="color:#ef4444">✗</span>';
+                console.error('[UPLOAD] Failed:', data.error);
+            }
+        } catch (e) {
+            item.classList.remove('uploading');
+            item.classList.add('error');
+            item.querySelector('.file-preview-spinner').outerHTML = '<span style="color:#ef4444">✗</span>';
+            console.error('[UPLOAD] Error:', e);
+        }
+    }
+
+    // Reset file input so the same file can be re-selected
+    fileInput.value = '';
+
+    // Reload snapshot to see the attached file in chat
+    setTimeout(loadSnapshot, 1000);
+    setTimeout(loadSnapshot, 2500);
+});
+
+function formatFileSize(bytes) {
+    if (bytes < 1024) return bytes + 'B';
+    if (bytes < 1024 * 1024) return (bytes / 1024).toFixed(1) + 'KB';
+    return (bytes / (1024 * 1024)).toFixed(1) + 'MB';
+}
 
 // --- Scroll Sync to Desktop ---
 let scrollSyncTimeout = null;
