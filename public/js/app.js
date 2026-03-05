@@ -762,14 +762,6 @@ scrollToBottomBtn.addEventListener('click', () => {
     scrollToBottom();
 });
 
-// --- Quick Actions ---
-function quickAction(text) {
-    messageInput.value = text;
-    messageInput.style.height = 'auto';
-    messageInput.style.height = messageInput.scrollHeight + 'px';
-    messageInput.focus();
-}
-
 // --- Stop Logic ---
 stopBtn.addEventListener('click', async () => {
     stopBtn.style.opacity = '0.5';
