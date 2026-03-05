@@ -1,11 +1,11 @@
 :root {
-    /* Premium Dark Theme Tokens */
-    --bg-app: #090e17;
-    --bg-panel: #131c2f;
-    --bg-input: #1e293b;
+    /* Premium Dark Theme Tokens - Neutral Gray (matching chat input box) */
+    --bg-app: #111215;
+    --bg-panel: #1a1b20;
+    --bg-input: #27282e;
     --border: rgba(255, 255, 255, 0.08);
-    --text-main: #f8fafc;
-    --text-muted: #94a3b8;
+    --text-main: #f0f0f2;
+    --text-muted: #8a8d92;
     --accent: #6366f1;
     --accent-hover: #4f46e5;
     --accent-gradient: linear-gradient(135deg, #8b5cf6 0%, #3b82f6 100%);
@@ -46,7 +46,7 @@ body {
 
 /* Header */
 .header {
-    background: rgba(30, 41, 59, 0.8);
+    background: rgba(26, 27, 32, 0.92);
     -webkit-backdrop-filter: blur(12px);
     backdrop-filter: blur(12px);
     padding: 14px 16px;
@@ -302,7 +302,7 @@ body {
 
 /* Input Section - Antigravity Style */
 .input-section {
-    background: #111215;
+    background: #0d0e11;
     border-top: 1px solid rgba(255, 255, 255, 0.04);
     padding: 6px 10px;
     padding-bottom: max(6px, env(safe-area-inset-bottom));
@@ -665,7 +665,7 @@ body.agent-running .toolbar-stop-btn {
 
 /* Settings Bar */
 .settings-bar {
-    background: rgba(30, 41, 59, 0.6);
+    background: rgba(26, 27, 32, 0.8);
     -webkit-backdrop-filter: blur(12px);
     backdrop-filter: blur(12px);
     padding: 10px 16px;
@@ -762,7 +762,7 @@ body.agent-running .toolbar-stop-btn {
     align-items: center;
     justify-content: space-between;
     padding: 16px;
-    background: rgba(30, 41, 59, 0.8);
+    background: rgba(26, 27, 32, 0.92);
     -webkit-backdrop-filter: blur(12px);
     backdrop-filter: blur(12px);
     border-bottom: 1px solid var(--border);
@@ -799,7 +799,7 @@ body.agent-running .toolbar-stop-btn {
 }
 
 .history-new-btn {
-    background: linear-gradient(135deg, #3b82f6, #2563eb);
+    background: var(--accent-gradient);
     color: white;
     border: none;
     border-radius: 14px;
@@ -811,14 +811,14 @@ body.agent-running .toolbar-stop-btn {
     gap: 8px;
     width: 100%;
     justify-content: center;
-    box-shadow: 0 4px 12px rgba(59, 130, 246, 0.3);
+    box-shadow: 0 4px 12px var(--accent-glow);
     cursor: pointer;
     transition: all 0.2s cubic-bezier(0.4, 0, 0.2, 1);
 }
 
 .history-new-btn:active {
     transform: scale(0.97);
-    box-shadow: 0 2px 8px rgba(59, 130, 246, 0.4);
+    box-shadow: 0 2px 8px var(--accent-glow);
 }
 
 .history-new-btn svg {
@@ -855,8 +855,8 @@ body.agent-running .toolbar-stop-btn {
     width: 40px;
     height: 40px;
     border-radius: 12px;
-    background: linear-gradient(135deg, rgba(59, 130, 246, 0.15), rgba(37, 99, 235, 0.05));
-    border: 1px solid rgba(59, 130, 246, 0.2);
+    background: linear-gradient(135deg, rgba(99, 102, 241, 0.15), rgba(79, 70, 229, 0.05));
+    border: 1px solid rgba(99, 102, 241, 0.2);
     color: var(--accent);
     display: flex;
     align-items: center;
