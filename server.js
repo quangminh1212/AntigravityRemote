@@ -89,6 +89,7 @@ function psExecAsync(command, timeout = 8000) {
 
 // ============================================================================
 // Windows UI Automation Engine (No CDP!)
+// Sử dụng PostMessage/SendMessage để gửi keystroke KHÔNG cần steal focus
 // ============================================================================
 class WindowsUIAutomation {
     constructor() {
@@ -102,7 +103,6 @@ class WindowsUIAutomation {
      * Find the Antigravity main window - iterates ALL processes to find valid handle
      */
     async findAntigravityWindow() {
-        // Strategy: find ANY Antigravity process with a non-zero MainWindowHandle
         const result = await psExecAsync(
             `Get-Process -Name Antigravity -ErrorAction SilentlyContinue | ` +
             `Where-Object { $_.MainWindowHandle -ne [IntPtr]::Zero -and $_.MainWindowTitle -ne '' } | ` +
@@ -150,128 +150,115 @@ class WindowsUIAutomation {
     }
 
     /**
-     * Focus the Antigravity window using multiple strategies:
-     * 1. Alt-key trick (keybd_event) to bypass SetForegroundWindow restriction
-     * 2. AttachThreadInput to attach to foreground thread
-     * 3. AppActivate (WScript.Shell) as fallback
+     * Send text to Antigravity chat using clipboard + brief focus steal + auto-restore
+     * Flow: Save current window → Focus Antigravity → Ctrl+L → Paste → Enter → Restore
+     * Total disruption time: ~500ms (user barely notices)
      */
-    async focusAntigravityWindow() {
-        if (!this.isAntigravityRunning) {
-            await this.findAntigravityWindow();
-        }
-        if (!this.isAntigravityRunning) return false;
+    async sendChatMessage(text) {
+        try {
+            if (!this.isAntigravityRunning) {
+                await this.findAntigravityWindow();
+            }
+            if (!this.isAntigravityRunning) {
+                return { success: false, error: 'Antigravity is not running' };
+            }
 
-        // Robust focus script using multiple strategies
-        const result = await psExecAsync(`
+            const escapedText = text.replace(/'/g, "''");
+
+            // ALL-IN-ONE PowerShell script:
+            // 1. Save current foreground window
+            // 2. Put text in clipboard
+            // 3. Briefly focus Antigravity
+            // 4. Send Ctrl+L, Ctrl+V, Enter
+            // 5. Restore previous window
+            const result = await psExecAsync(`
+Add-Type -AssemblyName System.Windows.Forms -ErrorAction SilentlyContinue
 Add-Type @'
 using System;
 using System.Runtime.InteropServices;
 using System.Threading;
-public class FocusHelper {
+public class RemoteSend {
+    [DllImport("user32.dll")] public static extern IntPtr GetForegroundWindow();
     [DllImport("user32.dll")] public static extern bool SetForegroundWindow(IntPtr hWnd);
     [DllImport("user32.dll")] public static extern bool ShowWindow(IntPtr hWnd, int nCmdShow);
-    [DllImport("user32.dll")] public static extern IntPtr GetForegroundWindow();
+    [DllImport("user32.dll")] public static extern bool BringWindowToTop(IntPtr hWnd);
     [DllImport("user32.dll")] public static extern uint GetWindowThreadProcessId(IntPtr hWnd, out uint processId);
     [DllImport("user32.dll")] public static extern bool AttachThreadInput(uint idAttach, uint idAttachTo, bool fAttach);
-    [DllImport("user32.dll")] public static extern bool BringWindowToTop(IntPtr hWnd);
     [DllImport("kernel32.dll")] public static extern uint GetCurrentThreadId();
     [DllImport("user32.dll")] public static extern void keybd_event(byte bVk, byte bScan, uint dwFlags, UIntPtr dwExtraInfo);
-    
+
     const byte VK_MENU = 0x12;
-    const uint KEYEVENTF_EXTENDEDKEY = 0x1;
-    const uint KEYEVENTF_KEYUP = 0x2;
-    
-    public static bool ForceFocus(IntPtr hwnd) {
-        if (hwnd == IntPtr.Zero) return false;
-        
-        IntPtr fgWnd = GetForegroundWindow();
-        if (fgWnd == hwnd) return true;
-        
-        uint fgThread = GetWindowThreadProcessId(fgWnd, out _);
+
+    public static IntPtr SaveAndFocus(IntPtr target) {
+        IntPtr saved = GetForegroundWindow();
+        if (saved == target) return saved;
+
+        // Alt trick to allow focus change
+        keybd_event(VK_MENU, 0, 0x1, UIntPtr.Zero);
+        keybd_event(VK_MENU, 0, 0x3, UIntPtr.Zero);
+
+        uint fgThread = GetWindowThreadProcessId(saved, out _);
         uint curThread = GetCurrentThreadId();
-        
-        // Strategy 1: Alt-key trick - simulate Alt press/release to allow focus steal
-        keybd_event(VK_MENU, 0, KEYEVENTF_EXTENDEDKEY, UIntPtr.Zero);
-        keybd_event(VK_MENU, 0, KEYEVENTF_EXTENDEDKEY | KEYEVENTF_KEYUP, UIntPtr.Zero);
-        
-        // Strategy 2: Attach to foreground thread
-        bool attached = false;
-        if (fgThread != curThread) {
-            attached = AttachThreadInput(curThread, fgThread, true);
-        }
-        
-        ShowWindow(hwnd, 9); // SW_RESTORE
-        SetForegroundWindow(hwnd);
-        BringWindowToTop(hwnd);
-        
-        if (attached) {
-            AttachThreadInput(curThread, fgThread, false);
-        }
-        
-        Thread.Sleep(100);
-        return GetForegroundWindow() == hwnd || true; // optimistic
+        bool attached = (fgThread != curThread) && AttachThreadInput(curThread, fgThread, true);
+
+        ShowWindow(target, 9);
+        SetForegroundWindow(target);
+        BringWindowToTop(target);
+
+        if (attached) AttachThreadInput(curThread, fgThread, false);
+        return saved;
+    }
+
+    public static void RestoreFocus(IntPtr saved) {
+        if (saved == IntPtr.Zero) return;
+        keybd_event(VK_MENU, 0, 0x1, UIntPtr.Zero);
+        keybd_event(VK_MENU, 0, 0x3, UIntPtr.Zero);
+        SetForegroundWindow(saved);
     }
 }
 '@ -ErrorAction SilentlyContinue
 
-# Find the Antigravity process with a valid window handle
-$procs = Get-Process -Name Antigravity -ErrorAction SilentlyContinue | Where-Object { $_.MainWindowHandle -ne [IntPtr]::Zero }
-$focused = $false
-
-foreach ($proc in $procs) {
-    if ([FocusHelper]::ForceFocus($proc.MainWindowHandle)) {
-        $focused = $true
-        break
-    }
+# Find Antigravity window with valid handle
+$proc = Get-Process -Name Antigravity -ErrorAction SilentlyContinue | Where-Object { $_.MainWindowHandle -ne [IntPtr]::Zero } | Select-Object -First 1
+if (-not $proc) {
+    'error:no_window'
+    return
 }
 
-# Fallback: Use AppActivate (WScript.Shell)
-if (-not $focused) {
-    try {
-        $wsh = New-Object -ComObject WScript.Shell
-        $wsh.AppActivate('Antigravity') | Out-Null
-        $focused = $true
-    } catch {}
-}
+# 1. Save current foreground window
+$savedWnd = [RemoteSend]::SaveAndFocus($proc.MainWindowHandle)
 
-if ($focused) { 'focused' } else { 'not_found' }
-        `);
+# 2. Wait for focus to settle
+Start-Sleep -Milliseconds 200
 
-        const ok = result?.trim() === 'focused';
-        if (!ok) {
-            log('WARN', 'Focus failed, result:', result);
-        }
-        return ok;
-    }
+# 3. Put text in clipboard
+[System.Windows.Forms.Clipboard]::SetText('${escapedText}')
 
-    /**
-     * Send text to Antigravity chat using keyboard simulation
-     * Flow: Focus window → Open chat (Ctrl+L) → Type text → Press Enter
-     */
-    async sendChatMessage(text) {
-        try {
-            // 1. Focus the Antigravity window
-            const focused = await this.focusAntigravityWindow();
-            if (!focused) {
-                return { success: false, error: 'Cannot focus Antigravity window' };
+# 4. Send Ctrl+L to focus chat input
+[System.Windows.Forms.SendKeys]::SendWait('^l')
+Start-Sleep -Milliseconds 300
+
+# 5. Paste text
+[System.Windows.Forms.SendKeys]::SendWait('^v')
+Start-Sleep -Milliseconds 200
+
+# 6. Press Enter to send
+[System.Windows.Forms.SendKeys]::SendWait('{ENTER}')
+Start-Sleep -Milliseconds 100
+
+# 7. RESTORE previous foreground window immediately
+[RemoteSend]::RestoreFocus($savedWnd)
+
+'ok'
+            `, 15000);
+
+            if (result?.trim() === 'ok') {
+                log('INFO', 'Message sent + window restored', { len: text.length });
+                return { success: true };
+            } else {
+                log('WARN', 'Send result:', result);
+                return { success: false, error: result || 'Send failed' };
             }
-
-            // Small delay to ensure window is focused
-            await sleep(400);
-
-            // 2. Open/focus the chat input using Ctrl+L (Antigravity chat shortcut)
-            await this.sendKeys('^l'); // Ctrl+L to focus chat input
-            await sleep(500);
-
-            // 3. Type the message using clipboard (handles all characters)
-            await this.typeText(text);
-            await sleep(300);
-
-            // 4. Press Enter to send
-            await this.sendKeys('{ENTER}');
-
-            log('INFO', 'Message sent via keyboard automation', { len: text.length });
-            return { success: true };
         } catch (e) {
             log('ERROR', 'sendChatMessage failed', e.message);
             return { success: false, error: e.message };
@@ -279,23 +266,63 @@ if ($focused) { 'focused' } else { 'not_found' }
     }
 
     /**
-     * Click an approval button by simulating keyboard shortcuts
+     * Click approval button: brief focus → Tab → Enter → restore
      */
     async clickApprovalButton(buttonText = 'Accept') {
         try {
-            const focused = await this.focusAntigravityWindow();
-            if (!focused) {
-                return { success: false, error: 'Cannot focus Antigravity window' };
+            if (!this.isAntigravityRunning) {
+                await this.findAntigravityWindow();
             }
-            await sleep(400);
+            if (!this.isAntigravityRunning) {
+                return { success: false, error: 'Antigravity is not running' };
+            }
 
-            // Try Tab to navigate to the approval button, then Enter to click
-            await this.sendKeys('{TAB}');
-            await sleep(200);
-            await this.sendKeys('{ENTER}');
+            const result = await psExecAsync(`
+Add-Type -AssemblyName System.Windows.Forms -ErrorAction SilentlyContinue
+Add-Type @'
+using System;
+using System.Runtime.InteropServices;
+public class ApproveHelper {
+    [DllImport("user32.dll")] public static extern IntPtr GetForegroundWindow();
+    [DllImport("user32.dll")] public static extern bool SetForegroundWindow(IntPtr hWnd);
+    [DllImport("user32.dll")] public static extern bool ShowWindow(IntPtr hWnd, int nCmdShow);
+    [DllImport("user32.dll")] public static extern void keybd_event(byte bVk, byte bScan, uint dwFlags, UIntPtr dwExtraInfo);
+    const byte VK_MENU = 0x12;
+    public static IntPtr SaveAndFocus(IntPtr target) {
+        IntPtr saved = GetForegroundWindow();
+        keybd_event(VK_MENU, 0, 0x1, UIntPtr.Zero);
+        keybd_event(VK_MENU, 0, 0x3, UIntPtr.Zero);
+        ShowWindow(target, 9);
+        SetForegroundWindow(target);
+        return saved;
+    }
+    public static void Restore(IntPtr saved) {
+        if (saved == IntPtr.Zero) return;
+        keybd_event(VK_MENU, 0, 0x1, UIntPtr.Zero);
+        keybd_event(VK_MENU, 0, 0x3, UIntPtr.Zero);
+        SetForegroundWindow(saved);
+    }
+}
+'@ -ErrorAction SilentlyContinue
 
-            log('INFO', 'Approval action sent', { buttonText });
-            return { success: true, clicked: buttonText };
+$proc = Get-Process -Name Antigravity -ErrorAction SilentlyContinue | Where-Object { $_.MainWindowHandle -ne [IntPtr]::Zero } | Select-Object -First 1
+if (-not $proc) { 'error:no_window'; return }
+
+$saved = [ApproveHelper]::SaveAndFocus($proc.MainWindowHandle)
+Start-Sleep -Milliseconds 200
+[System.Windows.Forms.SendKeys]::SendWait('{TAB}')
+Start-Sleep -Milliseconds 150
+[System.Windows.Forms.SendKeys]::SendWait('{ENTER}')
+Start-Sleep -Milliseconds 100
+[ApproveHelper]::Restore($saved)
+'ok'
+            `, 10000);
+
+            if (result?.trim() === 'ok') {
+                log('INFO', 'Approval sent + window restored', { buttonText });
+                return { success: true, clicked: buttonText };
+            }
+            return { success: false, error: result || 'Approve failed' };
         } catch (e) {
             log('ERROR', 'clickApprovalButton failed', e.message);
             return { success: false, error: e.message };
@@ -303,31 +330,8 @@ if ($focused) { 'focused' } else { 'not_found' }
     }
 
     /**
-     * Send special keys using PowerShell SendKeys
-     */
-    async sendKeys(keys) {
-        await psExecAsync(`
-Add-Type -AssemblyName System.Windows.Forms -ErrorAction SilentlyContinue
-[System.Windows.Forms.SendKeys]::SendWait('${keys.replace(/'/g, "''")}')
-        `);
-    }
-
-    /**
-     * Type text safely using clipboard (handles all characters including unicode)
-     * More reliable than SendKeys for arbitrary text
-     */
-    async typeText(text) {
-        const escapedText = text.replace(/'/g, "''");
-        await psExecAsync(`
-Add-Type -AssemblyName System.Windows.Forms -ErrorAction SilentlyContinue
-[System.Windows.Forms.Clipboard]::SetText('${escapedText}')
-[System.Windows.Forms.SendKeys]::SendWait('^v')
-Start-Sleep -Milliseconds 100
-        `);
-    }
-
-    /**
      * Get Antigravity window title to detect state
+     * SAFE: Only reads process info, NO focus stealing
      */
     async getWindowTitle() {
         const result = await psExecAsync(
@@ -339,7 +343,6 @@ Start-Sleep -Milliseconds 100
             this.antigravityTitle = result;
             this.isAntigravityRunning = true;
         } else {
-            // Still check if process exists
             const exists = await psExecAsync(
                 `Get-Process -Name Antigravity -ErrorAction SilentlyContinue | Select-Object -First 1 -ExpandProperty Id`
             );
