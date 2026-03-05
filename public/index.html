@@ -1,0 +1,107 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+    <meta name="apple-mobile-web-app-capable" content="yes">
+    <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+    <meta name="theme-color" content="#0a0a0f">
+    <meta name="description" content="Mobile chat client for Antigravity IDE - approve actions, send messages remotely">
+    <title>AntigravityRemote</title>
+    <link rel="manifest" href="/manifest.json">
+    <link rel="icon" href="/icon-192.svg" type="image/svg+xml">
+    <link rel="apple-touch-icon" href="/icon-192.svg">
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&family=JetBrains+Mono:wght@400;500&display=swap" rel="stylesheet">
+    <link rel="stylesheet" href="/styles.css">
+</head>
+<body>
+    <!-- Status Bar -->
+    <header id="statusBar">
+        <div class="status-left">
+            <div class="logo">
+                <svg width="24" height="24" viewBox="0 0 24 24" fill="none">
+                    <circle cx="12" cy="12" r="10" stroke="url(#grad)" stroke-width="2"/>
+                    <path d="M12 6L8 14h3v4l4-8h-3V6z" fill="url(#grad)"/>
+                    <defs>
+                        <linearGradient id="grad" x1="0" y1="0" x2="24" y2="24">
+                            <stop offset="0%" stop-color="#818cf8"/>
+                            <stop offset="100%" stop-color="#6366f1"/>
+                        </linearGradient>
+                    </defs>
+                </svg>
+                <span class="logo-text">AG Remote</span>
+            </div>
+        </div>
+        <div class="status-right">
+            <div class="connection-badge" id="connectionBadge">
+                <span class="dot"></span>
+                <span class="label">Connecting...</span>
+            </div>
+        </div>
+    </header>
+
+    <!-- Approval Banner -->
+    <div id="approvalBanner" class="approval-banner hidden">
+        <div class="approval-content">
+            <div class="approval-icon">⚡</div>
+            <div class="approval-text">
+                <span class="approval-title">Action pending approval</span>
+                <span class="approval-desc" id="approvalDesc"></span>
+            </div>
+        </div>
+        <div class="approval-actions">
+            <button class="btn-approve" id="btnApprove" onclick="approveAction()">
+                <svg width="16" height="16" viewBox="0 0 16 16" fill="none"><path d="M13 4L6 11L3 8" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/></svg>
+                Approve
+            </button>
+            <button class="btn-reject" id="btnReject" onclick="rejectAction()">
+                <svg width="16" height="16" viewBox="0 0 16 16" fill="none"><path d="M4 4L12 12M12 4L4 12" stroke="currentColor" stroke-width="2" stroke-linecap="round"/></svg>
+                Reject
+            </button>
+        </div>
+    </div>
+
+    <!-- Agent Status -->
+    <div id="agentStatus" class="agent-status">
+        <div class="status-indicator" id="statusIndicator">
+            <div class="pulse"></div>
+            <span id="statusText">Initializing...</span>
+        </div>
+    </div>
+
+    <!-- Chat Messages -->
+    <main id="chatContainer" class="chat-container">
+        <div id="chatMessages" class="chat-messages">
+            <div class="welcome-message">
+                <div class="welcome-icon">🚀</div>
+                <h2>AntigravityRemote</h2>
+                <p>Mobile chat client for Antigravity IDE</p>
+                <p class="welcome-sub">Messages will appear here once connected.</p>
+            </div>
+        </div>
+    </main>
+
+    <!-- Chat Input -->
+    <footer id="chatInput" class="chat-input-bar">
+        <div class="input-wrapper">
+            <textarea id="messageInput" placeholder="Send a message to Antigravity..." rows="1" maxlength="10000"></textarea>
+            <button id="sendBtn" class="send-btn" onclick="sendMessage()" disabled>
+                <svg width="20" height="20" viewBox="0 0 20 20" fill="none">
+                    <path d="M3 10L17 3L10 17L9 11L3 10Z" fill="currentColor"/>
+                </svg>
+            </button>
+        </div>
+    </footer>
+
+    <!-- Reconnect Overlay -->
+    <div id="reconnectOverlay" class="reconnect-overlay hidden">
+        <div class="reconnect-card">
+            <div class="reconnect-spinner"></div>
+            <p>Connection lost</p>
+            <button onclick="reconnect()" class="btn-reconnect">Reconnect</button>
+        </div>
+    </div>
+
+    <script src="/app.js"></script>
+</body>
+</html>

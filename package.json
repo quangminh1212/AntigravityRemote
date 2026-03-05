@@ -1,0 +1,24 @@
+{
+    "name": "antigravity-remote",
+    "version": "1.0.0",
+    "description": "Mobile PWA chat client for Antigravity IDE via Language Server gRPC",
+    "main": "server.js",
+    "type": "module",
+    "scripts": {
+        "start": "node server.js",
+        "dev": "node server.js"
+    },
+    "keywords": [
+        "antigravity",
+        "mobile",
+        "pwa",
+        "grpc",
+        "connect-rpc",
+        "chat"
+    ],
+    "license": "MIT",
+    "dependencies": {
+        "express": "^5.2.1",
+        "ws": "^8.19.0"
+    }
+}
