@@ -1,28 +1,37 @@
 # Dependencies
 node_modules/
+package-lock.json
 
-# Runtime generated files
-debug.log
+# Logs
 *.log
-chat_screenshot.png
-test_screenshot.png
-chat-history.json
-
-# Environment
-.env
-.env.local
+server_log.txt
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
 
 # OS files
 .DS_Store
 Thumbs.db
-desktop.ini
 
-# IDE
+# Editor
 .vscode/
 .idea/
+*.swp
+*.swo
+*~
 
-# User assets (not part of codebase)
-image.png
+# Environment
+.env
+.env.local
+.env.*.local
 
-# Lock file (regenerated on npm install)
-package-lock.json
+# Build/Temp
+dist/
+build/
+.DS_Store
+
+# SSL Certificates (generated locally)
+certs/
+
+# Registry
+registry/
