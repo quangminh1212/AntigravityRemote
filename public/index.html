@@ -1,5 +1,6 @@
 <!DOCTYPE html>
 <html lang="en">
+
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
@@ -11,21 +12,24 @@
     <link rel="manifest" href="/manifest.json">
     <link rel="icon" href="/icon-192.svg" type="image/svg+xml">
     <link rel="apple-touch-icon" href="/icon-192.svg">
-    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&family=JetBrains+Mono:wght@400;500&display=swap" rel="stylesheet">
+    <link
+        href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&family=JetBrains+Mono:wght@400;500&display=swap"
+        rel="stylesheet">
     <link rel="stylesheet" href="/styles.css">
 </head>
+
 <body>
     <!-- Status Bar -->
     <header id="statusBar">
         <div class="status-left">
             <div class="logo">
                 <svg width="24" height="24" viewBox="0 0 24 24" fill="none">
-                    <circle cx="12" cy="12" r="10" stroke="url(#grad)" stroke-width="2"/>
-                    <path d="M12 6L8 14h3v4l4-8h-3V6z" fill="url(#grad)"/>
+                    <circle cx="12" cy="12" r="10" stroke="url(#grad)" stroke-width="2" />
+                    <path d="M12 6L8 14h3v4l4-8h-3V6z" fill="url(#grad)" />
                     <defs>
                         <linearGradient id="grad" x1="0" y1="0" x2="24" y2="24">
-                            <stop offset="0%" stop-color="#818cf8"/>
-                            <stop offset="100%" stop-color="#6366f1"/>
+                            <stop offset="0%" stop-color="#818cf8" />
+                            <stop offset="100%" stop-color="#6366f1" />
                         </linearGradient>
                     </defs>
                 </svg>
@@ -51,11 +55,16 @@
         </div>
         <div class="approval-actions">
             <button class="btn-approve" id="btnApprove" onclick="approveAction()">
-                <svg width="16" height="16" viewBox="0 0 16 16" fill="none"><path d="M13 4L6 11L3 8" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/></svg>
+                <svg width="16" height="16" viewBox="0 0 16 16" fill="none">
+                    <path d="M13 4L6 11L3 8" stroke="currentColor" stroke-width="2" stroke-linecap="round"
+                        stroke-linejoin="round" />
+                </svg>
                 Approve
             </button>
             <button class="btn-reject" id="btnReject" onclick="rejectAction()">
-                <svg width="16" height="16" viewBox="0 0 16 16" fill="none"><path d="M4 4L12 12M12 4L4 12" stroke="currentColor" stroke-width="2" stroke-linecap="round"/></svg>
+                <svg width="16" height="16" viewBox="0 0 16 16" fill="none">
+                    <path d="M4 4L12 12M12 4L4 12" stroke="currentColor" stroke-width="2" stroke-linecap="round" />
+                </svg>
                 Reject
             </button>
         </div>
@@ -69,14 +78,19 @@
         </div>
     </div>
 
-    <!-- Chat Messages -->
+    <!-- Chat Panel Screenshot (Live Mirror) -->
     <main id="chatContainer" class="chat-container">
         <div id="chatMessages" class="chat-messages">
-            <div class="welcome-message">
-                <div class="welcome-icon">🚀</div>
-                <h2>AntigravityRemote</h2>
-                <p>Mobile chat client for Antigravity IDE</p>
-                <p class="welcome-sub">Messages will appear here once connected.</p>
+            <div id="screenshotView" class="screenshot-view">
+                <img id="screenshotImg" src="/api/screenshot" alt="Antigravity Chat" class="screenshot-img"
+                    onerror="this.style.display='none'; document.getElementById('welcomeMsg').style.display='flex';"
+                    onload="this.style.display='block'; document.getElementById('welcomeMsg').style.display='none';" />
+                <div id="welcomeMsg" class="welcome-message">
+                    <div class="welcome-icon">🚀</div>
+                    <h2>AntigravityRemote</h2>
+                    <p>Mobile chat client for Antigravity IDE</p>
+                    <p class="welcome-sub">Waiting for Antigravity chat panel screenshot...</p>
+                </div>
             </div>
         </div>
     </main>
@@ -84,10 +98,11 @@
     <!-- Chat Input -->
     <footer id="chatInput" class="chat-input-bar">
         <div class="input-wrapper">
-            <textarea id="messageInput" placeholder="Send a message to Antigravity..." rows="1" maxlength="10000"></textarea>
+            <textarea id="messageInput" placeholder="Send a message to Antigravity..." rows="1"
+                maxlength="10000"></textarea>
             <button id="sendBtn" class="send-btn" onclick="sendMessage()" disabled>
                 <svg width="20" height="20" viewBox="0 0 20 20" fill="none">
-                    <path d="M3 10L17 3L10 17L9 11L3 10Z" fill="currentColor"/>
+                    <path d="M3 10L17 3L10 17L9 11L3 10Z" fill="currentColor" />
                 </svg>
             </button>
         </div>
@@ -104,4 +119,5 @@
 
     <script src="/app.js"></script>
 </body>
+
 </html>

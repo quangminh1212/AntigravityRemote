@@ -1040,6 +1040,59 @@ class AntigravityRemote {
             res.json(this.conn.getStatus());
         });
 
+        // Screenshot of chat panel (right side of Antigravity window)
+        this.app.get('/api/screenshot', async (req, res) => {
+            try {
+                const imgPath = path.join(__dirname, 'chat_screenshot.png');
+                const psCmd = [
+                    'Add-Type -AssemblyName System.Windows.Forms',
+                    'Add-Type -AssemblyName System.Drawing',
+                    '$proc = Get-Process -Name Antigravity -ErrorAction SilentlyContinue | Where-Object { $_.MainWindowHandle -ne [IntPtr]::Zero -and $_.MainWindowTitle -ne "" } | Select-Object -First 1',
+                    'if (-not $proc) { "ERROR:no_window"; return }',
+                    '',
+                    'Add-Type @"',
+                    'using System; using System.Runtime.InteropServices;',
+                    'public class Win32 {',
+                    '    [DllImport("user32.dll")] public static extern bool GetWindowRect(IntPtr hWnd, out RECT lpRect);',
+                    '    [StructLayout(LayoutKind.Sequential)] public struct RECT { public int Left, Top, Right, Bottom; }',
+                    '}',
+                    '"@',
+                    '',
+                    '$rect = New-Object Win32+RECT',
+                    '[Win32]::GetWindowRect($proc.MainWindowHandle, [ref]$rect) | Out-Null',
+                    '$wW = $rect.Right - $rect.Left',
+                    '$wH = $rect.Bottom - $rect.Top',
+                    '',
+                    '# Capture right 40% of window (chat panel area)',
+                    '$chatX = $rect.Left + [int]($wW * 0.60)',
+                    '$chatY = $rect.Top',
+                    '$chatW = $rect.Right - $chatX',
+                    '$chatH = $wH',
+                    '',
+                    '$bmp = New-Object System.Drawing.Bitmap($chatW, $chatH)',
+                    '$g = [System.Drawing.Graphics]::FromImage($bmp)',
+                    '$g.CopyFromScreen($chatX, $chatY, 0, 0, (New-Object System.Drawing.Size($chatW, $chatH)))',
+                    '$g.Dispose()',
+                    `$bmp.Save("${imgPath.replace(/\\/g, '\\\\')}")`,
+                    '$bmp.Dispose()',
+                    '"OK"',
+                ].join('\n');
+
+                const result = await psExecAsync(psCmd, 10000);
+                if (result === 'OK' && fs.existsSync(imgPath)) {
+                    const stat = fs.statSync(imgPath);
+                    res.set('Content-Type', 'image/png');
+                    res.set('Cache-Control', 'no-cache, no-store');
+                    res.set('Content-Length', stat.size);
+                    fs.createReadStream(imgPath).pipe(res);
+                } else {
+                    res.status(500).json({ error: 'Screenshot failed', detail: result });
+                }
+            } catch (e) {
+                res.status(500).json({ error: e.message });
+            }
+        });
+
         // PWA manifest
         this.app.get('/manifest.json', (req, res) => {
             res.json({

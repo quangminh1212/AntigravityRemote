@@ -3,3 +3,6 @@ debug.log
 *.log
 .env
 chat-history.json
+chat_screenshot.png
+image.png
+test_screenshot.png

@@ -183,7 +183,8 @@ function updateConnectionBadge() {
 
     if (state.ideConnected) {
         badge.classList.add('connected');
-        const modeLabel = state.connectionMode === 'hybrid' ? 'Hybrid' : 'UI Auto';
+        const modes = { hybrid: 'Hybrid', clipboard_reader: 'Clipboard', ui_automation: 'UI Auto' };
+        const modeLabel = modes[state.connectionMode] || 'Connected';
         label.textContent = `Connected (${modeLabel})`;
     } else if (state.connected) {
         label.textContent = 'Server OK · No IDE';
@@ -241,41 +242,26 @@ function updateApprovalBanner(approvals) {
 // Chat Rendering
 // ============================================================================
 function renderMessages() {
-    const container = DOM.chatMessages;
-    const wasAtBottom = isScrolledToBottom();
+    // Refresh screenshot image to show latest chat panel state
+    refreshScreenshot();
+}
 
-    // Clear welcome message
-    const welcome = container.querySelector('.welcome-message');
-    if (welcome && state.messages.length > 0) {
-        welcome.remove();
+let screenshotInterval = null;
+
+function refreshScreenshot() {
+    const img = document.getElementById('screenshotImg');
+    if (img) {
+        // Add timestamp to bust cache
+        img.src = '/api/screenshot?t=' + Date.now();
     }
+}
 
-    // Render messages
-    container.innerHTML = '';
-
-    for (const msg of state.messages) {
-        const bubble = document.createElement('div');
-        bubble.className = `chat-bubble ${msg.role === 'user' ? 'user' : 'assistant'}`;
-
-        if (msg.role !== 'user') {
-            const roleLabel = document.createElement('div');
-            roleLabel.className = 'role-label';
-            roleLabel.textContent = msg.role === 'assistant' ? '🤖 Agent' : '💬';
-            bubble.appendChild(roleLabel);
-        }
-
-        const content = document.createElement('div');
-        content.className = 'bubble-content';
-        content.innerHTML = formatMessage(msg.content);
-        bubble.appendChild(content);
-
-        container.appendChild(bubble);
-    }
-
-    // Auto-scroll to bottom if was at bottom
-    if (wasAtBottom || state.messages.length <= 3) {
-        scrollToBottom();
-    }
+function startScreenshotRefresh() {
+    if (screenshotInterval) return;
+    // Refresh every 2.5 seconds
+    screenshotInterval = setInterval(refreshScreenshot, 2500);
+    // Also refresh immediately
+    refreshScreenshot();
 }
 
 function formatMessage(text) {
@@ -479,6 +465,7 @@ document.addEventListener('DOMContentLoaded', () => {
     setupInputHandlers();
     connectWebSocket();
     registerServiceWorker();
+    startScreenshotRefresh();
 
     // Handle visibility change - reconnect when app comes to foreground
     document.addEventListener('visibilitychange', () => {
