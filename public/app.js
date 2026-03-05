@@ -183,7 +183,8 @@ function updateConnectionBadge() {
 
     if (state.ideConnected) {
         badge.classList.add('connected');
-        label.textContent = 'Connected (UI Auto)';
+        const modeLabel = state.connectionMode === 'hybrid' ? 'Hybrid' : 'UI Auto';
+        label.textContent = `Connected (${modeLabel})`;
     } else if (state.connected) {
         label.textContent = 'Server OK · No IDE';
     } else {

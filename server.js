@@ -493,21 +493,265 @@ class ProcessMonitor {
 }
 
 // ============================================================================
-// Antigravity Connection Manager (No CDP)
+// CDP Chat Reader (Passive, read-only, no focus stealing)
+// Used ONLY for reading chat messages from Antigravity UI
+// Falls back gracefully if CDP is not available
+// ============================================================================
+class CdpChatReader {
+    constructor() {
+        this.ws = null;
+        this.cdpUrl = '';
+        this.connected = false;
+        this.msgId = 1;
+        this.pendingResolves = new Map();
+        this.lastMessages = [];
+        this.lastApprovals = [];
+        this.lastAgentStatus = 'idle';
+    }
+
+    /**
+     * Try to discover and connect to CDP endpoint
+     * Scans Antigravity's listening ports for /json/list endpoint
+     */
+    async tryConnect(ports = []) {
+        if (this.connected) return true;
+
+        // Also check common debug ports
+        const candidates = [...new Set([...ports, 9222, 9229, 9333])];
+
+        for (const port of candidates) {
+            try {
+                const resp = await fetchJson(`http://127.0.0.1:${port}/json/list`);
+                if (Array.isArray(resp) && resp.length > 0) {
+                    // Find a page target (not service worker)
+                    const page = resp.find(t => t.type === 'page') || resp[0];
+                    if (page?.webSocketDebuggerUrl) {
+                        this.cdpUrl = page.webSocketDebuggerUrl;
+                        log('INFO', `CDP found at port ${port}`, { url: this.cdpUrl });
+                        return await this.connectWebSocket();
+                    }
+                }
+            } catch { /* port not CDP */ }
+        }
+
+        log('DEBUG', 'No CDP endpoint found (chat read-only mode unavailable)');
+        return false;
+    }
+
+    async connectWebSocket() {
+        return new Promise((resolve) => {
+            try {
+                this.ws = new WebSocket(this.cdpUrl);
+                const timeout = setTimeout(() => {
+                    this.connected = false;
+                    resolve(false);
+                }, 5000);
+
+                this.ws.on('open', () => {
+                    clearTimeout(timeout);
+                    this.connected = true;
+                    log('INFO', 'CDP WebSocket connected (read-only mode)');
+                    resolve(true);
+                });
+
+                this.ws.on('message', (data) => {
+                    try {
+                        const msg = JSON.parse(data.toString());
+                        if (msg.id && this.pendingResolves.has(msg.id)) {
+                            this.pendingResolves.get(msg.id)(msg.result);
+                            this.pendingResolves.delete(msg.id);
+                        }
+                    } catch { /* */ }
+                });
+
+                this.ws.on('close', () => {
+                    this.connected = false;
+                    log('INFO', 'CDP WebSocket closed');
+                });
+
+                this.ws.on('error', () => {
+                    clearTimeout(timeout);
+                    this.connected = false;
+                    resolve(false);
+                });
+            } catch {
+                this.connected = false;
+                resolve(false);
+            }
+        });
+    }
+
+    /**
+     * Execute JS in the browser context via CDP Runtime.evaluate
+     */
+    async evaluate(expression) {
+        if (!this.connected || !this.ws || this.ws.readyState !== 1) return null;
+
+        const id = this.msgId++;
+        return new Promise((resolve) => {
+            const timeout = setTimeout(() => {
+                this.pendingResolves.delete(id);
+                resolve(null);
+            }, 4000);
+
+            this.pendingResolves.set(id, (result) => {
+                clearTimeout(timeout);
+                resolve(result?.result?.value ?? null);
+            });
+
+            try {
+                this.ws.send(JSON.stringify({
+                    id,
+                    method: 'Runtime.evaluate',
+                    params: { expression, returnByValue: true },
+                }));
+            } catch {
+                clearTimeout(timeout);
+                this.pendingResolves.delete(id);
+                resolve(null);
+            }
+        });
+    }
+
+    /**
+     * Read chat messages from the Antigravity UI via CDP
+     * Scrapes the DOM for chat bubbles
+     */
+    async readChatMessages() {
+        if (!this.connected) return null;
+
+        const result = await this.evaluate(`
+            (function() {
+                // Try multiple selectors for chat messages
+                const selectors = [
+                    '.chat-message', '.message-bubble', '.chat-bubble',
+                    '[class*="message"]', '[class*="chat"]',
+                    '.monaco-list-row', '.conversation-turn',
+                    '[role="listitem"]', '.turn-container'
+                ];
+                
+                let messages = [];
+                for (const sel of selectors) {
+                    const els = document.querySelectorAll(sel);
+                    if (els.length > 0) {
+                        els.forEach((el, i) => {
+                            const text = el.innerText?.trim();
+                            if (text && text.length > 2) {
+                                const isUser = el.classList.contains('user') || 
+                                    el.querySelector('[class*="user"]') !== null ||
+                                    el.getAttribute('data-role') === 'user';
+                                messages.push({
+                                    id: i,
+                                    role: isUser ? 'user' : 'assistant',
+                                    content: text.substring(0, 2000),
+                                    ts: Date.now()
+                                });
+                            }
+                        });
+                        if (messages.length > 0) break;
+                    }
+                }
+                return JSON.stringify(messages);
+            })()
+        `);
+
+        if (result) {
+            try {
+                const msgs = JSON.parse(result);
+                if (msgs.length > 0) {
+                    this.lastMessages = msgs;
+                    return msgs;
+                }
+            } catch { /* */ }
+        }
+        return this.lastMessages.length > 0 ? this.lastMessages : null;
+    }
+
+    /**
+     * Read agent status and pending approvals from UI
+     */
+    async readAgentStatus() {
+        if (!this.connected) return null;
+
+        const result = await this.evaluate(`
+            (function() {
+                let status = 'idle';
+                let approvals = [];
+                
+                // Check for thinking/loading indicators
+                const spinners = document.querySelectorAll(
+                    '[class*="spinner"], [class*="loading"], [class*="thinking"], [class*="progress"]'
+                );
+                if (spinners.length > 0) status = 'thinking';
+                
+                // Check for approval buttons
+                const buttons = document.querySelectorAll('button');
+                buttons.forEach(btn => {
+                    const text = btn.innerText?.trim().toLowerCase();
+                    if (text && (text.includes('accept') || text.includes('allow') || 
+                        text.includes('approve') || text.includes('run') || text.includes('continue'))) {
+                        status = 'waiting_approval';
+                        approvals.push({ text: btn.innerText.trim(), cls: 'cdp-button' });
+                    }
+                });
+                
+                return JSON.stringify({ status, approvals });
+            })()
+        `);
+
+        if (result) {
+            try {
+                const data = JSON.parse(result);
+                this.lastAgentStatus = data.status;
+                this.lastApprovals = data.approvals;
+                return data;
+            } catch { /* */ }
+        }
+        return null;
+    }
+
+    disconnect() {
+        if (this.ws) {
+            try { this.ws.close(); } catch { /* */ }
+            this.ws = null;
+        }
+        this.connected = false;
+    }
+}
+
+/**
+ * Simple HTTP JSON fetch helper (no dependencies)
+ */
+function fetchJson(url) {
+    return new Promise((resolve, reject) => {
+        http.get(url, { timeout: 3000 }, (res) => {
+            let data = '';
+            res.on('data', (chunk) => data += chunk);
+            res.on('end', () => {
+                try { resolve(JSON.parse(data)); } catch { reject(new Error('Invalid JSON')); }
+            });
+        }).on('error', reject).on('timeout', function () { this.destroy(); reject(new Error('timeout')); });
+    });
+}
+
+// ============================================================================
+// Antigravity Connection Manager (Hybrid: UI Automation + CDP Reader)
 // ============================================================================
 class AntigravityConnection {
     constructor() {
         this.uiAuto = new WindowsUIAutomation();
         this.conversationMonitor = new ConversationMonitor();
         this.processMonitor = new ProcessMonitor();
+        this.cdpReader = new CdpChatReader();
         this.lastMessages = [];
         this.lastStatus = 'disconnected';
         this.agentStatusFromTitle = 'idle';
         this.conversationUpdateCallback = null;
+        this.cdpTryInterval = null;
     }
 
     async initialize() {
-        log('INFO', 'Initializing AntigravityConnection (No CDP mode)...');
+        log('INFO', 'Initializing AntigravityConnection (Hybrid mode)...');
 
         // Check Antigravity process
         await this.processMonitor.refresh();
@@ -516,6 +760,23 @@ class AntigravityConnection {
         // Find Antigravity window
         await this.uiAuto.findAntigravityWindow();
         log('INFO', `Antigravity running: ${this.uiAuto.isAntigravityRunning}`);
+
+        // Try CDP connection for reading chat
+        const ports = this.processMonitor.listeningPorts;
+        const cdpOk = await this.cdpReader.tryConnect(ports);
+        log('INFO', `CDP reader: ${cdpOk ? 'CONNECTED' : 'not available (messages will show notifications only)'}`);
+
+        // If CDP not available, retry periodically
+        if (!cdpOk) {
+            this.cdpTryInterval = setInterval(async () => {
+                if (!this.cdpReader.connected) {
+                    await this.processMonitor.refresh();
+                    await this.cdpReader.tryConnect(this.processMonitor.listeningPorts);
+                } else {
+                    clearInterval(this.cdpTryInterval);
+                }
+            }, 15000);
+        }
 
         // Start watching conversations
         this.conversationMonitor.startWatching((filename) => {
@@ -535,20 +796,33 @@ class AntigravityConnection {
     getStatus() {
         return {
             connected: this.isConnected(),
-            method: 'ui_automation', // No CDP!
+            method: this.cdpReader.connected ? 'hybrid' : 'ui_automation',
             antigravityRunning: this.uiAuto.isAntigravityRunning,
             windowTitle: this.uiAuto.antigravityTitle,
             processStatus: this.processMonitor.getStatus(),
             grpc: false,
-            cdp: false, // Explicitly false - we don't use CDP
+            cdp: this.cdpReader.connected,
             internalApi: false,
         };
     }
 
     /**
-     * Detect agent status from window title and file activity
+     * Detect agent status - uses CDP if available, falls back to window title
      */
     async getAgentStatus() {
+        // Try CDP first (more accurate)
+        if (this.cdpReader.connected) {
+            const cdpStatus = await this.cdpReader.readAgentStatus();
+            if (cdpStatus) {
+                return {
+                    status: cdpStatus.status,
+                    pendingApprovals: cdpStatus.approvals || [],
+                    windowTitle: this.uiAuto.antigravityTitle,
+                };
+            }
+        }
+
+        // Fallback to window title analysis
         const title = await this.uiAuto.getWindowTitle();
         const pendingApprovals = [];
         let status = 'idle';
@@ -557,7 +831,6 @@ class AntigravityConnection {
             return { status: 'disconnected', pendingApprovals: [] };
         }
 
-        // Parse window title for status hints
         const titleLower = title.toLowerCase();
 
         if (titleLower.includes('thinking') || titleLower.includes('generating') ||
@@ -569,34 +842,38 @@ class AntigravityConnection {
             pendingApprovals.push({ text: 'Action requires approval', cls: 'from-title' });
         }
 
-        // Check if conversation files are being actively updated (indicates agent working)
+        // Check file activity
         const latest = this.conversationMonitor.getLatestConversation();
         if (latest) {
             const timeSinceUpdate = Date.now() - latest.mtime;
             if (timeSinceUpdate < 5000) {
-                // File was updated in last 5 seconds - agent likely working
                 status = status === 'idle' ? 'thinking' : status;
             }
         }
 
         this.lastStatus = status;
-        this.agentStatusFromTitle = status;
-
         return { status, pendingApprovals, windowTitle: title };
     }
 
     /**
-     * Get chat messages (simplified - returns status info since we can't read DOM)
-     * In non-CDP mode, we rely on conversation file monitoring for change detection
+     * Get chat messages - uses CDP if available for real content,
+     * falls back to file change notifications
      */
     async getChatMessages() {
-        // We can't directly read messages without CDP
-        // But we can detect conversation changes and provide status updates
+        // Try CDP reader first (gets ACTUAL chat content)
+        if (this.cdpReader.connected) {
+            const cdpMessages = await this.cdpReader.readChatMessages();
+            if (cdpMessages && cdpMessages.length > 0) {
+                this.lastMessages = cdpMessages;
+                return cdpMessages;
+            }
+        }
+
+        // Fallback: file change notifications only
         const hasUpdates = this.conversationMonitor.hasUpdates();
         const latest = this.conversationMonitor.getLatestConversation();
 
         if (hasUpdates && latest) {
-            // Notify that conversation was updated
             const updateMsg = {
                 id: Date.now(),
                 role: 'system',
@@ -604,11 +881,9 @@ class AntigravityConnection {
                 ts: latest.mtime,
             };
 
-            // Keep last messages and add update notification
             if (this.lastMessages.length === 0 ||
                 this.lastMessages[this.lastMessages.length - 1]?.ts !== latest.mtime) {
                 this.lastMessages.push(updateMsg);
-                // Keep only last 50 messages
                 if (this.lastMessages.length > 50) {
                     this.lastMessages = this.lastMessages.slice(-50);
                 }
@@ -619,7 +894,6 @@ class AntigravityConnection {
     }
 
     async sendChatMessage(text) {
-        // Add the user message to local history
         this.lastMessages.push({
             id: Date.now(),
             role: 'user',
@@ -640,6 +914,8 @@ class AntigravityConnection {
 
     disconnect() {
         this.conversationMonitor.stopWatching();
+        this.cdpReader.disconnect();
+        if (this.cdpTryInterval) clearInterval(this.cdpTryInterval);
         this.uiAuto.isAntigravityRunning = false;
     }
 }
@@ -682,7 +958,7 @@ class AntigravityRemote {
         // Start listening
         this.server.listen(CONFIG.PORT, CONFIG.HOST, () => {
             const ip = this.getLocalIp();
-            console.log('\n  ⚡ AntigravityRemote v2.0 (No CDP Mode)\n');
+            console.log('\n  ⚡ AntigravityRemote v2.0 (Hybrid Mode)\n');
             console.log(`  Local:   http://localhost:${CONFIG.PORT}`);
             console.log(`  Network: http://${ip}:${CONFIG.PORT}`);
             console.log('  Method:  PowerShell UI Automation + File Monitoring');
@@ -732,7 +1008,7 @@ class AntigravityRemote {
                 connection: this.conn.getStatus(),
                 state: { ...this.lastState, ...agentStatus },
                 clients: this.clients.size,
-                mode: 'ui_automation',
+                mode: this.conn.getStatus().method,
             });
         });
 
@@ -779,7 +1055,7 @@ class AntigravityRemote {
             type: 'init',
             ...this.conn.getStatus(),
             ...this.lastState,
-            mode: 'ui_automation',
+            mode: this.conn.getStatus().method,
         }));
 
         ws.on('message', async (raw) => {
