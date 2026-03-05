@@ -1890,7 +1890,7 @@ async function createServer() {
 
     // Auth Middleware
     app.use((req, res, next) => {
-        const publicPaths = ['/login', '/login.html', '/favicon.ico'];
+        const publicPaths = ['/login', '/login.html', '/favicon.ico', '/logo.png'];
         if (publicPaths.includes(req.path) || req.path.startsWith('/css/')) {
             return next();
         }

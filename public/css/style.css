@@ -94,6 +94,14 @@ body {
     -webkit-text-fill-color: transparent;
 }
 
+.header-logo {
+    width: 24px;
+    height: 24px;
+    border-radius: 5px;
+    object-fit: contain;
+    flex-shrink: 0;
+}
+
 .header-controls {
     display: flex;
     align-items: center;
