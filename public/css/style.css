@@ -320,133 +320,171 @@ body {
     }
 }
 
-/* Input Section */
+/* Input Section - Antigravity Style */
 .input-section {
     background: var(--bg-panel);
-    border-top: none;
-    /* Removed border since actions are above */
-    padding: 8px 16px 12px 16px;
-    padding-bottom: max(12px, env(safe-area-inset-bottom));
+    border-top: 1px solid var(--border);
+    padding: 8px 12px;
+    padding-bottom: max(8px, env(safe-area-inset-bottom));
     flex-shrink: 0;
-    display: flex;
-    flex-direction: column;
-    gap: 8px;
 }
 
-.input-wrapper {
-    display: flex;
-    gap: 4px;
-    align-items: center;
-    /* Center text vertically */
-    background-color: var(--bg-input);
-    padding: 4px 4px 4px 16px;
-    /* Reduced vertical padding */
-    border-radius: 24px;
+.input-box {
+    background: var(--bg-input);
     border: 1px solid var(--border);
-    transition: all 0.2s;
-    min-height: 48px;
-    background-image: none !important;
-    box-shadow: none !important;
+    border-radius: 16px;
+    padding: 0;
+    transition: border-color 0.2s;
+    overflow: hidden;
 }
 
-.input-wrapper:focus-within {
-    border-color: rgba(139, 92, 246, 0.5);
-    /* Matching accent gradient start */
-    background-color: var(--bg-panel);
-    /* Soft glow instead of hard shadow */
-    box-shadow: 0 0 16px var(--accent-glow) !important;
+.input-box:focus-within {
+    border-color: rgba(255, 255, 255, 0.15);
 }
 
-textarea {
-    flex: 1;
-    /* NUCLEAR OPTION for cleanup */
+.input-box textarea {
+    width: 100%;
+    background: transparent !important;
     background-color: transparent !important;
-    background: rgba(0, 0, 0, 0) !important;
     background-image: none !important;
     border: none !important;
-    color: #ffffff !important;
-    padding: 10px 0;
-    /* Vertical center visual */
-    font-size: 16px;
+    color: var(--text-main) !important;
+    padding: 12px 14px 6px 14px;
+    font-size: 14px;
     font-family: inherit;
     resize: none;
-    min-height: 24px;
-    /* Matches line height */
-    max-height: 160px;
+    min-height: 22px;
+    max-height: 140px;
     line-height: 1.5;
-    opacity: 1;
-    margin: 0;
     outline: none !important;
     box-shadow: none !important;
-    /* Vendor Resets */
     -webkit-appearance: none;
     -moz-appearance: none;
     appearance: none;
     border-radius: 0;
     caret-color: var(--accent);
+    display: block;
 }
 
-/* Specific fix for Chrome/Android autofill background */
-textarea:-webkit-autofill,
-textarea:-webkit-autofill:hover,
-textarea:-webkit-autofill:focus {
+.input-box textarea::placeholder {
+    color: var(--text-muted);
+    opacity: 0.7;
+}
+
+/* Hide scrollbar on textarea */
+.input-box textarea::-webkit-scrollbar {
+    width: 0px;
+    background: transparent;
+}
+
+/* Autofill fix */
+.input-box textarea:-webkit-autofill,
+.input-box textarea:-webkit-autofill:hover,
+.input-box textarea:-webkit-autofill:focus {
     -webkit-text-fill-color: #ffffff;
     -webkit-box-shadow: 0 0 0px 1000px var(--bg-input) inset;
     transition: background-color 5000s ease-in-out 0s;
 }
 
-textarea:focus {
-    outline: none;
+/* Input Toolbar */
+.input-toolbar {
+    display: flex;
+    align-items: center;
+    gap: 2px;
+    padding: 4px 6px 6px 6px;
 }
 
-/* Hide scrollbar on textarea but allow scroll */
-textarea::-webkit-scrollbar {
-    width: 0px;
+.toolbar-spacer {
+    flex: 1;
+}
+
+/* Toolbar icon buttons (+, mic) */
+.toolbar-icon-btn {
     background: transparent;
+    border: none;
+    color: var(--text-muted);
+    cursor: pointer;
+    padding: 4px;
+    border-radius: 6px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    transition: color 0.15s, background 0.15s;
+    flex-shrink: 0;
 }
 
-.send-btn {
-    background: var(--accent-gradient);
+.toolbar-icon-btn:hover {
+    color: var(--text-main);
+    background: rgba(255, 255, 255, 0.06);
+}
+
+.toolbar-icon-btn:active {
+    transform: scale(0.92);
+}
+
+/* Toolbar chips (mode, model) */
+.toolbar-chip {
+    display: inline-flex;
+    align-items: center;
+    gap: 4px;
+    padding: 3px 10px;
+    border-radius: 6px;
+    font-size: 12px;
+    color: var(--text-muted);
+    cursor: pointer;
+    white-space: nowrap;
+    transition: color 0.15s, background 0.15s;
+    -webkit-user-select: none;
+    user-select: none;
+    background: transparent;
     border: none;
-    color: #ffffff;
-    width: 38px;
-    height: 38px;
+}
+
+.toolbar-chip:hover {
+    color: var(--text-main);
+    background: rgba(255, 255, 255, 0.06);
+}
+
+.toolbar-chip:active {
+    transform: scale(0.96);
+}
+
+.toolbar-chip svg {
+    opacity: 0.6;
+    flex-shrink: 0;
+}
+
+/* Send button - small circle with gradient arrow */
+.toolbar-send-btn {
+    background: linear-gradient(135deg, #f59e0b, #d97706);
+    border: none;
+    color: #000;
+    width: 28px;
+    height: 28px;
     border-radius: 50%;
     display: flex;
     align-items: center;
     justify-content: center;
     cursor: pointer;
-    transition: all 0.3s cubic-bezier(0.16, 1, 0.3, 1);
+    transition: all 0.2s cubic-bezier(0.16, 1, 0.3, 1);
     flex-shrink: 0;
-    align-self: flex-end;
-    margin-bottom: 2px;
-    box-shadow: 0 4px 12px var(--accent-glow);
+    margin-left: 2px;
 }
 
-.send-btn:hover {
-    transform: scale(1.05) translateY(-1px);
-    box-shadow: 0 6px 16px var(--accent-glow);
+.toolbar-send-btn:hover {
+    transform: scale(1.08);
+    box-shadow: 0 2px 8px rgba(245, 158, 11, 0.3);
 }
 
-.send-btn svg {
-    width: 24px;
-    height: 24px;
-    fill: currentColor;
-    stroke: none;
+.toolbar-send-btn:active {
+    transform: scale(0.9);
 }
 
-.send-btn:active {
-    transform: scale(0.92);
-    background: var(--accent-hover);
-}
-
-.send-btn:disabled {
-    opacity: 0.6;
+.toolbar-send-btn:disabled {
+    opacity: 0.4;
     cursor: not-allowed;
-    background: var(--bg-input);
-    color: var(--text-muted);
-    box-shadow: none;
     transform: none;
+    box-shadow: none;
 }
 
 /* Floating Action Button (Scroll Down) */
