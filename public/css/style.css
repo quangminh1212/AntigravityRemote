@@ -4,8 +4,8 @@
     --bg-panel: #1a1b20;
     --bg-input: #27282e;
     --border: rgba(255, 255, 255, 0.08);
-    --text-main: #f0f0f2;
-    --text-muted: #8a8d92;
+    --text-main: #cccccc;
+    --text-muted: #717175;
     --accent: #6366f1;
     --accent-hover: #4f46e5;
     --accent-gradient: linear-gradient(135deg, #8b5cf6 0%, #3b82f6 100%);
