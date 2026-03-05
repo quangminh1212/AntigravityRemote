@@ -17,6 +17,68 @@ import { execSync } from 'child_process';
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = dirname(__filename);
 
+// ============================================================
+// FILE LOGGING SYSTEM - All output goes to log.txt for debugging
+// ============================================================
+const LOG_FILE = join(__dirname, 'log.txt');
+const MAX_LOG_SIZE = 5 * 1024 * 1024; // 5MB auto-rotate
+
+// Rotate log if too large
+try {
+    if (fs.existsSync(LOG_FILE) && fs.statSync(LOG_FILE).size > MAX_LOG_SIZE) {
+        const backupPath = join(__dirname, 'log.old.txt');
+        if (fs.existsSync(backupPath)) fs.unlinkSync(backupPath);
+        fs.renameSync(LOG_FILE, backupPath);
+    }
+} catch (e) { /* ignore rotation errors */ }
+
+const logStream = fs.createWriteStream(LOG_FILE, { flags: 'a', encoding: 'utf8' });
+
+function formatLogLine(level, args) {
+    const ts = new Date().toISOString();
+    const msg = args.map(a => typeof a === 'object' ? JSON.stringify(a) : String(a)).join(' ');
+    // Strip emoji for clean log file on Windows
+    const clean = msg.replace(/[\u{1F000}-\u{1FFFF}]|[\u{2600}-\u{27BF}]|[\u{FE00}-\u{FE0F}]|[\u{1F900}-\u{1F9FF}]|[\u{200D}]|[\u{20E3}]|[\u{E0020}-\u{E007F}]/gu, '').trim();
+    return `[${ts}] [${level}] ${clean}\n`;
+}
+
+// Intercept console methods → write to both terminal AND log.txt
+const _origLog = console.log.bind(console);
+const _origWarn = console.warn.bind(console);
+const _origError = console.error.bind(console);
+
+console.log = (...args) => {
+    _origLog(...args);
+    try { logStream.write(formatLogLine('INFO', args)); } catch (e) { /* ignore */ }
+};
+console.warn = (...args) => {
+    _origWarn(...args);
+    try { logStream.write(formatLogLine('WARN', args)); } catch (e) { /* ignore */ }
+};
+console.error = (...args) => {
+    _origError(...args);
+    try { logStream.write(formatLogLine('ERROR', args)); } catch (e) { /* ignore */ }
+};
+
+// ============================================================
+// CRASH PROTECTION - Prevent process from dying on unhandled errors
+// ============================================================
+process.on('uncaughtException', (err) => {
+    console.error('💥 UNCAUGHT EXCEPTION (process kept alive):', err.message);
+    console.error('   Stack:', err.stack);
+});
+
+process.on('unhandledRejection', (reason) => {
+    console.error('💥 UNHANDLED REJECTION (process kept alive):', reason);
+});
+
+console.log('========================================');
+console.log('🚀 AntigravityRemote starting...');
+console.log(`   PID: ${process.pid}`);
+console.log(`   Node: ${process.version}`);
+console.log(`   Time: ${new Date().toISOString()}`);
+console.log('========================================');
+
 const PORTS = [9000, 9001, 9002, 9003];
 const POLL_INTERVAL = 500; // 500ms for smoother updates
 const SERVER_PORT = process.env.PORT || 3000;
