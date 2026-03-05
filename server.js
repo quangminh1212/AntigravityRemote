@@ -13,6 +13,7 @@ import { fileURLToPath } from 'url';
 import { dirname, join } from 'path';
 import { inspectUI } from './ui_inspector.js';
 import { execSync } from 'child_process';
+import multer from 'multer';
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = dirname(__filename);
@@ -549,6 +550,196 @@ async function injectMessage(cdp, text) {
     }
 
     return { ok: false, reason: "no_context" };
+}
+
+// Inject file into Antigravity via CDP file chooser
+async function injectFile(cdp, filePath) {
+    // Normalize to absolute Windows path for CDP
+    const absolutePath = filePath.startsWith('/') ? filePath : join(__dirname, filePath).replace(/\\/g, '/');
+    const winPath = absolutePath.replace(/\//g, '\\');
+
+    console.log(`📂 Injecting file via CDP: ${winPath}`);
+
+    try {
+        // Step 1: Enable file chooser interception
+        await cdp.call("Page.setInterceptFileChooserDialog", { enabled: true });
+
+        // Step 2: Set up a promise to wait for the file chooser event
+        const fileChooserPromise = new Promise((resolve, reject) => {
+            const timeout = setTimeout(() => {
+                cdp.ws.removeListener('message', handler);
+                reject(new Error('File chooser did not open within 5s'));
+            }, 5000);
+
+            const handler = (rawMsg) => {
+                try {
+                    const msg = JSON.parse(rawMsg);
+                    if (msg.method === 'Page.fileChooserOpened') {
+                        clearTimeout(timeout);
+                        cdp.ws.removeListener('message', handler);
+                        resolve(msg.params);
+                    }
+                } catch (e) { /* ignore parse errors */ }
+            };
+            cdp.ws.on('message', handler);
+        });
+
+        // Step 3: Click the context/media "+" button in IDE (bottom-left, near editor)
+        const clickResult = await clickContextPlusButton(cdp);
+        console.log(`🖱️ Click context+ result:`, clickResult);
+
+        if (!clickResult.success) {
+            // Disable interception before returning
+            try { await cdp.call("Page.setInterceptFileChooserDialog", { enabled: false }); } catch (e) { }
+            return { success: false, error: 'Could not find context+ button in IDE', details: clickResult };
+        }
+
+        // Step 4: Wait for file chooser to open, then accept with our file
+        try {
+            const chooserParams = await fileChooserPromise;
+            console.log(`📁 File chooser opened, mode: ${chooserParams.mode}`);
+
+            await cdp.call("Page.handleFileChooser", {
+                action: "accept",
+                files: [winPath]
+            });
+
+            console.log(`✅ File injected successfully: ${winPath}`);
+
+            // Disable interception
+            try { await cdp.call("Page.setInterceptFileChooserDialog", { enabled: false }); } catch (e) { }
+
+            return { success: true, method: 'file_chooser', path: winPath };
+        } catch (e) {
+            // File chooser didn't open - perhaps the button doesn't open file dialog
+            // Try fallback: drag-and-drop via CDP Input events
+            console.warn(`⚠️ File chooser approach failed: ${e.message}. Trying fallback...`);
+            try { await cdp.call("Page.setInterceptFileChooserDialog", { enabled: false }); } catch (e2) { }
+
+            // Fallback: Use DOM.setFileInputFiles if there's a file input
+            return await injectFileViaInput(cdp, winPath);
+        }
+    } catch (e) {
+        try { await cdp.call("Page.setInterceptFileChooserDialog", { enabled: false }); } catch (e2) { }
+        console.error(`❌ File injection error: ${e.message}`);
+        return { success: false, error: e.message };
+    }
+}
+
+// Click the context/media "+" button in IDE (NOT the "new conversation" + button)
+async function clickContextPlusButton(cdp) {
+    const EXP = `(async () => {
+        try {
+            // Strategy 1: Look for the add-context button (usually a + or paperclip near input area)
+            // In Antigravity/Windsurf, this is typically the "Add context" button at the bottom
+            const allButtons = Array.from(document.querySelectorAll('button, [role="button"]'));
+            
+            // Filter for plus/attach buttons near the bottom input area
+            const inputArea = document.querySelector('[contenteditable="true"]');
+            if (!inputArea) return { success: false, error: 'No editor found' };
+            
+            const inputRect = inputArea.getBoundingClientRect();
+            
+            // Find buttons near the input area that have plus/attach icons
+            const candidates = allButtons.filter(btn => {
+                if (btn.offsetParent === null) return false;
+                const rect = btn.getBoundingClientRect();
+                // Must be near the input area (within 100px vertically)
+                if (Math.abs(rect.top - inputRect.top) > 100 && Math.abs(rect.bottom - inputRect.bottom) > 100) return false;
+                
+                // Check for plus icon (lucide-plus) or attach/paperclip icon
+                const svg = btn.querySelector('svg');
+                if (!svg) return false;
+                const cls = (svg.getAttribute('class') || '').toLowerCase();
+                const label = (btn.getAttribute('aria-label') || '').toLowerCase();
+                const title = (btn.getAttribute('title') || '').toLowerCase();
+                
+                return cls.includes('plus') || cls.includes('paperclip') || cls.includes('attach') ||
+                       label.includes('context') || label.includes('attach') || label.includes('add') ||
+                       title.includes('context') || title.includes('attach') || title.includes('add file');
+            });
+            
+            if (candidates.length > 0) {
+                candidates[0].click();
+                return { success: true, method: 'context_plus_button', count: candidates.length };
+            }
+            
+            // Strategy 2: Look for any file input type and click its label/trigger
+            const fileInputs = Array.from(document.querySelectorAll('input[type="file"]'));
+            if (fileInputs.length > 0) {
+                fileInputs[0].click();
+                return { success: true, method: 'file_input_direct' };
+            }
+            
+            // Strategy 3: Find buttons with data-tooltip containing "context" or "attach"
+            const tooltipBtn = allButtons.find(btn => {
+                const tooltipId = btn.getAttribute('data-tooltip-id') || '';
+                return tooltipId.includes('context') || tooltipId.includes('attach') || tooltipId.includes('media');
+            });
+            
+            if (tooltipBtn) {
+                tooltipBtn.click();
+                return { success: true, method: 'tooltip_button' };
+            }
+
+            return { success: false, error: 'No context/attach button found' };
+        } catch (e) {
+            return { success: false, error: e.toString() };
+        }
+    })()`;
+
+    for (const ctx of cdp.contexts) {
+        try {
+            const res = await cdp.call("Runtime.evaluate", {
+                expression: EXP,
+                returnByValue: true,
+                awaitPromise: true,
+                contextId: ctx.id
+            });
+            if (res.result?.value?.success) return res.result.value;
+        } catch (e) { }
+    }
+    return { success: false, error: 'No matching context' };
+}
+
+// Fallback: inject file via DOM file input
+async function injectFileViaInput(cdp, filePath) {
+    const EXP = `(() => {
+        const fileInputs = Array.from(document.querySelectorAll('input[type="file"]'));
+        if (fileInputs.length === 0) return { found: false };
+        return { found: true, count: fileInputs.length };
+    })()`;
+
+    for (const ctx of cdp.contexts) {
+        try {
+            const res = await cdp.call("Runtime.evaluate", {
+                expression: EXP,
+                returnByValue: true,
+                contextId: ctx.id
+            });
+
+            if (res.result?.value?.found) {
+                // Use DOM.setFileInputFiles to set files on the input
+                // First get the document
+                const doc = await cdp.call("DOM.getDocument", { depth: 0 });
+                const nodeResult = await cdp.call("DOM.querySelector", {
+                    nodeId: doc.root.nodeId,
+                    selector: 'input[type="file"]'
+                });
+
+                if (nodeResult.nodeId) {
+                    await cdp.call("DOM.setFileInputFiles", {
+                        files: [filePath],
+                        nodeId: nodeResult.nodeId
+                    });
+                    return { success: true, method: 'dom_set_file_input' };
+                }
+            }
+        } catch (e) {
+            console.warn(`DOM file input fallback failed in context ${ctx.id}:`, e.message);
+        }
+    }
+    return { success: false, error: 'No file input found in IDE' };
 }
 
 // Set functionality mode (Fast vs Planning)
@@ -1809,6 +2000,52 @@ async function createServer() {
             method: result.method || 'attempted',
             details: result
         });
+    });
+
+    // --- File Upload ---
+    const uploadsDir = join(__dirname, 'uploads');
+    if (!fs.existsSync(uploadsDir)) fs.mkdirSync(uploadsDir, { recursive: true });
+
+    const upload = multer({
+        storage: multer.diskStorage({
+            destination: uploadsDir,
+            filename: (req, file, cb) => {
+                // Keep original name but prevent overwrite with timestamp prefix
+                const safeName = file.originalname.replace(/[^a-zA-Z0-9._-]/g, '_');
+                cb(null, `${Date.now()}-${safeName}`);
+            }
+        }),
+        limits: { fileSize: 50 * 1024 * 1024 } // 50MB max
+    });
+
+    app.post('/upload', upload.single('file'), async (req, res) => {
+        if (!req.file) {
+            return res.status(400).json({ error: 'No file provided' });
+        }
+
+        if (!cdpConnection) {
+            return res.status(503).json({ error: 'CDP not connected' });
+        }
+
+        const filePath = req.file.path.replace(/\\/g, '/'); // Normalize path for Windows
+        console.log(`📎 File uploaded: ${req.file.originalname} (${req.file.size} bytes) → ${filePath}`);
+
+        try {
+            const result = await injectFile(cdpConnection, filePath);
+            res.json({
+                success: result.success !== false,
+                file: req.file.originalname,
+                size: req.file.size,
+                details: result
+            });
+        } catch (e) {
+            console.error('File inject error:', e);
+            res.json({
+                success: false,
+                file: req.file.originalname,
+                error: e.message
+            });
+        }
     });
 
     // UI Inspection endpoint - Returns all buttons as JSON for debugging
