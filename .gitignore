@@ -1,8 +1,28 @@
+# Dependencies
 node_modules/
+
+# Runtime generated files
 debug.log
 *.log
-.env
-chat-history.json
 chat_screenshot.png
-image.png
 test_screenshot.png
+chat-history.json
+
+# Environment
+.env
+.env.local
+
+# OS files
+.DS_Store
+Thumbs.db
+desktop.ini
+
+# IDE
+.vscode/
+.idea/
+
+# User assets (not part of codebase)
+image.png
+
+# Lock file (regenerated on npm install)
+package-lock.json
