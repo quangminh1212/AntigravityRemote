@@ -35,5 +35,8 @@ build/
 # SSL Certificates (generated locally)
 certs/
 
+# Uploaded files (runtime data)
+uploads/
+
 # Registry
 registry/
