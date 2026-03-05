@@ -327,6 +327,9 @@ body {
     padding: 6px 10px;
     padding-bottom: max(6px, env(safe-area-inset-bottom));
     flex-shrink: 0;
+    overflow: visible;
+    position: relative;
+    z-index: 100;
 }
 
 .input-box {
@@ -335,7 +338,8 @@ body {
     border-radius: 14px;
     padding: 0;
     transition: border-color 0.2s;
-    overflow: hidden;
+    overflow: visible;
+    position: relative;
 }
 
 .input-box:focus-within {
@@ -361,7 +365,7 @@ body {
     -webkit-appearance: none;
     -moz-appearance: none;
     appearance: none;
-    border-radius: 0;
+    border-radius: 14px 14px 0 0;
     caret-color: var(--accent);
     display: block;
 }
@@ -452,6 +456,102 @@ body {
 .toolbar-chip svg {
     opacity: 0.5;
     flex-shrink: 0;
+    transition: transform 0.2s;
+}
+
+.toolbar-chip.open svg {
+    transform: rotate(180deg);
+}
+
+/* Dropdown container */
+.toolbar-dropdown {
+    position: relative;
+}
+
+/* Dropdown backdrop */
+.dropdown-backdrop {
+    position: fixed;
+    inset: 0;
+    z-index: 1999;
+    display: none;
+}
+
+.dropdown-backdrop.show {
+    display: block;
+}
+
+/* Dropdown menu - popover style */
+.dropdown-menu {
+    display: none;
+    position: absolute;
+    bottom: calc(100% + 8px);
+    left: 0;
+    min-width: 300px;
+    max-width: 340px;
+    background: #1e2025;
+    border: 1px solid rgba(255, 255, 255, 0.10);
+    border-radius: 12px;
+    padding: 6px 0;
+    box-shadow: 0 8px 32px rgba(0, 0, 0, 0.5), 0 2px 8px rgba(0, 0, 0, 0.3);
+    z-index: 2000;
+    animation: dropdownFadeIn 0.15s ease-out;
+}
+
+.dropdown-menu.show {
+    display: block;
+}
+
+@keyframes dropdownFadeIn {
+    from {
+        opacity: 0;
+        transform: translateY(4px);
+    }
+
+    to {
+        opacity: 1;
+        transform: translateY(0);
+    }
+}
+
+.dropdown-title {
+    padding: 10px 14px 6px;
+    font-size: 12px;
+    font-weight: 500;
+    color: #7a7d82;
+    letter-spacing: 0.01em;
+}
+
+.dropdown-option {
+    padding: 10px 14px;
+    cursor: pointer;
+    transition: background 0.12s;
+    margin: 2px 6px;
+    border-radius: 8px;
+}
+
+.dropdown-option:hover {
+    background: rgba(255, 255, 255, 0.06);
+}
+
+.dropdown-option.active {
+    background: rgba(255, 255, 255, 0.08);
+}
+
+.dropdown-option-name {
+    font-size: 13.5px;
+    font-weight: 600;
+    color: #e0e0e0;
+    margin-bottom: 3px;
+}
+
+.dropdown-option.active .dropdown-option-name {
+    color: #ffffff;
+}
+
+.dropdown-option-desc {
+    font-size: 12px;
+    color: #7a7d82;
+    line-height: 1.4;
 }
 
 /* Send button - small circle with outline style */
@@ -583,66 +683,7 @@ body {
     border-color: #8b5cf6;
 }
 
-/* Modal */
-.modal-overlay {
-    position: fixed;
-    inset: 0;
-    background: rgba(0, 0, 0, 0.6);
-    -webkit-backdrop-filter: blur(2px);
-    backdrop-filter: blur(2px);
-    z-index: 2000;
-    display: none;
-    justify-content: center;
-    align-items: flex-end;
-}
-
-.modal-overlay.show {
-    display: flex;
-}
-
-.modal-panel {
-    background: var(--bg-panel);
-    width: 100%;
-    max-width: 500px;
-    border-radius: 20px 20px 0 0;
-    padding: 20px;
-    animation: slideUp 0.3s cubic-bezier(0.16, 1, 0.3, 1);
-    max-height: 80vh;
-    overflow-y: auto;
-}
-
-@keyframes slideUp {
-    from {
-        transform: translateY(100%);
-    }
-
-    to {
-        transform: translateY(0);
-    }
-}
-
-.modal-title {
-    font-size: 16px;
-    font-weight: 600;
-    margin-bottom: 16px;
-    color: var(--text-main);
-}
-
-.modal-option {
-    padding: 12px;
-    border-bottom: 1px solid var(--border);
-    color: var(--text-main);
-    font-size: 14px;
-    cursor: pointer;
-}
-
-.modal-option:last-child {
-    border-bottom: none;
-}
-
-.modal-option:active {
-    background: var(--bg-input);
-}
+/* (Modal styles removed - replaced by dropdown popover) */
 
 /* SSL Banner */
 .ssl-banner {
@@ -896,19 +937,7 @@ body {
     stroke-linejoin: round;
 }
 
-/* Modal footer */
-.modal-footer {
-    margin-top: 20px;
-    text-align: center;
-}
-
-.modal-cancel-btn {
-    background: transparent;
-    border: none;
-    color: var(--text-muted);
-    padding: 10px;
-    cursor: pointer;
-}
+/* (removed – modal cancel btn no longer used) */
 
 /* History header spacer */
 .header-spacer {

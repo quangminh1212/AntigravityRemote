@@ -13,9 +13,11 @@ const historyBtn = document.getElementById('historyBtn');
 
 const modeBtn = document.getElementById('modeBtn');
 const modelBtn = document.getElementById('modelBtn');
-const modalOverlay = document.getElementById('modalOverlay');
-const modalList = document.getElementById('modalList');
-const modalTitle = document.getElementById('modalTitle');
+const modeMenu = document.getElementById('modeMenu');
+const modelMenu = document.getElementById('modelMenu');
+const modeDropdown = document.getElementById('modeDropdown');
+const modelDropdown = document.getElementById('modelDropdown');
+const dropdownBackdrop = document.getElementById('dropdownBackdrop');
 const modeText = document.getElementById('modeText');
 const modelText = document.getElementById('modelText');
 const historyLayer = document.getElementById('historyLayer');
@@ -982,78 +984,104 @@ function escapeHtml(text) {
     return div.innerHTML;
 }
 
-// --- Settings Logic ---
+// --- Dropdown Logic ---
 
-
-function openModal(title, options, onSelect) {
-    modalTitle.textContent = title;
-    modalList.innerHTML = '';
-    options.forEach(opt => {
-        const div = document.createElement('div');
-        div.className = 'modal-option';
-        div.textContent = opt;
-        div.onclick = () => {
-            onSelect(opt);
-            closeModal();
-        };
-        modalList.appendChild(div);
-    });
-    modalOverlay.classList.add('show');
+function closeAllDropdowns() {
+    document.querySelectorAll('.dropdown-menu.show').forEach(m => m.classList.remove('show'));
+    document.querySelectorAll('.toolbar-chip.open').forEach(c => c.classList.remove('open'));
+    dropdownBackdrop.classList.remove('show');
 }
 
-function closeModal() {
-    modalOverlay.classList.remove('show');
+function toggleDropdown(menu, chip) {
+    const isOpen = menu.classList.contains('show');
+    closeAllDropdowns();
+    if (!isOpen) {
+        menu.classList.add('show');
+        chip.classList.add('open');
+        dropdownBackdrop.classList.add('show');
+    }
 }
 
-modalOverlay.onclick = (e) => {
-    if (e.target === modalOverlay) closeModal();
-};
+dropdownBackdrop.addEventListener('click', closeAllDropdowns);
 
+// --- Mode dropdown ---
 modeBtn.addEventListener('click', () => {
-    openModal('Select Mode', ['Fast', 'Planning'], async (mode) => {
-        modeText.textContent = 'Setting...';
-        try {
-            const res = await fetchWithAuth('/set-mode', {
-                method: 'POST',
-                headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify({ mode })
-            });
-            const data = await res.json();
-            if (data.success) {
-                currentMode = mode;
-                modeText.textContent = mode;
-                modeBtn.classList.toggle('active', mode === 'Planning');
-            } else {
-                alert('Error: ' + (data.error || 'Unknown'));
-                modeText.textContent = currentMode;
-            }
-        } catch (e) {
-            modeText.textContent = currentMode;
-        }
-    });
+    toggleDropdown(modeMenu, modeBtn);
 });
 
-modelBtn.addEventListener('click', () => {
-    openModal('Select Model', MODELS, async (model) => {
-        const prev = modelText.textContent;
-        modelText.textContent = 'Setting...';
-        try {
-            const res = await fetchWithAuth('/set-model', {
-                method: 'POST',
-                headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify({ model })
+modeMenu.addEventListener('click', async (e) => {
+    const opt = e.target.closest('.dropdown-option');
+    if (!opt) return;
+    const mode = opt.dataset.value;
+    closeAllDropdowns();
+
+    modeText.textContent = 'Setting...';
+    try {
+        const res = await fetchWithAuth('/set-mode', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ mode })
+        });
+        const data = await res.json();
+        if (data.success) {
+            currentMode = mode;
+            modeText.textContent = mode;
+            // Update active state
+            modeMenu.querySelectorAll('.dropdown-option').forEach(o => {
+                o.classList.toggle('active', o.dataset.value === mode);
             });
-            const data = await res.json();
-            if (data.success) {
-                modelText.textContent = model;
-            } else {
-                alert('Error: ' + (data.error || 'Unknown'));
-                modelText.textContent = prev;
-            }
-        } catch (e) {
+        } else {
+            alert('Error: ' + (data.error || 'Unknown'));
+            modeText.textContent = currentMode;
+        }
+    } catch (e) {
+        modeText.textContent = currentMode;
+    }
+});
+
+// --- Model dropdown - build options dynamically ---
+function buildModelMenu() {
+    const currentModel = modelText.textContent;
+    modelMenu.innerHTML = '<div class="dropdown-title">Select model</div>';
+    MODELS.forEach(model => {
+        const isActive = model === currentModel;
+        const div = document.createElement('div');
+        div.className = 'dropdown-option' + (isActive ? ' active' : '');
+        div.dataset.value = model;
+        div.innerHTML = `<div class="dropdown-option-name">${model}</div>`;
+        modelMenu.appendChild(div);
+    });
+}
+
+modelBtn.addEventListener('click', () => {
+    buildModelMenu();
+    toggleDropdown(modelMenu, modelBtn);
+});
+
+modelMenu.addEventListener('click', async (e) => {
+    const opt = e.target.closest('.dropdown-option');
+    if (!opt) return;
+    const model = opt.dataset.value;
+    closeAllDropdowns();
+
+    const prev = modelText.textContent;
+    modelText.textContent = 'Setting...';
+    try {
+        const res = await fetchWithAuth('/set-model', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ model })
+        });
+        const data = await res.json();
+        if (data.success) {
+            modelText.textContent = model;
+        } else {
+            alert('Error: ' + (data.error || 'Unknown'));
             modelText.textContent = prev;
         }
-    });
+    } catch (e) {
+        modelText.textContent = prev;
+    }
 });
 
 // --- Viewport / Keyboard Handling ---
