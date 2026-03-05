@@ -1397,13 +1397,25 @@ async function getAppState(cdp) {
 
         // 2. Get Model
         // Strategy: Look for leaf text nodes containing a known model keyword
+        // BUT exclude status bar items (which contain "%" or "|" or "MB")
         const KNOWN_MODELS = ["Gemini", "Claude", "GPT"];
         const textNodes2 = allEls.filter(el => el.children.length === 0 && el.innerText);
+        
+        // Helper: check if text looks like a real model name (not a status bar snippet)
+        function isModelName(txt) {
+            if (!KNOWN_MODELS.some(k => txt.includes(k))) return false;
+            // Reject status bar patterns: "Claude 80%", "Flash 100% | Pro 100% | Claude 80%"
+            if (txt.includes('%') || txt.includes('|') || txt.includes('MB')) return false;
+            // Must look like a model name: "Claude Opus 4.6 (Thinking)", "Gemini 3.1 Pro (High)" etc.
+            // At minimum: keyword + version or qualifier
+            if (txt.length < 8 || txt.length > 60) return false;
+            return true;
+        }
         
         // First try: find inside a clickable parent (button, cursor:pointer)
         let modelEl = textNodes2.find(el => {
             const txt = el.innerText.trim();
-            if (!KNOWN_MODELS.some(k => txt.includes(k))) return false;
+            if (!isModelName(txt)) return false;
             // Must be in a clickable context (header/toolbar, not chat content)
             let parent = el;
             for (let i = 0; i < 8; i++) {
@@ -1418,7 +1430,7 @@ async function getAppState(cdp) {
         if (!modelEl) {
             modelEl = textNodes2.find(el => {
                 const txt = el.innerText.trim();
-                return KNOWN_MODELS.some(k => txt.includes(k)) && txt.length < 60;
+                return isModelName(txt);
             });
         }
 
