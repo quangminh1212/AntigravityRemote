@@ -44,15 +44,17 @@ for /f "tokens=5" %%a in ('netstat -aon ^| findstr :3000 ^| findstr LISTENING 2^
     taskkill /f /pid %%a >nul 2>&1
 )
 
-:: Start server
-echo [2/2] Starting server...
+:: Start server with hot reload (auto-restart on file changes)
+echo [2/2] Starting server with hot reload...
 echo.
 echo ============================================
 echo  Server: https://localhost:3000
+echo  Hot Reload: ON (auto-restart on changes)
+echo  Watching: server.js, public/**, generate_ssl.js
 echo  Press Ctrl+C to stop
 echo ============================================
 echo.
-node server.js
+npx nodemon --watch server.js --watch public --watch generate_ssl.js --ext js,html,css,json --signal SIGTERM --delay 1 server.js
 
 :: Keep window open on crash
 echo.
