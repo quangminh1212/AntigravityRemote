@@ -290,9 +290,14 @@ function renderSnapshot(data) {
             '    position: absolute !important;\n' +
             '}\n' +
             '\n' +
-            '/* Force all chat text to inherit light color */\n' +
-            '#conversation p, #chat p, #cascade p, #conversation h1, #chat h1, #cascade h1, #conversation h2, #chat h2, #cascade h2, #conversation h3, #chat h3, #cascade h3, #conversation h4, #chat h4, #cascade h4, #conversation h5, #chat h5, #cascade h5, #conversation span, #chat span, #cascade span, #conversation div, #chat div, #cascade div, #conversation li, #chat li, #cascade li {\n' +
+            '/* Force all chat text to use light color - wildcard for maximum coverage */\n' +
+            '.chat-content *, .chat-content *::before, .chat-content *::after {\n' +
             '    color: inherit !important;\n' +
+            '}\n' +
+            '/* Preserve syntax highlighting in code blocks */\n' +
+            '.chat-content pre *, .chat-content code *, .chat-content [class*="hljs"] *,\n' +
+            '.chat-content [class*="token"] *, .chat-content [class*="syntax"] * {\n' +
+            '    color: revert !important;\n' +
             '}\n' +
             '\n' +
             '/* Force black/very dark inline text to light (preserve other colors) */\n' +
@@ -484,6 +489,12 @@ function renderSnapshot(data) {
     if (htmlHash !== lastRenderedHtmlHash) {
         lastRenderedHtmlHash = htmlHash;
         chatContent.innerHTML = data.html;
+
+        // Ensure dark mode classes are set for Tailwind dark variant activation
+        chatContent.classList.add('dark');
+        chatContent.setAttribute('data-theme', 'dark');
+        document.documentElement.classList.add('dark');
+        document.documentElement.style.colorScheme = 'dark';
 
         // Add mobile copy buttons to all code blocks
         addMobileCopyButtons();
