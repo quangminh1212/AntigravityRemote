@@ -228,16 +228,30 @@ function renderSnapshot(data) {
         if (statsText) statsText.textContent = `${nodes} Nodes · ${kbs}KB`;
     }
 
-    // --- SYNC BACKGROUND COLOR FROM IDE ---
-    if (data.backgroundColor) {
-        const bg = data.backgroundColor;
-        // Only update if actually different (avoid unnecessary repaints)
-        if (document.body.style.backgroundColor !== bg) {
+    // --- SYNC THEME FROM IDE ---
+    if (data.backgroundColor || data.themeVars) {
+        const tv = data.themeVars || {};
+        // Determine best background: prefer VS Code theme var > effective cascade bg > body bg
+        const bg = tv['--vscode-editor-background'] || data.backgroundColor || data.bodyBackgroundColor;
+        const fg = tv['--vscode-editor-foreground'] || tv['--vscode-foreground'] || data.color || data.bodyColor;
+        const panelBg = tv['--vscode-panel-background'] || tv['--vscode-sideBar-background'] || bg;
+        const inputBg = tv['--vscode-input-background'] || panelBg;
+
+        if (bg && document.body.style.backgroundColor !== bg) {
             document.body.style.backgroundColor = bg;
             chatContainer.style.backgroundColor = bg;
-            // Also update the input section to match
+            // Sync input section and header
             const inputSection = document.querySelector('.input-section');
             if (inputSection) inputSection.style.backgroundColor = bg;
+            const header = document.querySelector('.header');
+            if (header) header.style.backgroundColor = panelBg;
+            // Sync input box
+            const inputBox = document.querySelector('.input-box');
+            if (inputBox) inputBox.style.backgroundColor = inputBg;
+        }
+        // Sync text color
+        if (fg && document.body.style.color !== fg) {
+            document.body.style.color = fg;
         }
     }
 
@@ -252,13 +266,16 @@ function renderSnapshot(data) {
     // Only rebuild CSS if the source CSS from snapshot changed
     if (data.css !== cachedCssText) {
         cachedCssText = data.css;
+        // Use IDE theme colors or fallback to defaults
+        const tv = data.themeVars || {};
+        const themeFg = tv['--vscode-editor-foreground'] || tv['--vscode-foreground'] || data.color || '#f0f0f2';
+        const themeMuted = tv['--vscode-descriptionForeground'] || '#8a8d92';
         const darkModeOverrides = '/* --- BASE SNAPSHOT CSS --- */\n' +
             data.css +
-            '\n\n/* --- FORCE DARK MODE OVERRIDES (Neutral Gray Palette) --- */\n' +
+            '\n\n/* --- THEME-SYNCED OVERRIDES --- */\n' +
             ':root {\n' +
-            '    --bg-app: #111215;\n' +
-            '    --text-main: #f0f0f2;\n' +
-            '    --text-muted: #8a8d92;\n' +
+            '    --text-main: ' + themeFg + ';\n' +
+            '    --text-muted: ' + themeMuted + ';\n' +
             '    --border-color: #2a2b32;\n' +
             '}\n' +
             '\n' +
@@ -279,11 +296,6 @@ function renderSnapshot(data) {
             '[style*="position: absolute"], [style*="position: fixed"],\n' +
             '[data-headlessui-state], [id*="headlessui"] {\n' +
             '    position: absolute !important;\n' +
-            '}\n' +
-            '\n' +
-            '/* Only set default text color on containers - do NOT override inline colors */\n' +
-            '#conversation, #chat, #cascade {\n' +
-            '    color: var(--text-main) !important;\n' +
             '}\n' +
             '\n' +
             '/* Force black/very dark inline text to light (preserve other colors) */\n' +

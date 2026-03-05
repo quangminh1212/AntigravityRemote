@@ -444,12 +444,49 @@ async function captureSnapshot(cdp) {
         }
         const allCSS = rules.join('\\n');
         
+        // Extract comprehensive theme colors
+        const bodyStyles = window.getComputedStyle(document.body);
+        const rootStyles = window.getComputedStyle(document.documentElement);
+        
+        // Walk up from cascade to find the first non-transparent background
+        let effectiveBg = cascadeStyles.backgroundColor;
+        let el = cascade;
+        while (el && (effectiveBg === 'transparent' || effectiveBg === 'rgba(0, 0, 0, 0)')) {
+            el = el.parentElement;
+            if (el) effectiveBg = window.getComputedStyle(el).backgroundColor;
+        }
+        if (effectiveBg === 'transparent' || effectiveBg === 'rgba(0, 0, 0, 0)') {
+            effectiveBg = bodyStyles.backgroundColor;
+        }
+        
+        // Extract VS Code / Antigravity theme CSS variables
+        const themeVars = {};
+        const varNames = [
+            '--vscode-editor-background', '--vscode-editor-foreground',
+            '--vscode-sideBar-background', '--vscode-panel-background',
+            '--vscode-input-background', '--vscode-input-foreground',
+            '--vscode-foreground', '--vscode-descriptionForeground',
+            '--vscode-textLink-foreground', '--vscode-button-background',
+            '--vscode-badge-background', '--vscode-badge-foreground',
+            '--vscode-list-activeSelectionBackground',
+            '--vscode-editorWidget-background',
+            '--vscode-activityBar-background',
+            '--vscode-tab-activeBackground'
+        ];
+        varNames.forEach(v => {
+            const val = rootStyles.getPropertyValue(v).trim();
+            if (val) themeVars[v] = val;
+        });
+        
         return {
             html: html,
             css: allCSS,
-            backgroundColor: cascadeStyles.backgroundColor,
+            backgroundColor: effectiveBg,
+            bodyBackgroundColor: bodyStyles.backgroundColor,
             color: cascadeStyles.color,
+            bodyColor: bodyStyles.color,
             fontFamily: cascadeStyles.fontFamily,
+            themeVars: themeVars,
             scrollInfo: scrollInfo,
             stats: {
                 nodes: clone.getElementsByTagName('*').length,
