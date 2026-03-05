@@ -54,7 +54,7 @@ echo  Watching: server.js, public/**, generate_ssl.js
 echo  Press Ctrl+C to stop
 echo ============================================
 echo.
-npx nodemon --watch server.js --watch public --watch generate_ssl.js --ext js,html,css,json --signal SIGTERM --delay 1 server.js
+npx nodemon --watch server.js --watch public --watch generate_ssl.js --ext js,html,css,json --ignore log.txt --ignore log.old.txt --ignore node_modules --signal SIGTERM --delay 2 server.js
 
 :: Keep window open on crash
 echo.
