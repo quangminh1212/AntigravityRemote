@@ -302,11 +302,20 @@ try {
         console.log(`   SANs:   localhost, ${ips.join(', ')}`);
     }
 
-    console.log('\n📱 When you first visit the HTTPS URL on your phone:');
-    console.log('   1. You will see a security warning (normal for self-signed certs)');
-    console.log('   2. Tap "Advanced" or "Show Details"');
-    console.log('   3. Tap "Proceed to site" or "Visit this website"');
-    console.log('   4. The warning will not appear again for this certificate');
+    // Install cert to Windows Trusted Root store (removes browser warning)
+    if (process.platform === 'win32') {
+        console.log('\n🔒 Installing certificate to Windows Trusted Root store...');
+        try {
+            execSync(`certutil -user -addstore "Root" "${certPath}"`, { stdio: 'pipe' });
+            console.log('   ✅ Certificate trusted! Browser will no longer show security warnings.');
+        } catch (e) {
+            console.log('   ⚠️  Could not auto-install certificate. You may need admin rights.');
+            console.log('   Run manually: certutil -user -addstore "Root" "' + certPath + '"');
+        }
+    }
+
+    console.log('\n📱 Phone access:');
+    console.log('   On phone, accept the security warning on first visit.');
     console.log('\n🔄 Now restart the server: node server.js');
 
 } catch (e) {

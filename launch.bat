@@ -28,7 +28,7 @@ timeout /t 8 /nobreak >nul
 echo [3/3] Starting Phone Connect server...
 echo.
 echo ============================================
-echo  Server starting on http://localhost:3000
+echo  Server starting on https://localhost:3000
 echo  Press Ctrl+C to stop the server
 echo ============================================
 echo.

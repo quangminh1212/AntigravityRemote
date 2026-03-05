@@ -1477,6 +1477,20 @@ async function createServer() {
         };
         httpsServer = https.createServer(sslOptions, app);
         server = httpsServer;
+
+        // Create HTTP redirect server → always redirect to HTTPS
+        const redirectApp = express();
+        redirectApp.use((req, res) => {
+            const httpsUrl = `https://${req.hostname}:${SERVER_PORT}${req.url}`;
+            res.redirect(301, httpsUrl);
+        });
+        const httpRedirectServer = http.createServer(redirectApp);
+        const HTTP_REDIRECT_PORT = parseInt(SERVER_PORT) + 1;
+        httpRedirectServer.listen(HTTP_REDIRECT_PORT, '0.0.0.0', () => {
+            console.log(`🔀 HTTP redirect: http://localhost:${HTTP_REDIRECT_PORT} → https://localhost:${SERVER_PORT}`);
+        }).on('error', () => {
+            // Silently fail if redirect port is busy - HTTPS is primary
+        });
     } else {
         server = http.createServer(app);
     }

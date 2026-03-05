@@ -654,7 +654,7 @@ textarea::-webkit-scrollbar {
     background: linear-gradient(90deg, #f59e0b, #d97706);
     color: #000;
     padding: 8px 12px;
-    display: flex;
+    display: none;
     align-items: center;
     justify-content: center;
     gap: 12px;
