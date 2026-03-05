@@ -1056,56 +1056,51 @@ async function showChatHistory() {
             historyList.innerHTML = `
                 <div class="history-state-container">
                     <div class="history-state-icon">📝</div>
-                    <div class="history-state-title">No recent chats found</div>
+                    <div class="history-state-title">No conversations yet</div>
                     <div class="history-state-desc">Start a new conversation to see them here.</div>
-                    <button class="history-new-btn mt-4" onclick="hideChatHistory(); startNewChat();">
-                        <svg viewBox="0 0 24 24" width="20" height="20" stroke="currentColor" stroke-width="2" fill="none" stroke-linecap="round" stroke-linejoin="round">
-                            <line x1="12" y1="5" x2="12" y2="19"></line>
-                            <line x1="5" y1="12" x2="19" y2="12"></line>
-                        </svg>
-                        Start New Conversation
-                    </button>
                 </div>
             `;
             return;
         }
 
-        // Render chats
-        let html = `
-            <div class="history-action-container">
-                <button class="history-new-btn" onclick="hideChatHistory(); startNewChat();">
-                    <svg viewBox="0 0 24 24" width="20" height="20" stroke="currentColor" stroke-width="2" fill="none" stroke-linecap="round" stroke-linejoin="round">
-                        <line x1="12" y1="5" x2="12" y2="19"></line>
-                        <line x1="5" y1="12" x2="19" y2="12"></line>
-                    </svg>
-                    New Conversation
-                </button>
-            </div>
-            <div class="history-list-group">
-        `;
+        // Helper: relative time
+        function timeAgo(dateStr) {
+            if (!dateStr) return '';
+            const diff = Date.now() - new Date(dateStr).getTime();
+            const mins = Math.floor(diff / 60000);
+            if (mins < 1) return 'now';
+            if (mins < 60) return mins + ' mins ago';
+            const hrs = Math.floor(mins / 60);
+            if (hrs < 24) return hrs + ' hrs ago';
+            const days = Math.floor(hrs / 24);
+            return days + ' day' + (days > 1 ? 's' : '') + ' ago';
+        }
 
-        chats.forEach(chat => {
-            const safeTitle = chat.title.replace(/"/g, '&quot;').replace(/'/g, '&#39;');
-            html += `
-                <div class="history-card" onclick="hideChatHistory(); selectChat('${safeTitle}');">
-                    <div class="history-card-icon">
-                        <svg viewBox="0 0 24 24" width="20" height="20" stroke="currentColor" stroke-width="2" fill="none" stroke-linecap="round" stroke-linejoin="round">
-                            <path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z"></path>
-                        </svg>
-                    </div>
-                    <div class="history-card-content">
-                        <span class="history-card-title">${escapeHtml(chat.title)}</span>
-                    </div>
-                    <div class="history-card-arrow">
-                        <svg viewBox="0 0 24 24" width="20" height="20" stroke="currentColor" stroke-width="2" fill="none" stroke-linecap="round" stroke-linejoin="round">
-                            <polyline points="9 18 15 12 9 6"></polyline>
-                        </svg>
-                    </div>
-                </div>
-            `;
-        });
+        // Current chat = first item (most recent/active)
+        const current = chats[0];
+        const rest = chats.slice(1);
+        const safeCurrentTitle = current.title.replace(/"/g, '&quot;').replace(/'/g, '&#39;');
 
-        html += `</div>`;
+        let html = '';
+
+        // Current section
+        html += `<div class="history-section-label">Current</div>`;
+        html += `<div class="history-item current" onclick="hideChatHistory(); selectChat('${safeCurrentTitle}');">
+            <span class="history-item-title">${escapeHtml(current.title)}</span>
+            <span class="history-item-time">${timeAgo(current.lastModified)}</span>
+        </div>`;
+
+        // Recent section
+        if (rest.length > 0) {
+            html += `<div class="history-section-label">Recent</div>`;
+            rest.forEach(chat => {
+                const safeTitle = chat.title.replace(/"/g, '&quot;').replace(/'/g, '&#39;');
+                html += `<div class="history-item" onclick="hideChatHistory(); selectChat('${safeTitle}');">
+                    <span class="history-item-title">${escapeHtml(chat.title)}</span>
+                    <span class="history-item-time">${timeAgo(chat.lastModified)}</span>
+                </div>`;
+            });
+        }
 
         historyList.innerHTML = html;
 
