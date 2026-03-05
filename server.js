@@ -42,7 +42,7 @@ const CONFIG = {
 function log(level, msg, data = '') {
     const ts = new Date().toISOString();
     const entry = `[${ts}] [${level}] ${msg} ${data ? JSON.stringify(data) : ''}`;
-    console.log(entry);
+    try { console.log(entry); } catch { /* EPIPE - stdout pipe broken, ignore */ }
     try { fs.appendFileSync(CONFIG.LOG_FILE, entry + '\n'); } catch { /* */ }
 }
 
@@ -366,6 +366,7 @@ class ConversationMonitor {
 
     /**
      * Start watching the conversations directory for changes
+     * Uses debounce to avoid firing hundreds of events per second
      */
     startWatching(callback) {
         const conversationsDir = CONFIG.AG_CONVERSATIONS_DIR;
@@ -377,11 +378,20 @@ class ConversationMonitor {
 
         log('INFO', 'Watching conversations dir', conversationsDir);
 
+        let debounceTimer = null;
+        let lastFilename = '';
+
         try {
             this.watcher = fs.watch(conversationsDir, { persistent: false }, (eventType, filename) => {
                 if (filename && filename.endsWith('.pb')) {
-                    log('DEBUG', 'Conversation file changed', filename);
-                    if (callback) callback(filename);
+                    // Debounce: only fire callback once per 2s per filename
+                    if (debounceTimer) clearTimeout(debounceTimer);
+                    lastFilename = filename;
+                    debounceTimer = setTimeout(() => {
+                        log('DEBUG', 'Conversation file changed (debounced)', lastFilename);
+                        if (callback) callback(lastFilename);
+                        debounceTimer = null;
+                    }, 2000);
                 }
             });
         } catch (e) {
@@ -493,245 +503,234 @@ class ProcessMonitor {
 }
 
 // ============================================================================
-// CDP Chat Reader (Passive, read-only, no focus stealing)
-// Used ONLY for reading chat messages from Antigravity UI
-// Falls back gracefully if CDP is not available
+// Clipboard Chat Reader
+// Reads chat content from Antigravity by: focus → select → copy → read clipboard
+// Only triggered on conversation update (not continuous polling)
 // ============================================================================
-class CdpChatReader {
+class ClipboardChatReader {
     constructor() {
-        this.ws = null;
-        this.cdpUrl = '';
         this.connected = false;
-        this.msgId = 1;
-        this.pendingResolves = new Map();
         this.lastMessages = [];
-        this.lastApprovals = [];
-        this.lastAgentStatus = 'idle';
+        this.lastRawText = '';
+        this.lastReadTime = 0;
+        this.minReadInterval = 5000; // 5s debounce for clipboard reads
+        this.readCount = 0;
+    }
+
+    async tryConnect() {
+        this.connected = true;
+        return true;
     }
 
     /**
-     * Try to discover and connect to CDP endpoint
-     * Scans Antigravity's listening ports for /json/list endpoint
-     */
-    async tryConnect(ports = []) {
-        if (this.connected) return true;
-
-        // Also check common debug ports
-        const candidates = [...new Set([...ports, 9222, 9229, 9333])];
-
-        for (const port of candidates) {
-            try {
-                const resp = await fetchJson(`http://127.0.0.1:${port}/json/list`);
-                if (Array.isArray(resp) && resp.length > 0) {
-                    // Find a page target (not service worker)
-                    const page = resp.find(t => t.type === 'page') || resp[0];
-                    if (page?.webSocketDebuggerUrl) {
-                        this.cdpUrl = page.webSocketDebuggerUrl;
-                        log('INFO', `CDP found at port ${port}`, { url: this.cdpUrl });
-                        return await this.connectWebSocket();
-                    }
-                }
-            } catch { /* port not CDP */ }
-        }
-
-        log('DEBUG', 'No CDP endpoint found (chat read-only mode unavailable)');
-        return false;
-    }
-
-    async connectWebSocket() {
-        return new Promise((resolve) => {
-            try {
-                this.ws = new WebSocket(this.cdpUrl);
-                const timeout = setTimeout(() => {
-                    this.connected = false;
-                    resolve(false);
-                }, 5000);
-
-                this.ws.on('open', () => {
-                    clearTimeout(timeout);
-                    this.connected = true;
-                    log('INFO', 'CDP WebSocket connected (read-only mode)');
-                    resolve(true);
-                });
-
-                this.ws.on('message', (data) => {
-                    try {
-                        const msg = JSON.parse(data.toString());
-                        if (msg.id && this.pendingResolves.has(msg.id)) {
-                            this.pendingResolves.get(msg.id)(msg.result);
-                            this.pendingResolves.delete(msg.id);
-                        }
-                    } catch { /* */ }
-                });
-
-                this.ws.on('close', () => {
-                    this.connected = false;
-                    log('INFO', 'CDP WebSocket closed');
-                });
-
-                this.ws.on('error', () => {
-                    clearTimeout(timeout);
-                    this.connected = false;
-                    resolve(false);
-                });
-            } catch {
-                this.connected = false;
-                resolve(false);
-            }
-        });
-    }
-
-    /**
-     * Execute JS in the browser context via CDP Runtime.evaluate
-     */
-    async evaluate(expression) {
-        if (!this.connected || !this.ws || this.ws.readyState !== 1) return null;
-
-        const id = this.msgId++;
-        return new Promise((resolve) => {
-            const timeout = setTimeout(() => {
-                this.pendingResolves.delete(id);
-                resolve(null);
-            }, 4000);
-
-            this.pendingResolves.set(id, (result) => {
-                clearTimeout(timeout);
-                resolve(result?.result?.value ?? null);
-            });
-
-            try {
-                this.ws.send(JSON.stringify({
-                    id,
-                    method: 'Runtime.evaluate',
-                    params: { expression, returnByValue: true },
-                }));
-            } catch {
-                clearTimeout(timeout);
-                this.pendingResolves.delete(id);
-                resolve(null);
-            }
-        });
-    }
-
-    /**
-     * Read chat messages from the Antigravity UI via CDP
-     * Scrapes the DOM for chat bubbles
+     * Read chat using Windows UI Automation API (no focus/clipboard needed)
+     * Falls back to window title text extraction if UIA fails
      */
     async readChatMessages() {
-        if (!this.connected) return null;
-
-        const result = await this.evaluate(`
-            (function() {
-                // Try multiple selectors for chat messages
-                const selectors = [
-                    '.chat-message', '.message-bubble', '.chat-bubble',
-                    '[class*="message"]', '[class*="chat"]',
-                    '.monaco-list-row', '.conversation-turn',
-                    '[role="listitem"]', '.turn-container'
-                ];
-                
-                let messages = [];
-                for (const sel of selectors) {
-                    const els = document.querySelectorAll(sel);
-                    if (els.length > 0) {
-                        els.forEach((el, i) => {
-                            const text = el.innerText?.trim();
-                            if (text && text.length > 2) {
-                                const isUser = el.classList.contains('user') || 
-                                    el.querySelector('[class*="user"]') !== null ||
-                                    el.getAttribute('data-role') === 'user';
-                                messages.push({
-                                    id: i,
-                                    role: isUser ? 'user' : 'assistant',
-                                    content: text.substring(0, 2000),
-                                    ts: Date.now()
-                                });
-                            }
-                        });
-                        if (messages.length > 0) break;
-                    }
-                }
-                return JSON.stringify(messages);
-            })()
-        `);
-
-        if (result) {
-            try {
-                const msgs = JSON.parse(result);
-                if (msgs.length > 0) {
-                    this.lastMessages = msgs;
-                    return msgs;
-                }
-            } catch { /* */ }
+        const now = Date.now();
+        if (now - this.lastReadTime < this.minReadInterval) {
+            return this.lastMessages.length > 0 ? this.lastMessages : null;
         }
-        return this.lastMessages.length > 0 ? this.lastMessages : null;
+        this.lastReadTime = now;
+        this.readCount++;
+        log('INFO', `UI Automation read #${this.readCount} starting...`);
+
+        try {
+            // Build PS command as regular string to avoid backtick conflicts
+            const psCmd = [
+                'Add-Type -AssemblyName UIAutomationClient -ErrorAction SilentlyContinue',
+                'Add-Type -AssemblyName UIAutomationTypes -ErrorAction SilentlyContinue',
+                '',
+                '$proc = Get-Process -Name Antigravity -ErrorAction SilentlyContinue | Where-Object { $_.MainWindowHandle -ne [IntPtr]::Zero } | Select-Object -First 1',
+                'if (-not $proc) { "ERROR:no_window"; return }',
+                '',
+                'try {',
+                '    $root = [System.Windows.Automation.AutomationElement]::FromHandle($proc.MainWindowHandle)',
+                '    $textCond = New-Object System.Windows.Automation.PropertyCondition([System.Windows.Automation.AutomationElement]::IsEnabledProperty, $true)',
+                '    $allElements = $root.FindAll([System.Windows.Automation.TreeScope]::Descendants, $textCond)',
+                '    $texts = @()',
+                '    foreach ($el in $allElements) {',
+                '        try {',
+                '            $name = $el.Current.Name',
+                '            if ($name -and $name.Length -gt 3 -and $name.Length -lt 10000) {',
+                '                $controlType = $el.Current.ControlType.ProgrammaticName',
+                '                if ($controlType -match "Text|Edit|Document|Group|Custom|Pane") {',
+                '                    $texts += $name',
+                '                }',
+                '            }',
+                '        } catch { }',
+                '    }',
+                '    if ($texts.Count -eq 0) { "ERROR:no_text_found"; return }',
+                '    $sep = [char]10 + "===MSGSEP===" + [char]10',
+                '    $joined = $texts -join $sep',
+                '    $bytes = [System.Text.Encoding]::UTF8.GetBytes($joined)',
+                '    [Convert]::ToBase64String($bytes)',
+                '} catch {',
+                '    "ERROR:uia_failed:$($_.Exception.Message)"',
+                '}',
+            ].join('\n');
+            const result = await psExecAsync(psCmd, 15000);
+
+            log('DEBUG', 'UIA result: ' + (result ? result.substring(0, 80) + '...' : 'NULL'));
+
+            if (!result || result.startsWith('ERROR:')) {
+                log('WARN', 'UIA read error: ' + (result || 'null'));
+                return this.lastMessages.length > 0 ? this.lastMessages : null;
+            }
+
+            const rawText = Buffer.from(result.trim(), 'base64').toString('utf-8');
+            log('INFO', `UIA raw text length: ${rawText.length} chars`);
+            log('DEBUG', `UIA preview: ${rawText.substring(0, 300).replace(/\n/g, '\\n')}`);
+
+            if (!rawText || rawText.length < 5) {
+                return this.lastMessages.length > 0 ? this.lastMessages : null;
+            }
+
+            if (rawText === this.lastRawText) {
+                return this.lastMessages;
+            }
+            this.lastRawText = rawText;
+
+            const messages = this.parseUIAText(rawText);
+            log('INFO', `Parsed ${messages.length} messages from UIA`);
+            if (messages.length > 0) {
+                this.lastMessages = messages;
+            }
+            return this.lastMessages.length > 0 ? this.lastMessages : null;
+        } catch (e) {
+            log('WARN', 'UIA read failed', e.message);
+            return this.lastMessages.length > 0 ? this.lastMessages : null;
+        }
     }
 
     /**
-     * Read agent status and pending approvals from UI
+     * Parse UI Automation text into structured messages
+     * UIA returns text segments separated by ===MSGSEP===
+     * Filters out VS Code UI chrome to extract actual chat content
      */
-    async readAgentStatus() {
-        if (!this.connected) return null;
+    parseUIAText(text) {
+        const segments = text.split('===MSGSEP===')
+            .map(s => s.trim())
+            .filter(s => s.length > 20); // Only keep segments > 20 chars (chat msgs are longer)
 
-        const result = await this.evaluate(`
-            (function() {
-                let status = 'idle';
-                let approvals = [];
-                
-                // Check for thinking/loading indicators
-                const spinners = document.querySelectorAll(
-                    '[class*="spinner"], [class*="loading"], [class*="thinking"], [class*="progress"]'
-                );
-                if (spinners.length > 0) status = 'thinking';
-                
-                // Check for approval buttons
-                const buttons = document.querySelectorAll('button');
-                buttons.forEach(btn => {
-                    const text = btn.innerText?.trim().toLowerCase();
-                    if (text && (text.includes('accept') || text.includes('allow') || 
-                        text.includes('approve') || text.includes('run') || text.includes('continue'))) {
-                        status = 'waiting_approval';
-                        approvals.push({ text: btn.innerText.trim(), cls: 'cdp-button' });
-                    }
-                });
-                
-                return JSON.stringify({ status, approvals });
-            })()
-        `);
+        const messages = [];
+        let msgId = 0;
 
-        if (result) {
-            try {
-                const data = JSON.parse(result);
-                this.lastAgentStatus = data.status;
-                this.lastApprovals = data.approvals;
-                return data;
-            } catch { /* */ }
+        // Skip patterns for VS Code / Antigravity UI chrome
+        const skipPatterns = [
+            /^(File|Edit|View|Run|Terminal|Help|Source Control|Extensions)$/i,
+            /^(Search|Debug|Testing|Output|Problems|Ports|Comments)$/i,
+            /^\d+$/,                        // Line numbers
+            /^[A-Z]:\\/i,                   // File paths
+            /\(Ctrl\+/i,                    // Keyboard shortcuts
+            /^(Accept|Reject|Allow|Deny|Cancel|OK|Yes|No|Close|Open|Save)$/i,
+            /^Antigravity/i,                // Window titles
+            /^(Connected|Disconnected|Connecting)$/i,
+            /^\s*$/,
+            /^(Explorer|Profile|Outline|Timeline|Git|npm|Accounts)$/i,
+            /^(Tab|Panel|Editor|Sidebar|Activity Bar|Status Bar)/i,
+            /^(Maximize|Minimize|Restore|Go Back|Go Forward)/i,
+            /\.(js|ts|css|html|json|md|py|txt|log|pb)$/i, // File names
+            /^(server|public|node_modules|package|debug|index)/i,
+            /^[A-Za-z_][A-Za-z0-9_]*\.[A-Za-z_]/,  // Object.property patterns
+            /^(const|let|var|function|class|import|export|if|for|while|return)\s/,  // Code
+            /^\{.*\}$/,                     // JSON objects
+            /^\[.*\]$/,                     // Arrays
+            /^\/\//,                        // Comments
+            /^#\s/,                         // Markdown headings (likely from code)
+        ];
+
+        for (const seg of segments) {
+            // Skip UI chrome
+            if (skipPatterns.some(p => p.test(seg))) continue;
+
+            // Skip very short segments (likely UI labels)
+            if (seg.length < 30) continue;
+
+            // Skip segments that look like code (high ratio of special chars)
+            const specialChars = (seg.match(/[{}()=>;:,\[\]]/g) || []).length;
+            if (specialChars / seg.length > 0.15) continue;
+
+            // Determine role based on content patterns
+            const isUserLike = seg.length < 300 && !seg.includes('\n');
+
+            messages.push({
+                id: msgId++,
+                role: isUserLike && msgId % 2 === 1 ? 'user' : 'assistant',
+                content: seg.substring(0, 5000),
+                ts: Date.now(),
+            });
         }
+
+        // If too many messages, likely still picking up chrome - keep only longer ones
+        if (messages.length > 50) {
+            const filtered = messages.filter(m => m.content.length > 50);
+            return filtered.length > 0 ? filtered.slice(-50) : messages.slice(-50);
+        }
+
+        return messages;
+    }
+
+    /**
+     * Parse raw clipboard text into structured messages
+     */
+    parseClipboardText(text) {
+        const messages = [];
+        const lines = text.split(/\r?\n/);
+        let currentContent = [];
+        let msgId = 0;
+
+        for (const line of lines) {
+            const trimmed = line.trim();
+            if (!trimmed) {
+                if (currentContent.length > 0) {
+                    const content = currentContent.join('\n').trim();
+                    if (content.length > 2) {
+                        messages.push({
+                            id: msgId++,
+                            role: 'assistant',
+                            content: content.substring(0, 3000),
+                            ts: Date.now(),
+                        });
+                    }
+                    currentContent = [];
+                }
+                continue;
+            }
+            currentContent.push(trimmed);
+        }
+
+        if (currentContent.length > 0) {
+            const content = currentContent.join('\n').trim();
+            if (content.length > 2) {
+                messages.push({
+                    id: msgId++,
+                    role: 'assistant',
+                    content: content.substring(0, 3000),
+                    ts: Date.now(),
+                });
+            }
+        }
+
+        if (messages.length === 0 && text.trim().length > 10) {
+            messages.push({
+                id: 0,
+                role: 'assistant',
+                content: text.trim().substring(0, 5000),
+                ts: Date.now(),
+            });
+        }
+
+        return messages;
+    }
+
+    async readAgentStatus() {
         return null;
     }
 
     disconnect() {
-        if (this.ws) {
-            try { this.ws.close(); } catch { /* */ }
-            this.ws = null;
-        }
         this.connected = false;
     }
-}
-
-/**
- * Simple HTTP JSON fetch helper (no dependencies)
- */
-function fetchJson(url) {
-    return new Promise((resolve, reject) => {
-        http.get(url, { timeout: 3000 }, (res) => {
-            let data = '';
-            res.on('data', (chunk) => data += chunk);
-            res.on('end', () => {
-                try { resolve(JSON.parse(data)); } catch { reject(new Error('Invalid JSON')); }
-            });
-        }).on('error', reject).on('timeout', function () { this.destroy(); reject(new Error('timeout')); });
-    });
 }
 
 // ============================================================================
@@ -742,16 +741,16 @@ class AntigravityConnection {
         this.uiAuto = new WindowsUIAutomation();
         this.conversationMonitor = new ConversationMonitor();
         this.processMonitor = new ProcessMonitor();
-        this.cdpReader = new CdpChatReader();
+        this.clipReader = new ClipboardChatReader();
         this.lastMessages = [];
         this.lastStatus = 'disconnected';
         this.agentStatusFromTitle = 'idle';
         this.conversationUpdateCallback = null;
-        this.cdpTryInterval = null;
+        this.pendingRead = false; // flag: conversation updated, need to read chat
     }
 
     async initialize() {
-        log('INFO', 'Initializing AntigravityConnection (Hybrid mode)...');
+        log('INFO', 'Initializing AntigravityConnection (Clipboard Reader mode)...');
 
         // Check Antigravity process
         await this.processMonitor.refresh();
@@ -761,30 +760,31 @@ class AntigravityConnection {
         await this.uiAuto.findAntigravityWindow();
         log('INFO', `Antigravity running: ${this.uiAuto.isAntigravityRunning}`);
 
-        // Try CDP connection for reading chat
-        const ports = this.processMonitor.listeningPorts;
-        const cdpOk = await this.cdpReader.tryConnect(ports);
-        log('INFO', `CDP reader: ${cdpOk ? 'CONNECTED' : 'not available (messages will show notifications only)'}`);
+        // Initialize clipboard reader
+        await this.clipReader.tryConnect();
+        log('INFO', 'Clipboard chat reader ready');
 
-        // If CDP not available, retry periodically
-        if (!cdpOk) {
-            this.cdpTryInterval = setInterval(async () => {
-                if (!this.cdpReader.connected) {
-                    await this.processMonitor.refresh();
-                    await this.cdpReader.tryConnect(this.processMonitor.listeningPorts);
-                } else {
-                    clearInterval(this.cdpTryInterval);
-                }
-            }, 15000);
-        }
-
-        // Start watching conversations
+        // Start watching conversations - trigger clipboard read on update
         this.conversationMonitor.startWatching((filename) => {
             log('DEBUG', 'Conversation updated', filename);
+            this.pendingRead = true; // Mark that we need to read chat content
             if (this.conversationUpdateCallback) {
                 this.conversationUpdateCallback(filename);
             }
         });
+
+        // Initial chat read
+        if (this.uiAuto.isAntigravityRunning) {
+            try {
+                const msgs = await this.clipReader.readChatMessages();
+                if (msgs && msgs.length > 0) {
+                    this.lastMessages = msgs;
+                    log('INFO', `Initial chat read: ${msgs.length} messages`);
+                }
+            } catch (e) {
+                log('WARN', 'Initial chat read failed', e.message);
+            }
+        }
 
         return this.isConnected();
     }
@@ -796,33 +796,21 @@ class AntigravityConnection {
     getStatus() {
         return {
             connected: this.isConnected(),
-            method: this.cdpReader.connected ? 'hybrid' : 'ui_automation',
+            method: 'clipboard_reader',
             antigravityRunning: this.uiAuto.isAntigravityRunning,
             windowTitle: this.uiAuto.antigravityTitle,
             processStatus: this.processMonitor.getStatus(),
             grpc: false,
-            cdp: this.cdpReader.connected,
+            cdp: false,
+            clipboardReader: true,
             internalApi: false,
         };
     }
 
     /**
-     * Detect agent status - uses CDP if available, falls back to window title
+     * Detect agent status from window title and file activity
      */
     async getAgentStatus() {
-        // Try CDP first (more accurate)
-        if (this.cdpReader.connected) {
-            const cdpStatus = await this.cdpReader.readAgentStatus();
-            if (cdpStatus) {
-                return {
-                    status: cdpStatus.status,
-                    pendingApprovals: cdpStatus.approvals || [],
-                    windowTitle: this.uiAuto.antigravityTitle,
-                };
-            }
-        }
-
-        // Fallback to window title analysis
         const title = await this.uiAuto.getWindowTitle();
         const pendingApprovals = [];
         let status = 'idle';
@@ -856,17 +844,30 @@ class AntigravityConnection {
     }
 
     /**
-     * Get chat messages - uses CDP if available for real content,
-     * falls back to file change notifications
+     * Get chat messages - reads actual content via clipboard on conversation update
      */
     async getChatMessages() {
-        // Try CDP reader first (gets ACTUAL chat content)
-        if (this.cdpReader.connected) {
-            const cdpMessages = await this.cdpReader.readChatMessages();
-            if (cdpMessages && cdpMessages.length > 0) {
-                this.lastMessages = cdpMessages;
-                return cdpMessages;
+        // If conversation was updated, read actual chat content
+        if (this.pendingRead && this.clipReader.connected) {
+            this.pendingRead = false;
+            log('INFO', 'pendingRead triggered, reading clipboard...');
+            try {
+                const clipMsgs = await this.clipReader.readChatMessages();
+                if (clipMsgs && clipMsgs.length > 0) {
+                    log('INFO', `Clipboard read success: ${clipMsgs.length} messages`);
+                    this.lastMessages = clipMsgs;
+                    return clipMsgs;
+                } else {
+                    log('WARN', 'Clipboard returned no messages');
+                }
+            } catch (e) {
+                log('WARN', 'Clipboard read on update failed', e.message);
             }
+        }
+
+        // If we have cached messages from clipboard, return them
+        if (this.lastMessages.length > 0) {
+            return this.lastMessages;
         }
 
         // Fallback: file change notifications only
@@ -874,6 +875,7 @@ class AntigravityConnection {
         const latest = this.conversationMonitor.getLatestConversation();
 
         if (hasUpdates && latest) {
+            log('DEBUG', 'No cached messages, creating file update notification');
             const updateMsg = {
                 id: Date.now(),
                 role: 'system',
@@ -914,8 +916,7 @@ class AntigravityConnection {
 
     disconnect() {
         this.conversationMonitor.stopWatching();
-        this.cdpReader.disconnect();
-        if (this.cdpTryInterval) clearInterval(this.cdpTryInterval);
+        this.clipReader.disconnect();
         this.uiAuto.isAntigravityRunning = false;
     }
 }
@@ -1145,9 +1146,15 @@ class AntigravityRemote {
     }
 }
 
-// ============================================================================
-// Start
-// ============================================================================
+// Global error handlers to prevent server crash
+process.on('uncaughtException', (err) => {
+    log('ERROR', 'Uncaught Exception', err.message);
+    log('ERROR', 'Stack', err.stack);
+});
+process.on('unhandledRejection', (reason) => {
+    log('ERROR', 'Unhandled Rejection', String(reason));
+});
+
 const app = new AntigravityRemote();
 app.start().catch((err) => {
     log('ERROR', 'Fatal', err.message);
