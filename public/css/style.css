@@ -77,16 +77,24 @@ body {
 .header-controls {
     display: flex;
     align-items: center;
-    gap: 8px;
+    gap: 16px;
 }
 
 /* Old header stop btn removed - now in toolbar */
 
 
 
-/* Refresh Button - hidden, IDE doesn't show at header */
 .refresh-btn {
-    display: none;
+    background: transparent;
+    border: none;
+    color: var(--text-muted);
+    cursor: pointer;
+    padding: 4px;
+    border-radius: 4px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    transition: all 0.2s;
 }
 
 .refresh-btn:hover {
@@ -108,21 +116,18 @@ body {
     border: none;
     color: #fff;
     cursor: pointer;
-    width: 34px;
-    height: 34px;
-    padding: 0;
-    border-radius: 10px;
+    padding: 7px;
+    border-radius: 8px;
     display: flex;
     align-items: center;
     justify-content: center;
     transition: all 0.3s cubic-bezier(0.16, 1, 0.3, 1);
-    box-shadow: 0 2px 8px var(--accent-glow);
-    flex-shrink: 0;
+    box-shadow: 0 4px 12px var(--accent-glow);
 }
 
 .new-chat-btn:hover {
-    transform: scale(1.05);
-    box-shadow: 0 4px 14px var(--accent-glow);
+    transform: scale(1.05) translateY(-1px);
+    box-shadow: 0 6px 16px var(--accent-glow);
 }
 
 .new-chat-btn:active {
@@ -130,16 +135,25 @@ body {
 }
 
 .new-chat-btn svg {
-    width: 18px;
-    height: 18px;
+    width: 16px;
+    height: 16px;
     stroke: currentColor;
     stroke-width: 2.5;
     fill: none;
 }
 
-/* History Button - hidden, IDE doesn't show at header */
+/* History Button */
 .history-btn {
-    display: none;
+    background: transparent;
+    border: none;
+    color: var(--text-muted);
+    cursor: pointer;
+    padding: 4px;
+    border-radius: 4px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    transition: all 0.2s;
 }
 
 .history-btn:hover {
