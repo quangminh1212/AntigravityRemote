@@ -473,7 +473,9 @@ function renderSnapshot(data) {
             '[style*="background-color: rgb(32"],\n' +
             '[style*="background-color: rgb(38"],\n' +
             '[class*="bg-gray"], [class*="bg-slate"],\n' +
-            '[class*="bg-neutral"], [class*="bg-zinc"] {\n' +
+            '[class*="bg-neutral"], [class*="bg-zinc"],\n' +
+            '[class*="bg-ide-"], [class*="from-ide-"],\n' +
+            '[class*="bg-white"], .rounded-lg {\n' +
             '    background-color: transparent !important;\n' +
             '}\n' +
             '#conversation > div > div, #chat > div > div, #cascade > div > div {\n' +
