@@ -957,7 +957,7 @@ class AntigravityRemote {
     }
 
     async start() {
-        log('INFO', '=== AntigravityRemote v2.0 (No CDP) starting ===');
+        log('INFO', '=== AntigravityRemote v3.0 (Antigravity Mirror) starting ===');
 
         // Express setup
         this.app.use(express.json());
@@ -972,11 +972,11 @@ class AntigravityRemote {
         // Start listening
         this.server.listen(CONFIG.PORT, CONFIG.HOST, () => {
             const ip = this.getLocalIp();
-            console.log('\n  ⚡ AntigravityRemote v2.0 (Hybrid Mode)\n');
+            console.log('\n  ⚡ AntigravityRemote v3.0 (Antigravity Mirror)\n');
             console.log(`  Local:   http://localhost:${CONFIG.PORT}`);
             console.log(`  Network: http://${ip}:${CONFIG.PORT}`);
-            console.log('  Method:  PowerShell UI Automation + File Monitoring');
-            console.log('  \n  Open on your phone to control Antigravity remotely.\n');
+            console.log('  Mode:    Screenshot Mirror + UI Automation');
+            console.log('  \n  Open on your phone to mirror Antigravity chat panel.\n');
             log('INFO', `Server listening on http://${ip}:${CONFIG.PORT}`);
         });
 
@@ -1098,11 +1098,11 @@ class AntigravityRemote {
             res.json({
                 name: 'AntigravityRemote',
                 short_name: 'AGRemote',
-                description: 'Mobile chat client for Antigravity IDE',
+                description: 'Mirror Antigravity IDE chat panel on mobile',
                 start_url: '/',
                 display: 'standalone',
-                background_color: '#0a0a0f',
-                theme_color: '#6366f1',
+                background_color: '#1e1e1e',
+                theme_color: '#5856D6',
                 orientation: 'any',
                 icons: [
                     { src: '/icon-192.svg', sizes: '192x192', type: 'image/svg+xml' },
