@@ -12,6 +12,20 @@ const newChatBtn = document.getElementById('newChatBtn');
 const historyBtn = document.getElementById('historyBtn');
 const attachBtn = document.getElementById('attachBtn');
 const fileInput = document.getElementById('fileInput');
+const settingsBtn = document.getElementById('settingsBtn');
+const settingsDropdown = document.getElementById('settingsDropdown');
+
+// --- Theme management ---
+function applyTheme(theme) {
+    document.documentElement.setAttribute('data-theme', theme);
+    localStorage.setItem('arTheme', theme);
+    // Update active state on options
+    document.querySelectorAll('.settings-option').forEach(opt => {
+        opt.classList.toggle('active', opt.dataset.themeValue === theme);
+    });
+}
+// Init theme from localStorage or default to dark
+applyTheme(localStorage.getItem('arTheme') || 'dark');
 
 const modeBtn = document.getElementById('modeBtn');
 const modelBtn = document.getElementById('modelBtn');
@@ -264,13 +278,7 @@ function renderSnapshot(data) {
         const themeMuted = tv['--vscode-descriptionForeground'] || '#8a8d92';
         const darkModeOverrides = '/* --- BASE SNAPSHOT CSS --- */\n' +
             data.css +
-            '\n\n/* --- THEME-SYNCED OVERRIDES --- */\n' +
-            ':root {\n' +
-            '    --text-main: ' + themeFg + ';\n' +
-            '    --text-muted: ' + themeMuted + ';\n' +
-            '    --border-color: #2a2b32;\n' +
-            '}\n' +
-            '\n' +
+            '\n\n/* --- THEME OVERRIDES --- */\n' +
             '#conversation, #chat, #cascade {\n' +
             '    background-color: transparent !important;\n' +
             '    color: var(--text-main) !important;\n' +
@@ -983,6 +991,26 @@ async function startNewChat() {
 }
 
 newChatBtn.addEventListener('click', startNewChat);
+
+// --- Settings / Theme Toggle ---
+settingsBtn.addEventListener('click', (e) => {
+    e.stopPropagation();
+    settingsDropdown.classList.toggle('open');
+});
+
+settingsDropdown.addEventListener('click', (e) => {
+    const option = e.target.closest('.settings-option');
+    if (option) {
+        applyTheme(option.dataset.themeValue);
+        settingsDropdown.classList.remove('open');
+    }
+});
+
+document.addEventListener('click', (e) => {
+    if (!e.target.closest('.settings-wrapper')) {
+        settingsDropdown.classList.remove('open');
+    }
+});
 
 // --- Chat History Logic ---
 async function showChatHistory() {
