@@ -3,7 +3,7 @@
 
 <head>
     <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Antigravity Phone Connect</title>
     <link rel="preconnect" href="https://fonts.googleapis.com">
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
@@ -74,8 +74,9 @@
     <!-- SSL Banner (shown when running HTTP) -->
     <div class="ssl-banner" id="sslBanner" style="display: none;">
         <span>⚠️ Not Secure - Running on HTTP</span>
-        <button id="enableHttpsBtn" onclick="enableHttps()">Enable HTTPS</button>
-        <button class="dismiss-btn" onclick="dismissSslBanner()">×</button>
+        <button id="enableHttpsBtn" onclick="enableHttps()" title="Enable HTTPS">Enable HTTPS</button>
+        <button class="dismiss-btn" onclick="dismissSslBanner()" title="Dismiss SSL warning"
+            aria-label="Dismiss SSL warning">×</button>
     </div>
 
     <!-- Chat Container -->
