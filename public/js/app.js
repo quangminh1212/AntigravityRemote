@@ -228,6 +228,19 @@ function renderSnapshot(data) {
         if (statsText) statsText.textContent = `${nodes} Nodes · ${kbs}KB`;
     }
 
+    // --- SYNC BACKGROUND COLOR FROM IDE ---
+    if (data.backgroundColor) {
+        const bg = data.backgroundColor;
+        // Only update if actually different (avoid unnecessary repaints)
+        if (document.body.style.backgroundColor !== bg) {
+            document.body.style.backgroundColor = bg;
+            chatContainer.style.backgroundColor = bg;
+            // Also update the input section to match
+            const inputSection = document.querySelector('.input-section');
+            if (inputSection) inputSection.style.backgroundColor = bg;
+        }
+    }
+
     // --- CSS INJECTION (Cached - only update when CSS changes) ---
     let styleTag = document.getElementById('cdp-styles');
     if (!styleTag) {
