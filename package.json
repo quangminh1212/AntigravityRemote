@@ -5,7 +5,10 @@
     "description": "Antigravity Remote - Mobile web interface for monitoring and controlling Antigravity AI sessions",
     "scripts": {
         "start": "node server.js",
-        "dev": "npx nodemon --watch server.js --watch public --ext js,html,css server.js"
+        "dev": "npx nodemon --watch server.js --watch public --ext js,html,css server.js",
+        "tauri": "tauri",
+        "tauri:dev": "tauri dev",
+        "tauri:build": "tauri build"
     },
     "dependencies": {
         "compression": "^1.8.1",
@@ -13,10 +16,13 @@
         "dotenv": "^16.4.7",
         "express": "^4.18.2",
         "multer": "^2.1.1",
+        "qrcode": "^1.5.4",
         "ws": "^8.18.0"
     },
     "devDependencies": {
-        "nodemon": "^3.1.14"
+        "@tauri-apps/cli": "^2",
+        "nodemon": "^3.1.14",
+        "png-to-ico": "^3.0.1"
     },
     "author": "Krishna Kanth B (krishnakanthb13)",
     "license": "GPL-3.0-only",
