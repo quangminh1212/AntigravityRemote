@@ -189,6 +189,7 @@ fn start_node_server(app_dir: &Path, runtime_dir: &Path) -> Option<Child> {
         .arg("server.js")
         .current_dir(app_dir)
         .env("TAURI_EMBEDDED", "1")
+        .env("AG_SKIP_AUTO_LAUNCH", "1")
         .env("AG_RUNTIME_DIR", runtime_dir)
         .stdout(Stdio::null())
         .stderr(Stdio::null())

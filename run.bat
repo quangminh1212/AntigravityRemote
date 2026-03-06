@@ -158,6 +158,9 @@ if !CDP_FOUND!==0 (
 )
 echo.
 
+:: run.bat already handles Antigravity startup; prevent duplicate relaunches in server.js
+set "AG_SKIP_AUTO_LAUNCH=1"
+
 :: ============================================
 :: Kill any existing process on port 3000
 :: ============================================
