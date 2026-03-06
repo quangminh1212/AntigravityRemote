@@ -1,6 +1,7 @@
 :root,
 [data-theme="dark"] {
     /* Dark Theme Tokens */
+    --display-scale: 1;
     --bg-app: #111215;
     --bg-panel: #1a1b20;
     --bg-input: #27282e;
@@ -104,6 +105,7 @@ html {
     height: 100%;
     overflow: hidden;
     overscroll-behavior: none;
+    font-size: calc(16px * var(--display-scale));
 }
 
 body {
@@ -296,6 +298,16 @@ body {
 
 .settings-option svg {
     flex-shrink: 0;
+}
+
+.settings-option-glyph {
+    width: 16px;
+    flex-shrink: 0;
+    font-size: 13px;
+    font-weight: 700;
+    line-height: 1;
+    text-align: center;
+    color: currentColor;
 }
 
 /* Settings dropdown status (Live indicator) */
@@ -889,7 +901,7 @@ body.agent-running .toolbar-stop-btn {
 /* Floating Action Button (Scroll Down) */
 .fab {
     position: fixed;
-    bottom: 90px;
+    bottom: calc(8rem + env(safe-area-inset-bottom));
     right: 20px;
     width: 44px;
     height: 44px;
@@ -1380,6 +1392,7 @@ body.agent-running .toolbar-stop-btn {
 
 .chat-content {
     padding: 0 12px 12px;
+    font-size: calc(14px * var(--display-scale));
 }
 
 .chat-home-spacer {

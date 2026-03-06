@@ -70,6 +70,11 @@ const sidebarTransportText = document.getElementById('sidebarTransportText');
 
 const LOOPBACK_HOSTS = new Set(['localhost', '127.0.0.1', '::1']);
 const isLoopbackHost = LOOPBACK_HOSTS.has(window.location.hostname);
+const TEXT_SIZE_PRESETS = {
+    small: 0.92,
+    medium: 1,
+    large: 1.12
+};
 
 function setTextContent(element, value) {
     if (element) element.textContent = value;
@@ -151,14 +156,23 @@ document.addEventListener('fullscreenchange', () => {
 
 // --- Theme management ---
 function applyTheme(theme) {
-    document.documentElement.setAttribute('data-theme', theme);
-    localStorage.setItem('arTheme', theme);
-    setTextContent(sidebarThemeChip, theme === 'light' ? 'Light theme' : 'Dark theme');
-    // Update active state on options
-    document.querySelectorAll('.settings-option').forEach(opt => {
-        opt.classList.toggle('active', opt.dataset.themeValue === theme);
+    const selectedTheme = theme === 'light' ? 'light' : 'dark';
+    document.documentElement.setAttribute('data-theme', selectedTheme);
+    localStorage.setItem('arTheme', selectedTheme);
+    setTextContent(sidebarThemeChip, selectedTheme === 'light' ? 'Light theme' : 'Dark theme');
+    document.querySelectorAll('.settings-option[data-theme-value]').forEach(opt => {
+        opt.classList.toggle('active', opt.dataset.themeValue === selectedTheme);
     });
     updateWorkspaceChrome();
+}
+
+function applyTextSize(size) {
+    const selectedSize = TEXT_SIZE_PRESETS[size] ? size : 'medium';
+    document.documentElement.style.setProperty('--display-scale', TEXT_SIZE_PRESETS[selectedSize]);
+    localStorage.setItem('arTextSize', selectedSize);
+    document.querySelectorAll('.settings-option[data-font-size-value]').forEach(opt => {
+        opt.classList.toggle('active', opt.dataset.fontSizeValue === selectedSize);
+    });
 }
 const modeBtn = document.getElementById('modeBtn');
 const modelBtn = document.getElementById('modelBtn');
@@ -191,6 +205,7 @@ let hasSnapshotLoaded = false;
 
 // Init theme from localStorage or default to dark
 applyTheme(localStorage.getItem('arTheme') || 'dark');
+applyTextSize(localStorage.getItem('arTextSize') || 'medium');
 
 // Fast string hash (FNV-1a) to compare HTML content
 function fastHash(str) {
@@ -526,7 +541,9 @@ function renderSnapshot(data) {
             '    font-family: \'Inter\', system-ui, sans-serif !important;\n' +
             '    position: relative !important;\n' +
             '    height: auto !important;\n' +
+            '    zoom: var(--display-scale) !important;\n' +
             '    width: 100% !important;\n' +
+            '    width: calc(100% / var(--display-scale)) !important;\n' +
             '}\n' +
             '\n' +
             '/* Fix stacking BUT preserve absolute/fixed positioning for dropdowns */\n' +
@@ -1308,7 +1325,13 @@ settingsBtn.addEventListener('click', (e) => {
 settingsDropdown.addEventListener('click', (e) => {
     const option = e.target.closest('.settings-option');
     if (option) {
-        applyTheme(option.dataset.themeValue);
+        if (option.dataset.themeValue) {
+            applyTheme(option.dataset.themeValue);
+        } else if (option.dataset.fontSizeValue) {
+            applyTextSize(option.dataset.fontSizeValue);
+        } else {
+            return;
+        }
         settingsDropdown.classList.remove('open');
     }
 });
