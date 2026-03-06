@@ -66,6 +66,35 @@ if not exist ".env" (
 )
 echo.
 
+set "BROWSER_PROTOCOL=http"
+if exist "certs\server.key" if exist "certs\server.cert" set "BROWSER_PROTOCOL=https"
+
+:: ============================================
+:: Detect last active Antigravity workspace
+:: ============================================
+set "LAST_REPO="
+set "TARGET_REPO=%CD%"
+set "AG_STORAGE_JSON=%APPDATA%\Antigravity\User\globalStorage\storage.json"
+
+if exist "!AG_STORAGE_JSON!" (
+    for /f "usebackq delims=" %%i in (`powershell -NoProfile -ExecutionPolicy Bypass -Command "$storage = $env:APPDATA + '\Antigravity\User\globalStorage\storage.json'; try { $json = Get-Content -Raw -LiteralPath $storage | ConvertFrom-Json; $uri = $json.windowsState.lastActiveWindow.folder; if (-not $uri -and $json.backupWorkspaces.folders -and $json.backupWorkspaces.folders.Count -gt 0) { $uri = $json.backupWorkspaces.folders[0].folderUri }; if ($uri) { $path = [System.Uri]::new($uri).LocalPath; if ($path -match '^/[A-Za-z]:') { $path = $path.Substring(1) }; $path = $path -replace '/', '\'; $path } } catch { }"` ) do (
+        set "LAST_REPO=%%i"
+    )
+)
+
+if defined LAST_REPO (
+    if exist "!LAST_REPO!" (
+        set "TARGET_REPO=!LAST_REPO!"
+        echo       Last active Antigravity workspace: !TARGET_REPO!
+    ) else (
+        echo       [WARN] Last workspace from Antigravity storage was not found: !LAST_REPO!
+        echo       [INFO] Falling back to current folder: !TARGET_REPO!
+    )
+) else (
+    echo       [INFO] No recent Antigravity workspace found. Using current folder: !TARGET_REPO!
+)
+echo.
+
 :: ============================================
 :: [4/5] Check CDP (Antigravity Editor)
 :: ============================================
@@ -104,7 +133,8 @@ if !CDP_FOUND!==0 (
         echo              Launch manually: antigravity . --remote-debugging-port=9000
     ) else (
         echo       Launching Antigravity --remote-debugging-port=9000
-        start "" "!ANTI_EXE!" . --remote-debugging-port=9000
+        echo       Workspace: !TARGET_REPO!
+        start "" "!ANTI_EXE!" "!TARGET_REPO!" --remote-debugging-port=9000
         echo       Waiting for CDP to become ready...
 
         set CDP_READY=0
@@ -156,16 +186,17 @@ if %errorlevel% neq 0 (
 
 echo ============================================
 echo  Mode:       FULL (Tauri Window + Server)
-echo  Server:     https://localhost:3000
-echo  Tauri:      Desktop window
+echo  Server:     Embedded local webview ^(http://127.0.0.1:3000^)
+echo  Tauri:      Portrait desktop window ^(9:16^)
+echo  Workspace:  !TARGET_REPO!
 echo  Press Ctrl+C to stop everything
 echo ============================================
 echo.
 
 :: tauri dev will:
-:: 1. Run beforeDevCommand (node server.js) to start backend
+:: 1. Run beforeDevCommand (npm run start:embedded) to start backend
 :: 2. Build and launch the Tauri desktop window
-:: 3. Window connects to https://localhost:3000
+:: 3. Window connects to http://127.0.0.1:3000
 npx tauri dev 2>&1
 
 :: If Tauri exits, we're done
@@ -180,7 +211,7 @@ echo [5/5] Starting server only (no Tauri window)...
 echo.
 echo ============================================
 echo  Mode:       SERVER-ONLY
-echo  Server:     https://localhost:3000
+echo  Server:     !BROWSER_PROTOCOL!://localhost:3000
 echo  Hot Reload: ON (auto-restart on changes)
 echo  Watching:   server.js, public/**, generate_ssl.js
 echo  Press Ctrl+C to stop
