@@ -1,10 +1,18 @@
-use std::process::Command as StdCommand;
+use std::fs;
+use std::net::TcpStream;
+use std::path::{Path, PathBuf};
+use std::process::{Child, Command as StdCommand, Stdio};
 use std::sync::Mutex;
 use std::thread;
-use std::time::Duration;
-use tauri::Manager;
+use std::time::{Duration, Instant};
+use serde_json::Value;
+use tauri::{Manager, WebviewUrl};
 
-struct NodeServerProcess(Mutex<Option<std::process::Child>>);
+const EMBEDDED_SERVER_URL: &str = "http://127.0.0.1:3000";
+const PORTRAIT_WINDOW_WIDTH: f64 = 450.0;
+const PORTRAIT_WINDOW_HEIGHT: f64 = 800.0;
+
+struct NodeServerProcess(Mutex<Option<Child>>);
 
 /// Check if CDP is available on any of the standard ports
 fn is_cdp_available() -> bool {
@@ -46,6 +54,40 @@ fn find_antigravity_exe() -> Option<String> {
     None
 }
 
+fn find_recent_antigravity_workspace() -> Option<PathBuf> {
+    let app_data = std::env::var("APPDATA").ok()?;
+    let storage_path = PathBuf::from(app_data)
+        .join("Antigravity")
+        .join("User")
+        .join("globalStorage")
+        .join("storage.json");
+
+    let content = fs::read_to_string(storage_path).ok()?;
+    let json: Value = serde_json::from_str(&content).ok()?;
+
+    let folder_uri = json
+        .get("windowsState")
+        .and_then(|state| state.get("lastActiveWindow"))
+        .and_then(|window| window.get("folder"))
+        .and_then(Value::as_str)
+        .or_else(|| {
+            json.get("backupWorkspaces")
+                .and_then(|backup| backup.get("folders"))
+                .and_then(Value::as_array)
+                .and_then(|folders| folders.first())
+                .and_then(|folder| folder.get("folderUri"))
+                .and_then(Value::as_str)
+        })?;
+
+    let url = url::Url::parse(folder_uri).ok()?;
+    let path = url.to_file_path().ok()?;
+    if path.exists() {
+        Some(path)
+    } else {
+        None
+    }
+}
+
 /// Launch Antigravity with CDP debug port
 fn launch_antigravity_with_cdp() {
     if is_cdp_available() {
@@ -57,9 +99,16 @@ fn launch_antigravity_with_cdp() {
 
     if let Some(exe_path) = find_antigravity_exe() {
         println!("[TAURI] Found Antigravity at: {}", exe_path);
+        let target_workspace = find_recent_antigravity_workspace()
+            .or_else(|| std::env::current_dir().ok())
+            .unwrap_or_else(|| PathBuf::from("."));
+        println!(
+            "[TAURI] Launching Antigravity on workspace: {}",
+            target_workspace.display()
+        );
 
         match StdCommand::new(&exe_path)
-            .arg(".")
+            .arg(&target_workspace)
             .arg("--remote-debugging-port=9000")
             .spawn()
         {
@@ -83,10 +132,47 @@ fn launch_antigravity_with_cdp() {
     }
 }
 
+fn wait_for_local_server(timeout: Duration) -> bool {
+    let addr = "127.0.0.1:3000".parse().unwrap();
+    let start = Instant::now();
+
+    while start.elapsed() < timeout {
+        if TcpStream::connect_timeout(&addr, Duration::from_millis(500)).is_ok() {
+            return true;
+        }
+        thread::sleep(Duration::from_millis(250));
+    }
+
+    false
+}
+
+fn resolve_project_root(app: &tauri::App) -> PathBuf {
+    if cfg!(debug_assertions) {
+        let manifest_dir = std::env::var("CARGO_MANIFEST_DIR").unwrap_or_else(|_| ".".to_string());
+        PathBuf::from(manifest_dir)
+            .parent()
+            .unwrap_or(Path::new("."))
+            .to_path_buf()
+    } else {
+        app.path().resource_dir().unwrap_or_default()
+    }
+}
+
+fn resolve_runtime_dir(app: &tauri::App, project_root: &Path) -> PathBuf {
+    if cfg!(debug_assertions) {
+        project_root.to_path_buf()
+    } else {
+        app.path()
+            .app_local_data_dir()
+            .or_else(|_| app.path().app_data_dir())
+            .unwrap_or_else(|_| project_root.to_path_buf())
+    }
+}
+
 /// Start the Node.js server (only in release mode, dev uses beforeDevCommand)
-fn start_node_server(app_dir: &str) -> Option<std::process::Child> {
+fn start_node_server(app_dir: &Path, runtime_dir: &Path) -> Option<Child> {
     // Check if port 3000 is already in use (server already running or dev mode)
-    if std::net::TcpStream::connect_timeout(
+    if TcpStream::connect_timeout(
         &"127.0.0.1:3000".parse().unwrap(),
         Duration::from_millis(500),
     )
@@ -96,13 +182,16 @@ fn start_node_server(app_dir: &str) -> Option<std::process::Child> {
         return None;
     }
 
-    println!("[TAURI] Starting Node.js server from: {}", app_dir);
+    println!("[TAURI] Starting Node.js server from: {}", app_dir.display());
+    println!("[TAURI] Runtime data directory: {}", runtime_dir.display());
 
     match StdCommand::new("node")
         .arg("server.js")
         .current_dir(app_dir)
-        .stdout(std::process::Stdio::piped())
-        .stderr(std::process::Stdio::piped())
+        .env("TAURI_EMBEDDED", "1")
+        .env("AG_RUNTIME_DIR", runtime_dir)
+        .stdout(Stdio::null())
+        .stderr(Stdio::null())
         .spawn()
     {
         Ok(child) => {
@@ -122,20 +211,12 @@ pub fn run() {
         .plugin(tauri_plugin_shell::init())
         .plugin(tauri_plugin_opener::init())
         .setup(|app| {
-            // Get the project root directory
-            let project_root = if cfg!(debug_assertions) {
-                let manifest_dir = std::env::var("CARGO_MANIFEST_DIR")
-                    .unwrap_or_else(|_| ".".to_string());
-                std::path::PathBuf::from(manifest_dir)
-                    .parent()
-                    .unwrap_or(std::path::Path::new("."))
-                    .to_path_buf()
-            } else {
-                app.path().resource_dir().unwrap_or_default()
-            };
+            let project_root = resolve_project_root(app);
+            let runtime_dir = resolve_runtime_dir(app, &project_root);
+            fs::create_dir_all(&runtime_dir)?;
 
-            let project_root_str = project_root.to_string_lossy().to_string();
-            println!("[TAURI] Project root: {}", project_root_str);
+            println!("[TAURI] Project root: {}", project_root.display());
+            println!("[TAURI] Runtime directory: {}", runtime_dir.display());
 
             // Launch Antigravity with CDP in background
             thread::spawn(|| {
@@ -145,7 +226,7 @@ pub fn run() {
             // In release mode, start Node.js server ourselves
             // In dev mode, beforeDevCommand handles it
             let node_child = if !cfg!(debug_assertions) {
-                start_node_server(&project_root_str)
+                start_node_server(&project_root, &runtime_dir)
             } else {
                 // Dev mode: server started by beforeDevCommand
                 println!("[TAURI] Dev mode: Node server managed by Tauri CLI");
@@ -153,6 +234,37 @@ pub fn run() {
             };
 
             app.manage(NodeServerProcess(Mutex::new(node_child)));
+
+            let wait_timeout = if cfg!(debug_assertions) {
+                Duration::from_secs(30)
+            } else {
+                Duration::from_secs(20)
+            };
+
+            if wait_for_local_server(wait_timeout) {
+                println!("[TAURI] Embedded server ready at {}", EMBEDDED_SERVER_URL);
+            } else {
+                println!(
+                    "[TAURI] Embedded server did not respond within {:?}; opening window anyway",
+                    wait_timeout
+                );
+            }
+
+            tauri::WebviewWindowBuilder::new(
+                app,
+                "main",
+                WebviewUrl::External(EMBEDDED_SERVER_URL.parse().expect("valid embedded server URL")),
+            )
+            .title("Antigravity Remote")
+            .inner_size(PORTRAIT_WINDOW_WIDTH, PORTRAIT_WINDOW_HEIGHT)
+            .min_inner_size(PORTRAIT_WINDOW_WIDTH, PORTRAIT_WINDOW_HEIGHT)
+            .max_inner_size(PORTRAIT_WINDOW_WIDTH, PORTRAIT_WINDOW_HEIGHT)
+            .center()
+            .resizable(false)
+            .maximizable(false)
+            .decorations(true)
+            .transparent(false)
+            .build()?;
 
             Ok(())
         })

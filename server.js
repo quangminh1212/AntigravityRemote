@@ -18,17 +18,26 @@ import QRCode from 'qrcode';
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = dirname(__filename);
+const RUNTIME_ROOT = process.env.AG_RUNTIME_DIR || __dirname;
+const IS_EMBEDDED_RUNTIME = process.env.TAURI_EMBEDDED === '1';
+
+try {
+    fs.mkdirSync(RUNTIME_ROOT, { recursive: true });
+} catch (e) {
+    console.error('Failed to initialize runtime directory:', e.message);
+    process.exit(1);
+}
 
 // ============================================================
 // FILE LOGGING SYSTEM - All output goes to log.txt for debugging
 // ============================================================
-const LOG_FILE = join(__dirname, 'log.txt');
+const LOG_FILE = join(RUNTIME_ROOT, 'log.txt');
 const MAX_LOG_SIZE = 5 * 1024 * 1024; // 5MB auto-rotate
 
 // Rotate log if too large
 try {
     if (fs.existsSync(LOG_FILE) && fs.statSync(LOG_FILE).size > MAX_LOG_SIZE) {
-        const backupPath = join(__dirname, 'log.old.txt');
+        const backupPath = join(RUNTIME_ROOT, 'log.old.txt');
         if (fs.existsSync(backupPath)) fs.unlinkSync(backupPath);
         fs.renameSync(LOG_FILE, backupPath);
     }
@@ -79,11 +88,13 @@ console.log('🚀 Antigravity Remote starting...');
 console.log(`   PID: ${process.pid}`);
 console.log(`   Node: ${process.version}`);
 console.log(`   Time: ${new Date().toISOString()}`);
+console.log(`   Runtime root: ${RUNTIME_ROOT}`);
+console.log(`   Runtime mode: ${IS_EMBEDDED_RUNTIME ? 'embedded-webview' : 'browser-server'}`);
 console.log('========================================');
 
 const PORTS = [9000, 9001, 9002, 9003];
 const POLL_INTERVAL = 500; // 500ms for smoother updates
-const SERVER_PORT = process.env.PORT || 3000;
+const SERVER_PORT = Number(process.env.PORT || 3000);
 const APP_PASSWORD = process.env.APP_PASSWORD || 'antigravity';
 const AUTH_COOKIE_NAME = 'ag_auth_token';
 // Note: hashString is defined later, so we'll initialize the token inside createServer or use a simple string for now.
@@ -1836,12 +1847,17 @@ async function createServer() {
     const app = express();
 
     // Check for SSL certificates
-    const keyPath = join(__dirname, 'certs', 'server.key');
-    const certPath = join(__dirname, 'certs', 'server.cert');
-    const hasSSL = fs.existsSync(keyPath) && fs.existsSync(certPath);
+    const keyPath = join(RUNTIME_ROOT, 'certs', 'server.key');
+    const certPath = join(RUNTIME_ROOT, 'certs', 'server.cert');
+    const certsExist = fs.existsSync(keyPath) && fs.existsSync(certPath);
+    const hasSSL = certsExist && !IS_EMBEDDED_RUNTIME;
 
     let server;
     let httpsServer = null;
+
+    if (certsExist && IS_EMBEDDED_RUNTIME) {
+        console.log('[EMBEDDED] SSL certificates detected, but embedded runtime will use local HTTP for webview compatibility.');
+    }
 
     if (hasSSL) {
         const sslOptions = {
@@ -1964,7 +1980,8 @@ async function createServer() {
             cdpConnected: cdpConnection?.ws?.readyState === 1, // WebSocket.OPEN = 1
             uptime: process.uptime(),
             timestamp: new Date().toISOString(),
-            https: hasSSL
+            https: hasSSL,
+            embedded: IS_EMBEDDED_RUNTIME
         });
     });
 
@@ -1998,13 +2015,12 @@ async function createServer() {
 
     // SSL status endpoint
     app.get('/ssl-status', (req, res) => {
-        const keyPath = join(__dirname, 'certs', 'server.key');
-        const certPath = join(__dirname, 'certs', 'server.cert');
-        const certsExist = fs.existsSync(keyPath) && fs.existsSync(certPath);
         res.json({
             enabled: hasSSL,
             certsExist: certsExist,
+            embedded: IS_EMBEDDED_RUNTIME,
             message: hasSSL ? 'HTTPS is active' :
+                certsExist && IS_EMBEDDED_RUNTIME ? 'Embedded runtime uses local HTTP. Browser mode can still use HTTPS.' :
                 certsExist ? 'Certificates exist, restart server to enable HTTPS' :
                     'No certificates found'
         });
@@ -2014,7 +2030,14 @@ async function createServer() {
     app.post('/generate-ssl', async (req, res) => {
         try {
             const { execSync } = await import('child_process');
-            execSync('node generate_ssl.js', { cwd: __dirname, stdio: 'pipe' });
+            execSync('node generate_ssl.js', {
+                cwd: __dirname,
+                stdio: 'pipe',
+                env: {
+                    ...process.env,
+                    AG_RUNTIME_DIR: RUNTIME_ROOT
+                }
+            });
             res.json({
                 success: true,
                 message: 'SSL certificates generated! Restart the server to enable HTTPS.'
@@ -2084,7 +2107,7 @@ async function createServer() {
     });
 
     // --- File Upload ---
-    const uploadsDir = join(__dirname, 'uploads');
+    const uploadsDir = join(RUNTIME_ROOT, 'uploads');
     if (!fs.existsSync(uploadsDir)) fs.mkdirSync(uploadsDir, { recursive: true });
 
     const upload = multer({

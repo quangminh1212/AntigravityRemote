@@ -16,7 +16,8 @@ import path from 'path';
 import { fileURLToPath } from 'url';
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
-const certsDir = path.join(__dirname, 'certs');
+const runtimeRoot = process.env.AG_RUNTIME_DIR || __dirname;
+const certsDir = path.join(runtimeRoot, 'certs');
 
 // Create certs directory if it doesn't exist
 if (!fs.existsSync(certsDir)) {
@@ -28,7 +29,7 @@ const certPath = path.join(certsDir, 'server.cert');
 
 // Check if certs already exist
 if (fs.existsSync(keyPath) && fs.existsSync(certPath)) {
-    console.log('✅ SSL certificates already exist in ./certs/');
+    console.log('SSL certificates already exist in ./certs/');
     console.log('   Delete them and run again to regenerate.');
     process.exit(0);
 }
@@ -85,7 +86,7 @@ function getOpenSSLPath() {
 
 // Generate certificate using OpenSSL (preferred - has proper SAN support)
 function generateWithOpenSSL(ips, opensslPath) {
-    console.log('🔧 Using OpenSSL for certificate generation...');
+    console.log('Using OpenSSL for certificate generation...');
     console.log(`   Path: ${opensslPath}\n`);
 
     // Build SAN extension with IP addresses
@@ -135,7 +136,7 @@ extendedKeyUsage = serverAuth
 
 // Generate certificate using Node.js crypto (fallback - no SAN support)
 function generateWithNodeCrypto() {
-    console.log('🔧 Using Node.js crypto for certificate generation...');
+    console.log('Using Node.js crypto for certificate generation...');
     console.log('   (OpenSSL not found - certificate will show URL mismatch warning)\n');
 
     // Generate RSA key pair

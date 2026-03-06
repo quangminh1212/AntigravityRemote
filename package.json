@@ -5,6 +5,7 @@
     "description": "Antigravity Remote - Mobile web interface for monitoring and controlling Antigravity AI sessions",
     "scripts": {
         "start": "node server.js",
+        "start:embedded": "node tauri-server.mjs",
         "dev": "npx nodemon --watch server.js --watch public --ext js,html,css server.js",
         "tauri": "tauri",
         "tauri:dev": "tauri dev",

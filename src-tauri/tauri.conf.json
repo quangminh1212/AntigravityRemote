@@ -3,21 +3,25 @@
     "version": "1.0.0",
     "identifier": "com.antigravity.remote",
     "build": {
-        "devUrl": "https://localhost:3000",
-        "beforeDevCommand": "node server.js",
-        "frontendDist": "../public"
+        "devUrl": "http://127.0.0.1:3000",
+        "beforeDevCommand": "npm run start:embedded",
+        "frontendDist": "http://127.0.0.1:3000"
     },
     "app": {
         "windows": [
             {
                 "label": "main",
+                "create": false,
                 "title": "Antigravity Remote",
-                "width": 1100,
-                "height": 750,
-                "minWidth": 800,
-                "minHeight": 600,
+                "width": 450,
+                "height": 800,
+                "minWidth": 450,
+                "minHeight": 800,
+                "maxWidth": 450,
+                "maxHeight": 800,
                 "center": true,
-                "resizable": true,
+                "resizable": false,
+                "maximizable": false,
                 "decorations": true,
                 "transparent": false
             }
@@ -30,7 +34,17 @@
         "active": true,
         "targets": "all",
         "icon": [
+            "icons/icon.ico",
             "icons/icon.png"
-        ]
+        ],
+        "resources": {
+            "../generate_ssl.js": "generate_ssl.js",
+            "../node_modules": "node_modules",
+            "../package-lock.json": "package-lock.json",
+            "../package.json": "package.json",
+            "../public": "public",
+            "../server.js": "server.js",
+            "../ui_inspector.js": "ui_inspector.js"
+        }
     }
 }
