@@ -29,6 +29,19 @@
                 </svg>
             </button>
 
+            <button class="refresh-btn" id="qrBtn" aria-label="QR Code" data-tooltip="Phone Connect">
+                <svg viewBox="0 0 24 24" stroke-linecap="round" stroke-linejoin="round">
+                    <rect x="2" y="2" width="8" height="8" rx="1"></rect>
+                    <rect x="14" y="2" width="8" height="8" rx="1"></rect>
+                    <rect x="2" y="14" width="8" height="8" rx="1"></rect>
+                    <rect x="14" y="14" width="4" height="4" rx="0.5"></rect>
+                    <line x1="22" y1="14" x2="22" y2="18"></line>
+                    <line x1="18" y1="22" x2="22" y2="22"></line>
+                    <rect x="5" y="5" width="2" height="2" fill="currentColor" stroke="none"></rect>
+                    <rect x="17" y="5" width="2" height="2" fill="currentColor" stroke="none"></rect>
+                    <rect x="5" y="17" width="2" height="2" fill="currentColor" stroke="none"></rect>
+                </svg>
+            </button>
 
             <button class="refresh-btn" id="refreshBtn" aria-label="Refresh" data-tooltip="Refresh">
                 <svg viewBox="0 0 24 24" stroke-linecap="round" stroke-linejoin="round">
@@ -210,6 +223,25 @@
         </div>
         <div class="history-content" id="historyList">
             <!-- Items injected here -->
+        </div>
+    </div>
+
+    <!-- QR Code Modal -->
+    <div class="qr-modal-overlay" id="qrOverlay">
+        <div class="qr-modal">
+            <div class="qr-modal-header">
+                <h3>📱 Phone Connect</h3>
+                <button class="qr-close-btn" id="qrCloseBtn" aria-label="Close">&times;</button>
+            </div>
+            <div class="qr-modal-body">
+                <div class="qr-loading" id="qrLoading">
+                    <div class="loading-spinner"></div>
+                    <p>Generating QR code...</p>
+                </div>
+                <img id="qrImage" class="qr-image" alt="QR Code" style="display:none">
+                <p class="qr-url" id="qrUrl"></p>
+                <p class="qr-desc">Scan with your phone camera to connect.<br>Auto-login enabled.</p>
+            </div>
         </div>
     </div>
 

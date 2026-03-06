@@ -1531,3 +1531,61 @@ setInterval(fetchAppState, 5000);
 // Check chat status initially and periodically
 checkChatStatus();
 setInterval(checkChatStatus, 10000); // Check every 10 seconds
+
+// --- QR Code Modal ---
+const qrBtn = document.getElementById('qrBtn');
+const qrOverlay = document.getElementById('qrOverlay');
+const qrCloseBtn = document.getElementById('qrCloseBtn');
+const qrImage = document.getElementById('qrImage');
+const qrUrl = document.getElementById('qrUrl');
+const qrLoading = document.getElementById('qrLoading');
+
+if (qrBtn) {
+    qrBtn.addEventListener('click', async () => {
+        qrOverlay.classList.add('open');
+        qrImage.style.display = 'none';
+        qrUrl.textContent = '';
+        qrLoading.style.display = 'flex';
+
+        try {
+            const res = await fetchWithAuth('/qr-info');
+            const data = await res.json();
+
+            qrImage.src = data.qrDataUrl;
+            qrImage.style.display = 'block';
+            qrUrl.textContent = data.connectUrl;
+            qrLoading.style.display = 'none';
+        } catch (e) {
+            qrLoading.innerHTML = '<p style="color: var(--error)">Failed to generate QR code</p>';
+            console.error('[QR] Error:', e);
+        }
+    });
+}
+
+if (qrCloseBtn) {
+    qrCloseBtn.addEventListener('click', () => {
+        qrOverlay.classList.remove('open');
+    });
+}
+
+if (qrOverlay) {
+    qrOverlay.addEventListener('click', (e) => {
+        if (e.target === qrOverlay) qrOverlay.classList.remove('open');
+    });
+}
+
+// Copy URL on click
+if (qrUrl) {
+    qrUrl.addEventListener('click', async () => {
+        const url = qrUrl.textContent;
+        if (url) {
+            const ok = await copyToClipboard(url);
+            if (ok) {
+                const orig = qrUrl.textContent;
+                qrUrl.textContent = '✓ Copied!';
+                setTimeout(() => { qrUrl.textContent = orig; }, 1500);
+            }
+        }
+    });
+}
+
