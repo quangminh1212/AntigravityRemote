@@ -12,7 +12,7 @@ import WebSocket from 'ws';
 import { fileURLToPath } from 'url';
 import { dirname, join } from 'path';
 import { inspectUI } from './ui_inspector.js';
-import { execSync } from 'child_process';
+import { execSync, spawn } from 'child_process';
 import multer from 'multer';
 import QRCode from 'qrcode';
 
@@ -93,10 +93,12 @@ console.log(`   Runtime mode: ${IS_EMBEDDED_RUNTIME ? 'embedded-webview' : 'brow
 console.log('========================================');
 
 const PORTS = [9000, 9001, 9002, 9003];
+const PRIMARY_CDP_PORT = PORTS[0];
 const POLL_INTERVAL = 500; // 500ms for smoother updates
 const SERVER_PORT = Number(process.env.PORT || 3000);
 const APP_PASSWORD = process.env.APP_PASSWORD || 'antigravity';
 const AUTH_COOKIE_NAME = 'ag_auth_token';
+const AUTO_LAUNCH_ANTIGRAVITY = process.env.AG_SKIP_AUTO_LAUNCH !== '1';
 // Note: hashString is defined later, so we'll initialize the token inside createServer or use a simple string for now.
 let AUTH_TOKEN = 'ag_default_token';
 
@@ -105,6 +107,7 @@ let AUTH_TOKEN = 'ag_default_token';
 let cdpConnection = null;
 let lastSnapshot = null;
 let lastSnapshotHash = null;
+let antigravityLaunchPromise = null;
 
 // Kill any existing process on the server port (prevents EADDRINUSE)
 async function killPortProcess(port) {
@@ -199,6 +202,192 @@ function getJson(url) {
             });
         }).on('error', reject);
     });
+}
+
+function sleep(ms) {
+    return new Promise(resolve => setTimeout(resolve, ms));
+}
+
+function getAntigravityStoragePath() {
+    if (process.platform === 'win32' && process.env.APPDATA) {
+        return join(process.env.APPDATA, 'Antigravity', 'User', 'globalStorage', 'storage.json');
+    }
+
+    if (process.platform === 'darwin' && process.env.HOME) {
+        return join(process.env.HOME, 'Library', 'Application Support', 'Antigravity', 'User', 'globalStorage', 'storage.json');
+    }
+
+    if (process.env.XDG_CONFIG_HOME) {
+        return join(process.env.XDG_CONFIG_HOME, 'Antigravity', 'User', 'globalStorage', 'storage.json');
+    }
+
+    if (process.env.HOME) {
+        return join(process.env.HOME, '.config', 'Antigravity', 'User', 'globalStorage', 'storage.json');
+    }
+
+    return null;
+}
+
+function findRecentAntigravityWorkspace() {
+    const storagePath = getAntigravityStoragePath();
+    if (!storagePath || !fs.existsSync(storagePath)) {
+        return null;
+    }
+
+    try {
+        const storage = JSON.parse(fs.readFileSync(storagePath, 'utf8'));
+        const folderUris = [
+            storage?.windowsState?.lastActiveWindow?.folder,
+            ...(storage?.backupWorkspaces?.folders || []).map(folder => folder?.folderUri)
+        ].filter(Boolean);
+
+        for (const folderUri of folderUris) {
+            try {
+                const workspacePath = fileURLToPath(folderUri);
+                if (workspacePath && fs.existsSync(workspacePath)) {
+                    return workspacePath;
+                }
+            } catch (error) {
+                console.warn(`Ignoring invalid Antigravity workspace URI: ${folderUri}`);
+            }
+        }
+    } catch (error) {
+        console.warn(`Failed to read Antigravity storage: ${error.message}`);
+    }
+
+    return null;
+}
+
+function getTargetWorkspace() {
+    return findRecentAntigravityWorkspace() || process.cwd();
+}
+
+function findCommandOnPath(command) {
+    const locator = process.platform === 'win32' ? 'where' : 'which';
+
+    try {
+        const output = execSync(`${locator} ${command}`, {
+            encoding: 'utf8',
+            stdio: ['ignore', 'pipe', 'ignore']
+        }).trim();
+        return output.split(/\r?\n/).find(Boolean) || null;
+    } catch (error) {
+        return null;
+    }
+}
+
+function findAntigravityExecutable() {
+    if (process.platform === 'win32' && process.env.LOCALAPPDATA) {
+        const defaultPath = join(process.env.LOCALAPPDATA, 'Programs', 'Antigravity', 'Antigravity.exe');
+        if (fs.existsSync(defaultPath)) {
+            return defaultPath;
+        }
+    }
+
+    return findCommandOnPath(process.platform === 'win32' ? 'Antigravity.exe' : 'antigravity')
+        || (process.platform === 'win32' ? findCommandOnPath('antigravity') : null);
+}
+
+function isAntigravityRunning() {
+    try {
+        if (process.platform === 'win32') {
+            const output = execSync('tasklist /FI "IMAGENAME eq Antigravity.exe"', {
+                encoding: 'utf8',
+                stdio: ['ignore', 'pipe', 'ignore']
+            });
+            return output.toLowerCase().includes('antigravity.exe');
+        }
+
+        execSync('pgrep -f antigravity', { stdio: 'ignore' });
+        return true;
+    } catch (error) {
+        return false;
+    }
+}
+
+function killAntigravityProcesses() {
+    try {
+        if (process.platform === 'win32') {
+            execSync('taskkill /F /IM Antigravity.exe', { stdio: 'ignore' });
+            return;
+        }
+
+        execSync('pkill -f antigravity', { stdio: 'ignore' });
+    } catch (error) {
+        // Ignore "not running" failures.
+    }
+}
+
+async function waitForCDP(timeoutMs = 30000) {
+    const start = Date.now();
+
+    while ((Date.now() - start) < timeoutMs) {
+        try {
+            await discoverCDP();
+            return true;
+        } catch (error) {
+            await sleep(1000);
+        }
+    }
+
+    return false;
+}
+
+async function launchAntigravityWithCDP() {
+    if (!AUTO_LAUNCH_ANTIGRAVITY) {
+        return { skipped: true };
+    }
+
+    if (antigravityLaunchPromise) {
+        return antigravityLaunchPromise;
+    }
+
+    antigravityLaunchPromise = (async () => {
+        const executable = findAntigravityExecutable();
+        if (!executable) {
+            console.warn('Antigravity executable not found. Start Antigravity manually with --remote-debugging-port=9000.');
+            return { attempted: false, reason: 'missing-executable' };
+        }
+
+        const targetWorkspace = getTargetWorkspace();
+
+        if (isAntigravityRunning()) {
+            console.log(`Antigravity is running without CDP. Restarting with --remote-debugging-port=${PRIMARY_CDP_PORT}...`);
+            killAntigravityProcesses();
+            await sleep(1500);
+        } else {
+            console.log(`Antigravity is not running. Launching with --remote-debugging-port=${PRIMARY_CDP_PORT}...`);
+        }
+
+        console.log(`Opening Antigravity on workspace: ${targetWorkspace}`);
+
+        try {
+            const child = spawn(executable, [
+                targetWorkspace,
+                `--remote-debugging-port=${PRIMARY_CDP_PORT}`
+            ], {
+                detached: true,
+                stdio: 'ignore'
+            });
+            child.unref();
+        } catch (error) {
+            console.error(`Failed to launch Antigravity: ${error.message}`);
+            return { attempted: false, reason: 'spawn-failed', error: error.message };
+        }
+
+        const ready = await waitForCDP(30000);
+        if (ready) {
+            console.log(`Antigravity CDP is ready on port ${PRIMARY_CDP_PORT}.`);
+        } else {
+            console.warn('Antigravity launched, but CDP is still not available after 30s.');
+        }
+
+        return { attempted: true, ready, targetWorkspace };
+    })().finally(() => {
+        antigravityLaunchPromise = null;
+    });
+
+    return antigravityLaunchPromise;
 }
 
 // Find Antigravity CDP endpoint
@@ -2408,11 +2597,26 @@ async function createServer() {
 
 // Main
 async function main() {
+    let initialCdpError = null;
+
     try {
         await initCDP();
     } catch (err) {
+        initialCdpError = err;
+        const launchResult = await launchAntigravityWithCDP();
+        if (launchResult?.ready) {
+            try {
+                await initCDP();
+            } catch (retryErr) {
+                initialCdpError = retryErr;
+            }
+        }
+
+        if (!cdpConnection) {
         console.warn(`⚠️  Initial CDP discovery failed: ${err.message}`);
         console.log('💡 Start Antigravity with --remote-debugging-port=9000 to connect.');
+    }
+
     }
 
     try {
