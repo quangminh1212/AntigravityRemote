@@ -50,6 +50,11 @@ const fileInput = document.getElementById('fileInput');
 const settingsBtn = document.getElementById('settingsBtn');
 const settingsDropdown = document.getElementById('settingsDropdown');
 const fullscreenBtn = document.getElementById('fullscreenBtn');
+const homeContext = document.getElementById('homeContext');
+const homeContextAgent = document.getElementById('homeContextAgent');
+const homeRecents = document.getElementById('homeRecents');
+const homeRecentsList = document.getElementById('homeRecentsList');
+const homeRecentsLink = document.getElementById('homeRecentsLink');
 const heroStatusTitle = document.getElementById('heroStatusTitle');
 const heroStatusDetail = document.getElementById('heroStatusDetail');
 const heroModeText = document.getElementById('heroModeText');
@@ -305,6 +310,64 @@ const MODELS = [
     { name: "GPT-OSS 120B (Medium)" }
 ];
 
+function timeAgo(dateStr) {
+    if (!dateStr) return '';
+    const diff = Date.now() - new Date(dateStr).getTime();
+    const mins = Math.floor(diff / 60000);
+    if (mins < 1) return 'now';
+    if (mins < 60) return `${mins}m`;
+    const hrs = Math.floor(mins / 60);
+    if (hrs < 24) return `${hrs}h`;
+    const days = Math.floor(hrs / 24);
+    return `${days}d`;
+}
+
+function setHomeScreen(enabled) {
+    document.body.classList.toggle('home-screen', enabled);
+
+    if (enabled) {
+        setTextContent(homeContextAgent, 'Antigravity');
+        loadHomeRecents();
+    }
+}
+
+async function loadHomeRecents() {
+    if (!homeRecentsList) return;
+    homeRecentsList.innerHTML = '<div class="home-recents-empty">Loading recent conversations...</div>';
+
+    try {
+        const res = await fetchWithAuth('/chat-history');
+        const data = await res.json();
+        const chats = Array.isArray(data.chats) ? data.chats.slice(0, 3) : [];
+
+        if (data.error || chats.length === 0) {
+            homeRecentsList.innerHTML = `
+                <div class="home-recents-empty">
+                    Start a new conversation or open history to continue where you left off.
+                </div>
+            `;
+            return;
+        }
+
+        homeRecentsList.innerHTML = chats.map((chat) => {
+            const safeTitle = escapeHtml(chat.title || 'Untitled conversation');
+            const safeAttr = (chat.title || '').replace(/"/g, '&quot;').replace(/'/g, '&#39;');
+            return `
+                <button class="home-recent-item" type="button" data-chat-title="${safeAttr}">
+                    <span class="home-recent-title">${safeTitle}</span>
+                    <span class="home-recent-time">${timeAgo(chat.lastModified)}</span>
+                </button>
+            `;
+        }).join('');
+    } catch (e) {
+        homeRecentsList.innerHTML = `
+            <div class="home-recents-empty">
+                Waiting for chat history from the desktop session.
+            </div>
+        `;
+    }
+}
+
 const HISTORY_STATE_ICONS = {
     warning: `
         <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round">
@@ -402,6 +465,7 @@ function scheduleRender() {
 function renderSnapshot(data) {
     chatIsOpen = true;
     hasSnapshotLoaded = true;
+    setHomeScreen(false);
 
     // Capture scroll state BEFORE updating content
     const scrollPos = chatContainer.scrollTop;
@@ -1366,6 +1430,24 @@ historyBtn.addEventListener('click', (e) => {
     showChatHistory();
 });
 
+if (homeRecentsList) {
+    homeRecentsList.addEventListener('click', (e) => {
+        const item = e.target.closest('.home-recent-item');
+        if (!item) return;
+
+        const title = item.getAttribute('data-chat-title');
+        if (!title) return;
+
+        selectChat(title);
+    });
+}
+
+if (homeRecentsLink) {
+    homeRecentsLink.addEventListener('click', () => {
+        showChatHistory();
+    });
+}
+
 // --- Select Chat from History ---
 async function selectChat(title) {
     try {
@@ -1377,6 +1459,7 @@ async function selectChat(title) {
         const data = await res.json();
 
         if (data.success) {
+            setHomeScreen(false);
             setTimeout(loadSnapshot, 300);
             setTimeout(loadSnapshot, 800);
             setTimeout(checkChatStatus, 1000);
@@ -1398,6 +1481,8 @@ async function checkChatStatus() {
 
         if (!chatIsOpen) {
             showEmptyState();
+        } else {
+            setHomeScreen(false);
         }
     } catch (e) {
         console.error('Chat status check failed:', e);
@@ -1407,23 +1492,10 @@ async function checkChatStatus() {
 // --- Empty State (No Chat Open) ---
 function showEmptyState() {
     chatContent.innerHTML = `
-        <div class="empty-state">
-            <svg class="empty-state-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5">
-                <path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z"></path>
-                <line x1="9" y1="10" x2="15" y2="10"></line>
-            </svg>
-            <h2>No Chat Open</h2>
-            <p>Start a new conversation or load one from history to reattach the remote workspace.</p>
-            <div class="empty-state-actions">
-                <button class="empty-state-btn" onclick="startNewChat()">
-                    Start New Conversation
-                </button>
-                <button class="empty-state-secondary" onclick="showChatHistory()">
-                    Open History
-                </button>
-            </div>
+        <div class="chat-home-spacer" aria-hidden="true">
         </div>
     `;
+    setHomeScreen(true);
     updateWorkspaceChrome({ snapshotReady: false });
 }
 
