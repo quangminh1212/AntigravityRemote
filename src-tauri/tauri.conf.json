@@ -1,0 +1,36 @@
+{
+    "productName": "Antigravity Remote",
+    "version": "1.0.0",
+    "identifier": "com.antigravity.remote",
+    "build": {
+        "devUrl": "http://localhost:3000",
+        "beforeDevCommand": "node server.js",
+        "frontendDist": "../public"
+    },
+    "app": {
+        "windows": [
+            {
+                "label": "main",
+                "title": "Antigravity Remote",
+                "width": 1100,
+                "height": 750,
+                "minWidth": 800,
+                "minHeight": 600,
+                "center": true,
+                "resizable": true,
+                "decorations": true,
+                "transparent": false
+            }
+        ],
+        "security": {
+            "csp": null
+        }
+    },
+    "bundle": {
+        "active": true,
+        "targets": "all",
+        "icon": [
+            "icons/icon.png"
+        ]
+    }
+}
