@@ -471,6 +471,7 @@ function renderSnapshot(data) {
     const scrollPos = chatContainer.scrollTop;
     const scrollHeight = chatContainer.scrollHeight;
     const clientHeight = chatContainer.clientHeight;
+    const wasAtTop = scrollPos <= 1;
     const isNearBottom = scrollHeight - scrollPos - clientHeight < 120;
     const isUserScrollLocked = Date.now() < userScrollLockUntil;
 
@@ -798,12 +799,20 @@ function renderSnapshot(data) {
     // Smart scroll behavior: respect user scroll, only auto-scroll when appropriate
     if (isUserScrollLocked) {
         // User recently scrolled - try to maintain their approximate position
-        const scrollPercent = scrollHeight > 0 ? scrollPos / scrollHeight : 0;
-        const newScrollPos = chatContainer.scrollHeight * scrollPercent;
-        chatContainer.scrollTop = newScrollPos;
-    } else if (isNearBottom || scrollPos === 0) {
-        // User was at bottom or hasn't scrolled - instant scroll (no smooth during updates)
+        if (wasAtTop) {
+            chatContainer.scrollTop = 0;
+        } else {
+            const previousScrollableHeight = Math.max(scrollHeight - clientHeight, 0);
+            const nextScrollableHeight = Math.max(chatContainer.scrollHeight - chatContainer.clientHeight, 0);
+            const scrollPercent = previousScrollableHeight > 0 ? scrollPos / previousScrollableHeight : 0;
+            chatContainer.scrollTop = nextScrollableHeight * scrollPercent;
+        }
+    } else if (isNearBottom && !wasAtTop) {
+        // User was near the bottom, so keep the latest messages in view
         chatContainer.scrollTop = chatContainer.scrollHeight;
+    } else if (wasAtTop) {
+        // Preserve the top position instead of snapping down on refresh
+        chatContainer.scrollTop = 0;
     } else {
         // Preserve exact scroll position
         chatContainer.scrollTop = scrollPos;
@@ -1186,12 +1195,13 @@ const SCROLL_SYNC_DEBOUNCE = 150; // ms between scroll syncs
 let snapshotReloadPending = false;
 
 async function syncScrollToDesktop() {
-    const scrollPercent = chatContainer.scrollTop / (chatContainer.scrollHeight - chatContainer.clientHeight);
+    const scrollableHeight = Math.max(chatContainer.scrollHeight - chatContainer.clientHeight, 0);
+    const scrollPercent = scrollableHeight > 0 ? chatContainer.scrollTop / scrollableHeight : 0;
     try {
         await fetchWithAuth('/remote-scroll', {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({ scrollPercent })
+            body: JSON.stringify({ scrollPercent: Math.min(1, Math.max(0, scrollPercent)) })
         });
 
         // After scrolling desktop, reload snapshot to get newly visible content
