@@ -15,13 +15,11 @@
                 "title": "Antigravity Remote",
                 "width": 450,
                 "height": 800,
-                "minWidth": 450,
-                "minHeight": 800,
-                "maxWidth": 450,
-                "maxHeight": 800,
+                "minWidth": 380,
+                "minHeight": 680,
                 "center": true,
-                "resizable": false,
-                "maximizable": false,
+                "resizable": true,
+                "maximizable": true,
                 "decorations": true,
                 "transparent": false
             }

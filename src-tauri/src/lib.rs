@@ -9,8 +9,10 @@ use serde_json::Value;
 use tauri::{Manager, WebviewUrl};
 
 const EMBEDDED_SERVER_URL: &str = "http://127.0.0.1:3000";
-const PORTRAIT_WINDOW_WIDTH: f64 = 450.0;
-const PORTRAIT_WINDOW_HEIGHT: f64 = 800.0;
+const DEFAULT_WINDOW_WIDTH: f64 = 450.0;
+const DEFAULT_WINDOW_HEIGHT: f64 = 800.0;
+const MIN_WINDOW_WIDTH: f64 = 380.0;
+const MIN_WINDOW_HEIGHT: f64 = 680.0;
 
 struct NodeServerProcess(Mutex<Option<Child>>);
 
@@ -257,12 +259,11 @@ pub fn run() {
                 WebviewUrl::External(EMBEDDED_SERVER_URL.parse().expect("valid embedded server URL")),
             )
             .title("Antigravity Remote")
-            .inner_size(PORTRAIT_WINDOW_WIDTH, PORTRAIT_WINDOW_HEIGHT)
-            .min_inner_size(PORTRAIT_WINDOW_WIDTH, PORTRAIT_WINDOW_HEIGHT)
-            .max_inner_size(PORTRAIT_WINDOW_WIDTH, PORTRAIT_WINDOW_HEIGHT)
+            .inner_size(DEFAULT_WINDOW_WIDTH, DEFAULT_WINDOW_HEIGHT)
+            .min_inner_size(MIN_WINDOW_WIDTH, MIN_WINDOW_HEIGHT)
             .center()
-            .resizable(false)
-            .maximizable(false)
+            .resizable(true)
+            .maximizable(true)
             .decorations(true)
             .transparent(false)
             .build()?;
