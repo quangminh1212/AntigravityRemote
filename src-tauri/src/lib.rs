@@ -59,6 +59,7 @@ fn launch_antigravity_with_cdp() {
         println!("[TAURI] Found Antigravity at: {}", exe_path);
 
         match StdCommand::new(&exe_path)
+            .arg(".")
             .arg("--remote-debugging-port=9000")
             .spawn()
         {
