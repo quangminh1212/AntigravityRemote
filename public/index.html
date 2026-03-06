@@ -9,274 +9,193 @@
     <link rel="preconnect" href="https://fonts.googleapis.com">
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
     <link
-        href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=JetBrains+Mono:wght@400;500&display=swap"
+        href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600&family=JetBrains+Mono:wght@400;500&display=swap"
         rel="stylesheet">
     <link rel="stylesheet" href="css/style.css">
     <link rel="icon" type="image/png" href="/logo.png">
 </head>
 
 <body>
-    <div class="app-shell">
-        <aside class="app-sidebar" aria-label="Workspace overview">
-            <div class="sidebar-brand">
-                <img src="/logo.png" alt="Antigravity logo" class="sidebar-logo">
-                <div class="sidebar-brand-copy">
-                    <span class="sidebar-eyebrow">Web + Webview Remote</span>
-                    <h1>Antigravity Remote</h1>
-                    <p>Mirrors your active Antigravity session across desktop webview and browser.</p>
-                </div>
-            </div>
+    <header class="header">
+        <h1 class="header-title">Agent</h1>
 
-            <section class="sidebar-card sidebar-card-highlight">
-                <span class="sidebar-card-label">Workspace</span>
-                <strong id="sidebarConnectionTitle">Connecting...</strong>
-                <p id="sidebarConnectionDetail">Waiting for desktop state and the first live snapshot.</p>
-                <div class="sidebar-chip-row">
-                    <span class="sidebar-chip" id="sidebarProtocolChip">Local web</span>
-                    <span class="sidebar-chip" id="sidebarThemeChip">Dark theme</span>
-                </div>
-            </section>
-
-            <section class="sidebar-card">
-                <span class="sidebar-card-label">Session Sync</span>
-                <div class="sidebar-stat-grid">
-                    <div class="sidebar-stat">
-                        <span>Mode</span>
-                        <strong id="sidebarModeText">Fast</strong>
-                    </div>
-                    <div class="sidebar-stat">
-                        <span>Transport</span>
-                        <strong id="sidebarTransportText">Waiting...</strong>
-                    </div>
-                    <div class="sidebar-stat sidebar-stat-wide">
-                        <span>Model</span>
-                        <strong id="sidebarModelText">Claude Opus 4.6 (Thinking)</strong>
-                    </div>
-                </div>
-            </section>
-
-            <section class="sidebar-card sidebar-card-tips">
-                <span class="sidebar-card-label">Operator Notes</span>
-                <ul class="sidebar-tip-list">
-                    <li>Use the same URL in a browser for web access, or open the Tauri shell for desktop webview mode.</li>
-                    <li>QR connect is best for phone pairing on the same network.</li>
-                    <li>When Antigravity is still booting, the app will keep retrying in the background.</li>
-                </ul>
-            </section>
-        </aside>
-
-        <main class="app-main">
-            <header class="header">
-                <h1 class="header-brand">
-                    <img src="/logo.png" alt="Logo" class="header-logo">
-                    <span class="header-title-stack">
-                        <span class="header-eyebrow">Remote Workspace</span>
-                        <span class="header-name">Antigravity Remote</span>
-                    </span>
-                </h1>
-
-                <div class="header-controls">
-                    <button class="new-chat-btn" id="newChatBtn" aria-label="New Chat" data-tooltip="New Chat">
-                        <svg viewBox="0 0 24 24" stroke-linecap="round" stroke-linejoin="round">
-                            <line x1="12" y1="5" x2="12" y2="19"></line>
-                            <line x1="5" y1="12" x2="19" y2="12"></line>
-                        </svg>
-                    </button>
-
-                    <button class="refresh-btn" id="qrBtn" aria-label="QR Code" data-tooltip="Phone Connect">
-                        <svg viewBox="0 0 24 24" stroke-linecap="round" stroke-linejoin="round">
-                            <rect x="2" y="2" width="8" height="8" rx="1"></rect>
-                            <rect x="14" y="2" width="8" height="8" rx="1"></rect>
-                            <rect x="2" y="14" width="8" height="8" rx="1"></rect>
-                            <rect x="14" y="14" width="4" height="4" rx="0.5"></rect>
-                            <line x1="22" y1="14" x2="22" y2="18"></line>
-                            <line x1="18" y1="22" x2="22" y2="22"></line>
-                            <rect x="5" y="5" width="2" height="2" fill="currentColor" stroke="none"></rect>
-                            <rect x="17" y="5" width="2" height="2" fill="currentColor" stroke="none"></rect>
-                            <rect x="5" y="17" width="2" height="2" fill="currentColor" stroke="none"></rect>
-                        </svg>
-                    </button>
-
-                    <button class="refresh-btn" id="refreshBtn" aria-label="Refresh" data-tooltip="Refresh">
-                        <svg viewBox="0 0 24 24" stroke-linecap="round" stroke-linejoin="round">
-                            <path d="M23 4v6h-6"></path>
-                            <path d="M1 20v-6h6"></path>
-                            <path d="M3.51 9a9 9 0 0 1 14.85-3.36L23 10M1 14l4.64 4.36A9 9 0 0 0 20.49 15"></path>
-                        </svg>
-                    </button>
-
-                    <button class="refresh-btn" id="fullscreenBtn" aria-label="Fullscreen" data-tooltip="Fullscreen">
-                        <svg viewBox="0 0 24 24" stroke-linecap="round" stroke-linejoin="round" id="fullscreenIcon">
-                            <path d="M8 3H5a2 2 0 0 0-2 2v3"></path>
-                            <path d="M21 8V5a2 2 0 0 0-2-2h-3"></path>
-                            <path d="M3 16v3a2 2 0 0 0 2 2h3"></path>
-                            <path d="M16 21h3a2 2 0 0 0 2-2v-3"></path>
-                        </svg>
-                    </button>
-
-                    <div class="settings-wrapper">
-                        <button class="settings-btn" id="settingsBtn" aria-label="Settings" data-tooltip="Settings">
-                            <svg viewBox="0 0 24 24" stroke-linecap="round" stroke-linejoin="round">
-                                <circle cx="12" cy="12" r="3"></circle>
-                                <path
-                                    d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 0 1 0 2.83 2 2 0 0 1-2.83 0l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-2 2 2 2 0 0 1-2-2v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 0 1-2.83 0 2 2 0 0 1 0-2.83l.06-.06A1.65 1.65 0 0 0 4.68 15a1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1-2-2 2 2 0 0 1 2-2h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 0 1 0-2.83 2 2 0 0 1 2.83 0l.06.06A1.65 1.65 0 0 0 9 4.68a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 2-2 2 2 0 0 1 2 2v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 0 1 2.83 0 2 2 0 0 1 0 2.83l-.06.06A1.65 1.65 0 0 0 19.4 9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 2 2 2 2 0 0 1-2 2h-.09a1.65 1.65 0 0 0-1.51 1z">
-                                </path>
-                            </svg>
-                        </button>
-                        <div class="settings-dropdown" id="settingsDropdown">
-                            <div class="settings-dropdown-status">
-                                <div class="status-dot disconnected" id="statusDot"></div>
-                                <span id="statusText">Connecting...</span>
-                            </div>
-                            <div class="settings-divider"></div>
-                            <button class="settings-option" id="historyBtn" aria-label="Chat History">
-                                <svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor"
-                                    stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
-                                    <circle cx="12" cy="12" r="10"></circle>
-                                    <polyline points="12 6 12 12 16 14"></polyline>
-                                </svg>
-                                <span>History</span>
-                            </button>
-                            <div class="settings-divider"></div>
-                            <div class="settings-title">Theme</div>
-                            <button class="settings-option" data-theme-value="dark">
-                                <svg viewBox="0 0 24 24" width="16" height="16">
-                                    <path d="M21 12.79A9 9 0 1 1 11.21 3 7 7 0 0 0 21 12.79z" fill="none"
-                                        stroke="currentColor" stroke-width="2" stroke-linecap="round"
-                                        stroke-linejoin="round"></path>
-                                </svg>
-                                <span>Dark</span>
-                            </button>
-                            <button class="settings-option" data-theme-value="light">
-                                <svg viewBox="0 0 24 24" width="16" height="16">
-                                    <circle cx="12" cy="12" r="5" fill="none" stroke="currentColor"
-                                        stroke-width="2"></circle>
-                                    <line x1="12" y1="1" x2="12" y2="3" stroke="currentColor" stroke-width="2"
-                                        stroke-linecap="round"></line>
-                                    <line x1="12" y1="21" x2="12" y2="23" stroke="currentColor" stroke-width="2"
-                                        stroke-linecap="round"></line>
-                                    <line x1="4.22" y1="4.22" x2="5.64" y2="5.64" stroke="currentColor"
-                                        stroke-width="2" stroke-linecap="round"></line>
-                                    <line x1="18.36" y1="18.36" x2="19.78" y2="19.78" stroke="currentColor"
-                                        stroke-width="2" stroke-linecap="round"></line>
-                                    <line x1="1" y1="12" x2="3" y2="12" stroke="currentColor" stroke-width="2"
-                                        stroke-linecap="round"></line>
-                                    <line x1="21" y1="12" x2="23" y2="12" stroke="currentColor" stroke-width="2"
-                                        stroke-linecap="round"></line>
-                                    <line x1="4.22" y1="19.78" x2="5.64" y2="18.36" stroke="currentColor"
-                                        stroke-width="2" stroke-linecap="round"></line>
-                                    <line x1="18.36" y1="5.64" x2="19.78" y2="4.22" stroke="currentColor"
-                                        stroke-width="2" stroke-linecap="round"></line>
-                                </svg>
-                                <span>Light</span>
-                            </button>
-                        </div>
-                    </div>
-                </div>
-            </header>
-
-            <section class="hero-strip" aria-label="Workspace status">
-                <article class="hero-card">
-                    <span class="hero-label">Live Status</span>
-                    <strong id="heroStatusTitle">Connecting...</strong>
-                    <p id="heroStatusDetail">Waiting for desktop state and the first live snapshot.</p>
-                </article>
-                <article class="hero-card">
-                    <span class="hero-label">Conversation Mode</span>
-                    <strong id="heroModeText">Fast</strong>
-                    <p>Mirrors the desktop mode selector in real time.</p>
-                </article>
-                <article class="hero-card">
-                    <span class="hero-label">Active Model</span>
-                    <strong id="heroModelText">Claude Opus 4.6 (Thinking)</strong>
-                    <p id="heroModelDetail">Transport waiting...</p>
-                </article>
-            </section>
-
-            <div class="ssl-banner" id="sslBanner" hidden>
-                <span>Not secure. You are running over HTTP.</span>
-                <button id="enableHttpsBtn" onclick="enableHttps()" title="Enable HTTPS">Enable HTTPS</button>
-                <button class="dismiss-btn" onclick="dismissSslBanner()" title="Dismiss SSL warning"
-                    aria-label="Dismiss SSL warning">Close</button>
-            </div>
-
-            <div class="chat-container" id="chatContainer">
-                <div class="chat-content" id="chatContent">
-                    <div class="loading-state">
-                        <div class="loading-spinner"></div>
-                        <p>Waiting for snapshot...</p>
-                    </div>
-                </div>
-            </div>
-
-            <button class="fab" id="scrollToBottom" aria-label="Scroll to bottom" data-tooltip="Scroll to bottom">
-                <svg viewBox="0 0 24 24" fill="none">
-                    <path d="M12 5v14M19 12l-7 7-7-7" stroke-linecap="round" stroke-linejoin="round" />
+        <div class="header-controls">
+            <button class="new-chat-btn" id="newChatBtn" aria-label="New Chat" data-tooltip="New Chat">
+                <svg viewBox="0 0 24 24" stroke-linecap="round" stroke-linejoin="round">
+                    <line x1="12" y1="5" x2="12" y2="19"></line>
+                    <line x1="5" y1="12" x2="19" y2="12"></line>
                 </svg>
             </button>
 
-            <input type="file" id="fileInput" class="hidden-file-input" multiple accept="*/*"
-                aria-label="Choose files to attach" title="Choose files to attach">
+            <button class="refresh-btn" id="refreshBtn" aria-label="Refresh" data-tooltip="Refresh">
+                <svg viewBox="0 0 24 24" stroke-linecap="round" stroke-linejoin="round">
+                    <path d="M23 4v6h-6"></path>
+                    <path d="M1 20v-6h6"></path>
+                    <path d="M3.51 9a9 9 0 0 1 14.85-3.36L23 10M1 14l4.64 4.36A9 9 0 0 0 20.49 15"></path>
+                </svg>
+            </button>
 
-            <div class="input-section">
-                <div class="input-box">
-                    <textarea id="messageInput" placeholder="Ask anything, @ to mention, / for workflows"
-                        rows="1"></textarea>
-                    <div class="input-toolbar">
-                        <button class="toolbar-icon-btn" id="attachBtn" aria-label="Attach" data-tooltip="Attach file">
-                            <svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor"
-                                stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
-                                <line x1="12" y1="5" x2="12" y2="19"></line>
-                                <line x1="5" y1="12" x2="19" y2="12"></line>
-                            </svg>
-                        </button>
-                        <div class="toolbar-dropdown" id="modeDropdown">
-                            <div class="toolbar-chip" id="modeBtn">
-                                <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor"
-                                    stroke-width="2.5">
-                                    <polyline points="18 15 12 9 6 15"></polyline>
-                                </svg>
-                                <span id="modeText">Fast</span>
-                            </div>
-                            <div class="dropdown-menu" id="modeMenu">
-                                <div class="dropdown-title">Conversation mode</div>
-                                <div class="dropdown-option" data-value="Planning">
-                                    <div class="dropdown-option-name">Planning</div>
-                                    <div class="dropdown-option-desc">Agent can plan before executing tasks. Use for
-                                        deep research, complex tasks, or collaborative work.</div>
-                                </div>
-                                <div class="dropdown-option active" data-value="Fast">
-                                    <div class="dropdown-option-name">Fast</div>
-                                    <div class="dropdown-option-desc">Agent executes tasks directly for faster routine
-                                        work.</div>
-                                </div>
-                            </div>
-                        </div>
-                        <div class="toolbar-dropdown" id="modelDropdown">
-                            <div class="toolbar-chip" id="modelBtn">
-                                <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor"
-                                    stroke-width="2.5">
-                                    <polyline points="18 15 12 9 6 15"></polyline>
-                                </svg>
-                                <span id="modelText">Claude Opus 4.6 (Thinking)</span>
-                            </div>
-                            <div class="dropdown-menu" id="modelMenu"></div>
-                        </div>
-                        <div class="toolbar-spacer"></div>
-                        <button class="toolbar-send-btn" id="sendBtn" aria-label="Send" data-tooltip="Send">
-                            <svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor"
-                                stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round">
-                                <line x1="5" y1="12" x2="19" y2="12"></line>
-                                <polyline points="12 5 19 12 12 19"></polyline>
-                            </svg>
-                        </button>
-                        <button class="toolbar-stop-btn" id="stopBtn" aria-label="Stop" data-tooltip="Stop">
-                            <div class="stop-icon"></div>
-                        </button>
+            <button class="refresh-btn" id="fullscreenBtn" aria-label="Fullscreen" data-tooltip="Fullscreen">
+                <svg viewBox="0 0 24 24" stroke-linecap="round" stroke-linejoin="round" id="fullscreenIcon">
+                    <path d="M8 3H5a2 2 0 0 0-2 2v3"></path>
+                    <path d="M21 8V5a2 2 0 0 0-2-2h-3"></path>
+                    <path d="M3 16v3a2 2 0 0 0 2 2h3"></path>
+                    <path d="M16 21h3a2 2 0 0 0 2-2v-3"></path>
+                </svg>
+            </button>
+
+            <div class="settings-wrapper">
+                <button class="settings-btn" id="settingsBtn" aria-label="Settings" data-tooltip="Settings">
+                    <svg viewBox="0 0 24 24" stroke-linecap="round" stroke-linejoin="round">
+                        <circle cx="12" cy="12" r="3"></circle>
+                        <path
+                            d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 0 1 0 2.83 2 2 0 0 1-2.83 0l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-2 2 2 2 0 0 1-2-2v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 0 1-2.83 0 2 2 0 0 1 0-2.83l.06-.06A1.65 1.65 0 0 0 4.68 15a1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1-2-2 2 2 0 0 1 2-2h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 0 1 0-2.83 2 2 0 0 1 2.83 0l.06.06A1.65 1.65 0 0 0 9 4.68a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 2-2 2 2 0 0 1 2 2v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 0 1 2.83 0 2 2 0 0 1 0 2.83l-.06.06A1.65 1.65 0 0 0 19.4 9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 2 2 2 2 0 0 1-2 2h-.09a1.65 1.65 0 0 0-1.51 1z">
+                        </path>
+                    </svg>
+                </button>
+                <div class="settings-dropdown" id="settingsDropdown">
+                    <div class="settings-dropdown-status">
+                        <div class="status-dot disconnected" id="statusDot"></div>
+                        <span id="statusText">Connecting...</span>
                     </div>
+                    <div class="settings-divider"></div>
+                    <button class="settings-option" id="historyBtn" aria-label="Chat History">
+                        <svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor"
+                            stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                            <circle cx="12" cy="12" r="10"></circle>
+                            <polyline points="12 6 12 12 16 14"></polyline>
+                        </svg>
+                        <span>History</span>
+                    </button>
+                    <div class="settings-divider"></div>
+                    <div class="settings-title">Theme</div>
+                    <button class="settings-option" data-theme-value="dark">
+                        <svg viewBox="0 0 24 24" width="16" height="16">
+                            <path d="M21 12.79A9 9 0 1 1 11.21 3 7 7 0 0 0 21 12.79z" fill="none"
+                                stroke="currentColor" stroke-width="2" stroke-linecap="round"
+                                stroke-linejoin="round"></path>
+                        </svg>
+                        <span>Dark</span>
+                    </button>
+                    <button class="settings-option" data-theme-value="light">
+                        <svg viewBox="0 0 24 24" width="16" height="16">
+                            <circle cx="12" cy="12" r="5" fill="none" stroke="currentColor"
+                                stroke-width="2"></circle>
+                            <line x1="12" y1="1" x2="12" y2="3" stroke="currentColor" stroke-width="2"
+                                stroke-linecap="round"></line>
+                            <line x1="12" y1="21" x2="12" y2="23" stroke="currentColor" stroke-width="2"
+                                stroke-linecap="round"></line>
+                            <line x1="4.22" y1="4.22" x2="5.64" y2="5.64" stroke="currentColor"
+                                stroke-width="2" stroke-linecap="round"></line>
+                            <line x1="18.36" y1="18.36" x2="19.78" y2="19.78" stroke="currentColor"
+                                stroke-width="2" stroke-linecap="round"></line>
+                            <line x1="1" y1="12" x2="3" y2="12" stroke="currentColor" stroke-width="2"
+                                stroke-linecap="round"></line>
+                            <line x1="21" y1="12" x2="23" y2="12" stroke="currentColor" stroke-width="2"
+                                stroke-linecap="round"></line>
+                            <line x1="4.22" y1="19.78" x2="5.64" y2="18.36" stroke="currentColor"
+                                stroke-width="2" stroke-linecap="round"></line>
+                            <line x1="18.36" y1="5.64" x2="19.78" y2="4.22" stroke="currentColor"
+                                stroke-width="2" stroke-linecap="round"></line>
+                        </svg>
+                        <span>Light</span>
+                    </button>
                 </div>
             </div>
-        </main>
+        </div>
+    </header>
+
+    <div class="ssl-banner" id="sslBanner" hidden>
+        <span>Not secure. You are running over HTTP.</span>
+        <button id="enableHttpsBtn" onclick="enableHttps()" title="Enable HTTPS">Enable HTTPS</button>
+        <button class="dismiss-btn" onclick="dismissSslBanner()" title="Dismiss SSL warning"
+            aria-label="Dismiss SSL warning">Close</button>
+    </div>
+
+    <div class="chat-container" id="chatContainer">
+        <div class="chat-content" id="chatContent">
+            <div class="loading-state">
+                <div class="loading-spinner"></div>
+                <p>Waiting for snapshot...</p>
+            </div>
+        </div>
+    </div>
+
+    <button class="fab" id="scrollToBottom" aria-label="Scroll to bottom" data-tooltip="Scroll to bottom">
+        <svg viewBox="0 0 24 24" fill="none">
+            <path d="M12 5v14M19 12l-7 7-7-7" stroke-linecap="round" stroke-linejoin="round" />
+        </svg>
+    </button>
+
+    <input type="file" id="fileInput" class="hidden-file-input" multiple accept="*/*"
+        aria-label="Choose files to attach" title="Choose files to attach">
+
+    <div class="input-section">
+        <div class="home-context" id="homeContext">
+            <div class="home-context-agent" id="homeContextAgent">Antigravity</div>
+        </div>
+
+        <div class="input-box">
+            <textarea id="messageInput" placeholder="Ask anything, @ to mention, / for workflows" rows="1"></textarea>
+            <div class="input-toolbar">
+                <button class="toolbar-icon-btn" id="attachBtn" aria-label="Attach" data-tooltip="Attach file">
+                    <svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor"
+                        stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                        <line x1="12" y1="5" x2="12" y2="19"></line>
+                        <line x1="5" y1="12" x2="19" y2="12"></line>
+                    </svg>
+                </button>
+                <div class="toolbar-dropdown" id="modeDropdown">
+                    <div class="toolbar-chip" id="modeBtn">
+                        <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor"
+                            stroke-width="2.5">
+                            <polyline points="18 15 12 9 6 15"></polyline>
+                        </svg>
+                        <span id="modeText">Fast</span>
+                    </div>
+                    <div class="dropdown-menu" id="modeMenu">
+                        <div class="dropdown-title">Conversation mode</div>
+                        <div class="dropdown-option" data-value="Planning">
+                            <div class="dropdown-option-name">Planning</div>
+                            <div class="dropdown-option-desc">Agent can plan before executing tasks. Use for deep
+                                research, complex tasks, or collaborative work.</div>
+                        </div>
+                        <div class="dropdown-option active" data-value="Fast">
+                            <div class="dropdown-option-name">Fast</div>
+                            <div class="dropdown-option-desc">Agent executes tasks directly for faster routine work.
+                            </div>
+                        </div>
+                    </div>
+                </div>
+                <div class="toolbar-dropdown" id="modelDropdown">
+                    <div class="toolbar-chip" id="modelBtn">
+                        <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor"
+                            stroke-width="2.5">
+                            <polyline points="18 15 12 9 6 15"></polyline>
+                        </svg>
+                        <span id="modelText">Claude Opus 4.6 (Thinking)</span>
+                    </div>
+                    <div class="dropdown-menu" id="modelMenu"></div>
+                </div>
+                <div class="toolbar-spacer"></div>
+                <button class="toolbar-send-btn" id="sendBtn" aria-label="Send" data-tooltip="Send">
+                    <svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor"
+                        stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round">
+                        <line x1="5" y1="12" x2="19" y2="12"></line>
+                        <polyline points="12 5 19 12 12 19"></polyline>
+                    </svg>
+                </button>
+                <button class="toolbar-stop-btn" id="stopBtn" aria-label="Stop" data-tooltip="Stop">
+                    <div class="stop-icon"></div>
+                </button>
+            </div>
+        </div>
+
+        <div class="home-recents" id="homeRecents">
+            <div class="home-recents-list" id="homeRecentsList"></div>
+            <button class="home-recents-link" id="homeRecentsLink" type="button">See all</button>
+            <p class="home-disclaimer">AI may make mistakes. Double-check all generated code.</p>
+        </div>
     </div>
 
     <div class="dropdown-backdrop" id="dropdownBackdrop"></div>
@@ -293,24 +212,6 @@
             <div class="header-spacer"></div>
         </div>
         <div class="history-content" id="historyList"></div>
-    </div>
-
-    <div class="qr-modal-overlay" id="qrOverlay">
-        <div class="qr-modal">
-            <div class="qr-modal-header">
-                <h3>Phone Connect</h3>
-                <button class="qr-close-btn" id="qrCloseBtn" aria-label="Close">&times;</button>
-            </div>
-            <div class="qr-modal-body">
-                <div class="qr-loading" id="qrLoading">
-                    <div class="loading-spinner"></div>
-                    <p>Generating QR code...</p>
-                </div>
-                <img id="qrImage" class="qr-image" alt="QR Code" style="display:none">
-                <p class="qr-url" id="qrUrl"></p>
-                <p class="qr-desc">Scan with your phone camera to connect. Auto-login is enabled.</p>
-            </div>
-        </div>
     </div>
 
     <script src="js/app.js"></script>
