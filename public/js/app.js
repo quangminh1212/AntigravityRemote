@@ -50,15 +50,88 @@ const fileInput = document.getElementById('fileInput');
 const settingsBtn = document.getElementById('settingsBtn');
 const settingsDropdown = document.getElementById('settingsDropdown');
 const fullscreenBtn = document.getElementById('fullscreenBtn');
+const heroStatusTitle = document.getElementById('heroStatusTitle');
+const heroStatusDetail = document.getElementById('heroStatusDetail');
+const heroModeText = document.getElementById('heroModeText');
+const heroModelText = document.getElementById('heroModelText');
+const heroModelDetail = document.getElementById('heroModelDetail');
+const sidebarConnectionTitle = document.getElementById('sidebarConnectionTitle');
+const sidebarConnectionDetail = document.getElementById('sidebarConnectionDetail');
+const sidebarProtocolChip = document.getElementById('sidebarProtocolChip');
+const sidebarThemeChip = document.getElementById('sidebarThemeChip');
+const sidebarModeText = document.getElementById('sidebarModeText');
+const sidebarModelText = document.getElementById('sidebarModelText');
+const sidebarTransportText = document.getElementById('sidebarTransportText');
+
+const LOOPBACK_HOSTS = new Set(['localhost', '127.0.0.1', '::1']);
+const isLoopbackHost = LOOPBACK_HOSTS.has(window.location.hostname);
+
+function setTextContent(element, value) {
+    if (element) element.textContent = value;
+}
+
+function getTransportLabel() {
+    if (window.location.protocol === 'https:') return 'HTTPS + WSS';
+    if (isLoopbackHost) return 'Local HTTP + WS';
+    return 'HTTP + WS';
+}
+
+function updateWorkspaceChrome(overrides = {}) {
+    const connected = overrides.connected ?? !!(ws && ws.readyState === WebSocket.OPEN);
+    const running = overrides.running ?? document.body.classList.contains('agent-running');
+    const snapshotReady = overrides.snapshotReady ?? hasSnapshotLoaded;
+    const mode = overrides.mode ?? modeText.textContent;
+    const model = overrides.model ?? modelText.textContent;
+
+    let title = 'Connecting...';
+    let detail = 'Waiting for desktop state and the first live snapshot.';
+
+    if (!connected) {
+        title = 'Reconnecting to desktop';
+        detail = 'The client keeps retrying in the background until the desktop session is reachable again.';
+    } else if (running) {
+        title = 'Agent is running';
+        detail = 'The session is live. You can stop the run from the toolbar or let the current task finish.';
+    } else if (snapshotReady) {
+        title = 'Desktop connected';
+        detail = 'Web and webview stay in sync with the active Antigravity conversation.';
+    } else {
+        title = 'Connected, waiting for snapshot';
+        detail = 'The transport is ready. Antigravity still needs to expose a live chat snapshot.';
+    }
+
+    const transport = getTransportLabel();
+    const protocolChip = isLoopbackHost
+        ? 'Local webview'
+        : window.location.protocol === 'https:'
+            ? 'Secure web'
+            : 'LAN web';
+
+    setTextContent(heroStatusTitle, title);
+    setTextContent(heroStatusDetail, detail);
+    setTextContent(sidebarConnectionTitle, title);
+    setTextContent(sidebarConnectionDetail, detail);
+    setTextContent(heroModeText, mode);
+    setTextContent(sidebarModeText, mode);
+    setTextContent(heroModelText, model);
+    setTextContent(sidebarModelText, model);
+    setTextContent(heroModelDetail, running ? 'Generation in progress.' : `${transport} transport active.`);
+    setTextContent(sidebarTransportText, running ? `${transport} / running` : transport);
+    setTextContent(sidebarProtocolChip, protocolChip);
+}
 
 // --- Fullscreen Toggle ---
-fullscreenBtn.addEventListener('click', () => {
-    if (!document.fullscreenElement) {
-        document.documentElement.requestFullscreen().catch(() => { });
-    } else {
-        document.exitFullscreen().catch(() => { });
-    }
-});
+if (!document.fullscreenEnabled || typeof document.documentElement.requestFullscreen !== 'function' || (isLoopbackHost && window.innerWidth <= 520)) {
+    fullscreenBtn.style.display = 'none';
+} else {
+    fullscreenBtn.addEventListener('click', () => {
+        if (!document.fullscreenElement) {
+            document.documentElement.requestFullscreen().catch(() => { });
+        } else {
+            document.exitFullscreen().catch(() => { });
+        }
+    });
+}
 
 document.addEventListener('fullscreenchange', () => {
     const icon = document.getElementById('fullscreenIcon');
@@ -75,14 +148,13 @@ document.addEventListener('fullscreenchange', () => {
 function applyTheme(theme) {
     document.documentElement.setAttribute('data-theme', theme);
     localStorage.setItem('arTheme', theme);
+    setTextContent(sidebarThemeChip, theme === 'light' ? 'Light theme' : 'Dark theme');
     // Update active state on options
     document.querySelectorAll('.settings-option').forEach(opt => {
         opt.classList.toggle('active', opt.dataset.themeValue === theme);
     });
+    updateWorkspaceChrome();
 }
-// Init theme from localStorage or default to dark
-applyTheme(localStorage.getItem('arTheme') || 'dark');
-
 const modeBtn = document.getElementById('modeBtn');
 const modelBtn = document.getElementById('modelBtn');
 const modeMenu = document.getElementById('modeMenu');
@@ -110,6 +182,10 @@ let lastRenderedHash = ''; // Track last rendered HTML hash to skip identical up
 let lastRenderedHtmlHash = ''; // Track content hash to avoid unnecessary DOM rebuilds
 let pendingSnapshot = null; // Buffer for incoming WebSocket snapshots
 let renderScheduled = false; // Prevent multiple rAF calls
+let hasSnapshotLoaded = false;
+
+// Init theme from localStorage or default to dark
+applyTheme(localStorage.getItem('arTheme') || 'dark');
 
 // Fast string hash (FNV-1a) to compare HTML content
 function fastHash(str) {
@@ -162,6 +238,11 @@ async function fetchAppState() {
 
         // Running state sync - toggle send/stop button
         document.body.classList.toggle('agent-running', !!data.isRunning);
+        updateWorkspaceChrome({
+            mode: data.mode && data.mode !== 'Unknown' ? data.mode : modeText.textContent,
+            model: data.model && data.model !== 'Unknown' ? data.model : modelText.textContent,
+            running: !!data.isRunning
+        });
 
         console.log('[SYNC] State refreshed from Desktop:', data);
     } catch (e) { console.error('[SYNC] Failed to sync state', e); }
@@ -172,7 +253,7 @@ const sslBanner = document.getElementById('sslBanner');
 
 async function checkSslStatus() {
     // Only show banner if currently on HTTP
-    if (window.location.protocol === 'https:') return;
+    if (window.location.protocol === 'https:' || isLoopbackHost) return;
 
     // Check if user dismissed the banner before
     if (localStorage.getItem('sslBannerDismissed')) return;
@@ -195,6 +276,8 @@ async function enableHttps() {
                 <button onclick="location.reload()">Reload After Restart</button>
             `;
             sslBanner.style.background = 'linear-gradient(90deg, #22c55e, #16a34a)';
+            const bannerMessage = sslBanner.querySelector('span');
+            if (bannerMessage) bannerMessage.textContent = data.message;
         } else {
             btn.textContent = 'Failed - Retry';
             btn.disabled = false;
@@ -221,6 +304,41 @@ const MODELS = [
     { name: "Claude Opus 4.6 (Thinking)" },
     { name: "GPT-OSS 120B (Medium)" }
 ];
+
+const HISTORY_STATE_ICONS = {
+    warning: `
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round">
+            <path d="M12 9v4"></path>
+            <path d="M12 17h.01"></path>
+            <path d="M10.29 3.86 1.82 18a2 2 0 0 0 1.71 3h16.94a2 2 0 0 0 1.71-3L13.71 3.86a2 2 0 0 0-3.42 0Z"></path>
+        </svg>
+    `,
+    empty: `
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round">
+            <path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z"></path>
+            <path d="M8 10h8"></path>
+            <path d="M8 14h5"></path>
+        </svg>
+    `,
+    offline: `
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round">
+            <path d="M16.72 11.06A10.94 10.94 0 0 1 22 12"></path>
+            <path d="M5 12a10.94 10.94 0 0 1 5.17-1.88"></path>
+            <path d="M2 8.82a15 15 0 0 1 4.17-2.65"></path>
+            <path d="M18.83 6.17A15 15 0 0 1 22 8.82"></path>
+            <path d="M8.53 16.11a6 6 0 0 1 6.95 0"></path>
+            <path d="M12 20h.01"></path>
+            <path d="M2 2l20 20"></path>
+        </svg>
+    `
+};
+
+function applyHistoryStateIcon(kind) {
+    const icon = historyList.querySelector('.history-state-icon');
+    if (icon && HISTORY_STATE_ICONS[kind]) {
+        icon.innerHTML = HISTORY_STATE_ICONS[kind];
+    }
+}
 
 // --- WebSocket ---
 function connectWebSocket() {
@@ -264,6 +382,7 @@ function updateStatus(connected) {
         statusDot.classList.add('disconnected');
         statusText.textContent = 'Reconnecting';
     }
+    updateWorkspaceChrome({ connected });
 }
 
 // --- Schedule render with requestAnimationFrame (prevents layout thrashing) ---
@@ -282,6 +401,7 @@ function scheduleRender() {
 // --- Core render function (used by both WS and HTTP paths) ---
 function renderSnapshot(data) {
     chatIsOpen = true;
+    hasSnapshotLoaded = true;
 
     // Capture scroll state BEFORE updating content
     const scrollPos = chatContainer.scrollTop;
@@ -624,6 +744,8 @@ function renderSnapshot(data) {
         // Preserve exact scroll position
         chatContainer.scrollTop = scrollPos;
     }
+
+    updateWorkspaceChrome({ snapshotReady: true });
 }
 
 // --- Rendering (HTTP fallback - used for initial load and manual refresh) ---
@@ -640,6 +762,8 @@ async function loadSnapshot() {
             if (response.status === 503) {
                 // No snapshot available - likely no chat open
                 chatIsOpen = false;
+                hasSnapshotLoaded = false;
+                updateWorkspaceChrome({ snapshotReady: false });
                 showEmptyState();
                 return;
             }
@@ -935,11 +1059,15 @@ fileInput.addEventListener('change', async () => {
                 item.classList.remove('uploading');
                 item.classList.add('uploaded');
                 item.querySelector('.file-preview-spinner').outerHTML = '<span class="file-preview-check">✓</span>';
+                const uploadStatus = item.querySelector('.file-preview-check');
+                if (uploadStatus) uploadStatus.innerHTML = '&#10003;';
                 // Add remove button
                 const removeBtn = document.createElement('button');
+                removeBtn.textContent = '×';
                 removeBtn.className = 'file-preview-remove';
                 removeBtn.innerHTML = '×';
                 removeBtn.setAttribute('aria-label', 'Remove file');
+                removeBtn.textContent = '×';
                 removeBtn.addEventListener('click', () => {
                     item.remove();
                     if (previewBar.children.length === 0) previewBar.remove();
@@ -959,12 +1087,16 @@ fileInput.addEventListener('change', async () => {
                 item.classList.remove('uploading');
                 item.classList.add('error');
                 item.querySelector('.file-preview-spinner').outerHTML = '<span style="color:#ef4444">✗</span>';
+                const uploadErrorStatus = item.querySelector('span[style="color:#ef4444"]');
+                if (uploadErrorStatus) uploadErrorStatus.innerHTML = '&#10005;';
                 console.error('[UPLOAD] Failed:', data.error);
             }
         } catch (e) {
             item.classList.remove('uploading');
             item.classList.add('error');
             item.querySelector('.file-preview-spinner').outerHTML = '<span style="color:#ef4444">✗</span>';
+            const uploadErrorStatus = item.querySelector('span[style="color:#ef4444"]');
+            if (uploadErrorStatus) uploadErrorStatus.innerHTML = '&#10005;';
             console.error('[UPLOAD] Error:', e);
         }
     }
@@ -1056,6 +1188,7 @@ stopBtn.addEventListener('click', async () => {
         if (data.success) {
             // Immediately switch back to send button
             document.body.classList.remove('agent-running');
+            updateWorkspaceChrome({ running: false });
         }
     } catch (e) { }
     setTimeout(() => stopBtn.style.opacity = '1', 500);
@@ -1146,6 +1279,7 @@ async function showChatHistory() {
                     </button>
                 </div>
             `;
+            applyHistoryStateIcon('warning');
             return;
         }
 
@@ -1158,6 +1292,7 @@ async function showChatHistory() {
                     <div class="history-state-desc">Start a new conversation to see them here.</div>
                 </div>
             `;
+            applyHistoryStateIcon('empty');
             return;
         }
 
@@ -1210,6 +1345,7 @@ async function showChatHistory() {
                 <div class="history-state-desc">Failed to reach the server.</div>
             </div>
         `;
+        applyHistoryStateIcon('offline');
     }
 }
 
@@ -1277,12 +1413,18 @@ function showEmptyState() {
                 <line x1="9" y1="10" x2="15" y2="10"></line>
             </svg>
             <h2>No Chat Open</h2>
-            <p>Start a new conversation or select one from your history to begin chatting.</p>
-            <button class="empty-state-btn" onclick="startNewChat()">
-                Start New Conversation
-            </button>
+            <p>Start a new conversation or load one from history to reattach the remote workspace.</p>
+            <div class="empty-state-actions">
+                <button class="empty-state-btn" onclick="startNewChat()">
+                    Start New Conversation
+                </button>
+                <button class="empty-state-secondary" onclick="showChatHistory()">
+                    Open History
+                </button>
+            </div>
         </div>
     `;
+    updateWorkspaceChrome({ snapshotReady: false });
 }
 
 // --- Utility: Escape HTML ---
@@ -1334,6 +1476,7 @@ modeMenu.addEventListener('click', async (e) => {
         if (data.success) {
             currentMode = mode;
             modeText.textContent = mode;
+            updateWorkspaceChrome({ mode });
             // Update active state
             modeMenu.querySelectorAll('.dropdown-option').forEach(o => {
                 o.classList.toggle('active', o.dataset.value === mode);
@@ -1385,6 +1528,7 @@ modelMenu.addEventListener('click', async (e) => {
         const data = await res.json();
         if (data.success) {
             modelText.textContent = model;
+            updateWorkspaceChrome({ model });
         } else {
             alert('Error: ' + (data.error || 'Unknown'));
             modelText.textContent = prev;
@@ -1523,6 +1667,7 @@ chatContainer.addEventListener('click', async (e) => {
 });
 
 // --- Init ---
+updateWorkspaceChrome();
 connectWebSocket();
 // Sync state initially and every 5 seconds to keep phone in sync with desktop changes
 fetchAppState();
@@ -1588,4 +1733,3 @@ if (qrUrl) {
         }
     });
 }
-
