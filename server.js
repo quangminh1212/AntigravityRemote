@@ -14,6 +14,7 @@ import { dirname, join } from 'path';
 import { inspectUI } from './ui_inspector.js';
 import { execSync } from 'child_process';
 import multer from 'multer';
+import QRCode from 'qrcode';
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = dirname(__filename);
@@ -1965,6 +1966,34 @@ async function createServer() {
             timestamp: new Date().toISOString(),
             https: hasSSL
         });
+    });
+
+    // QR Code endpoint - generates QR for phone connection
+    app.get('/qr-info', async (req, res) => {
+        try {
+            const localIP = getLocalIP();
+            const protocol = hasSSL ? 'https' : 'http';
+            const connectUrl = `${protocol}://${localIP}:${SERVER_PORT}?key=${encodeURIComponent(APP_PASSWORD)}`;
+
+            const qrDataUrl = await QRCode.toDataURL(connectUrl, {
+                width: 280,
+                margin: 2,
+                color: {
+                    dark: '#e0e0e4',
+                    light: '#111215'
+                }
+            });
+
+            res.json({
+                qrDataUrl,
+                connectUrl,
+                localIP,
+                port: SERVER_PORT,
+                protocol
+            });
+        } catch (e) {
+            res.status(500).json({ error: e.message });
+        }
     });
 
     // SSL status endpoint
