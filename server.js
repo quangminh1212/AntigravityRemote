@@ -108,6 +108,8 @@ let cdpConnection = null;
 let lastSnapshot = null;
 let lastSnapshotHash = null;
 let antigravityLaunchPromise = null;
+let snapshotFailureStreak = 0;
+let isRecoveringSnapshotConnection = false;
 
 // Kill any existing process on the server port (prevents EADDRINUSE)
 async function killPortProcess(port) {
@@ -469,7 +471,9 @@ async function connectCDP(url) {
             reject(new Error('CDP connection closed'));
         }
         pendingCalls.clear();
-        cdpConnection = null;
+        if (cdpConnection?.ws === ws) {
+            cdpConnection = null;
+        }
     });
 
     ws.on('error', (err) => {
@@ -510,9 +514,50 @@ async function connectCDP(url) {
     return { ws, call, contexts };
 }
 
+function getPreferredContexts(contexts = []) {
+    return [...contexts].sort((a, b) => {
+        const aDefault = a?.auxData?.isDefault ? 1 : 0;
+        const bDefault = b?.auxData?.isDefault ? 1 : 0;
+        if (aDefault !== bDefault) return bDefault - aDefault;
+        return (a?.id || 0) - (b?.id || 0);
+    });
+}
+
+async function recoverSnapshotConnection() {
+    if (isRecoveringSnapshotConnection) {
+        return null;
+    }
+
+    isRecoveringSnapshotConnection = true;
+    const previousConnection = cdpConnection;
+
+    try {
+        console.warn('Attempting fresh CDP snapshot recovery...');
+        const cdpInfo = await discoverCDP();
+        const freshConnection = await connectCDP(cdpInfo.url);
+        const freshSnapshot = await captureSnapshot(freshConnection);
+
+        if (freshSnapshot && !freshSnapshot.error) {
+            cdpConnection = freshConnection;
+            if (previousConnection?.ws && previousConnection.ws !== freshConnection.ws) {
+                try { previousConnection.ws.close(); } catch (e) { }
+            }
+            console.warn('Recovered snapshot capture using a fresh CDP connection');
+            return freshSnapshot;
+        }
+
+        try { freshConnection.ws.close(); } catch (e) { }
+        return freshSnapshot;
+    } catch (error) {
+        return { error: `Fresh CDP recovery failed: ${error.message}` };
+    } finally {
+        isRecoveringSnapshotConnection = false;
+    }
+}
+
 // Capture chat snapshot
 async function captureSnapshot(cdp) {
-    const CAPTURE_SCRIPT = `(async () => {
+    const CAPTURE_SCRIPT = String.raw`(async () => {
         const cascade = document.getElementById('conversation') || document.getElementById('chat') || document.getElementById('cascade');
         if (!cascade) {
             // Debug info
@@ -596,24 +641,190 @@ async function captureSnapshot(cdp) {
             });
         } catch(e) {}
 
-        // Convert local images to base64
-        const images = clone.querySelectorAll('img');
-        const promises = Array.from(images).map(async (img) => {
-            const rawSrc = img.getAttribute('src');
-            if (rawSrc && (rawSrc.startsWith('/') || rawSrc.startsWith('vscode-file:')) && !rawSrc.startsWith('data:')) {
+        // Inline images so detached snapshot HTML still renders in mobile/webview.
+        let inlinedImageCount = 0;
+        let contentImageCount = 0;
+        try {
+            const originalImages = Array.from(cascade.querySelectorAll('img'));
+            const clonedImages = Array.from(clone.querySelectorAll('img'));
+            const toDataUrl = (blob) => new Promise(resolve => {
                 try {
-                    const res = await fetch(rawSrc);
-                    const blob = await res.blob();
-                    await new Promise(r => {
-                        const reader = new FileReader();
-                        reader.onloadend = () => { img.src = reader.result; r(); };
-                        reader.onerror = () => r();
-                        reader.readAsDataURL(blob);
-                    });
-                } catch(e) {}
-            }
-        });
-        await Promise.all(promises);
+                    const reader = new FileReader();
+                    reader.onloadend = () => resolve(reader.result || null);
+                    reader.onerror = () => resolve(null);
+                    reader.readAsDataURL(blob);
+                } catch (e) {
+                    resolve(null);
+                }
+            });
+            const normalizeFetchSrc = (src) => {
+                if (!src) return '';
+                const value = String(src).trim();
+                if (/^[A-Za-z]:[\\/]/.test(value)) {
+                    return 'file:///' + value.replace(/\\/g, '/');
+                }
+                return value;
+            };
+            const shouldFetchImage = (src) => {
+                if (!src || src.startsWith('data:') || src.startsWith('javascript:')) return false;
+                return /^(blob:|vscode-file:|file:|https?:|\/|\.{1,2}\/|[A-Za-z]:[\\/])/.test(src);
+            };
+            const stripResponsiveImageAttrs = (img) => {
+                if (!img) return;
+                img.removeAttribute('srcset');
+                img.removeAttribute('sizes');
+                const picture = img.closest('picture');
+                if (!picture) return;
+                picture.querySelectorAll('source').forEach(source => {
+                    source.removeAttribute('srcset');
+                    source.removeAttribute('sizes');
+                });
+            };
+            const getImageRenderMetrics = (sourceImg, targetImg) => {
+                const rect = typeof sourceImg?.getBoundingClientRect === 'function'
+                    ? sourceImg.getBoundingClientRect()
+                    : null;
+                const computedStyle = sourceImg ? window.getComputedStyle(sourceImg) : null;
+                const renderedWidth = Math.round(
+                    rect?.width
+                    || parseFloat(computedStyle?.width)
+                    || Number(targetImg?.getAttribute('width'))
+                    || 0
+                );
+                const renderedHeight = Math.round(
+                    rect?.height
+                    || parseFloat(computedStyle?.height)
+                    || Number(targetImg?.getAttribute('height'))
+                    || 0
+                );
+                const naturalWidth = sourceImg?.naturalWidth || Number(targetImg?.getAttribute('width')) || 0;
+                const naturalHeight = sourceImg?.naturalHeight || Number(targetImg?.getAttribute('height')) || 0;
+                return {
+                    renderedWidth,
+                    renderedHeight,
+                    naturalWidth,
+                    naturalHeight,
+                    objectFit: computedStyle?.objectFit || ''
+                };
+            };
+            const markImageKind = (sourceImg, targetImg) => {
+                const { renderedWidth, renderedHeight, naturalWidth, naturalHeight } = getImageRenderMetrics(sourceImg, targetImg);
+                const width = renderedWidth || naturalWidth;
+                const height = renderedHeight || naturalHeight;
+                const kind = width > 0 && height > 0 && width <= 48 && height <= 48
+                    ? 'inline-icon'
+                    : 'content-image';
+                targetImg.setAttribute('data-remote-image-kind', kind);
+                return kind;
+            };
+            const preserveImageSizing = (sourceImg, targetImg, kind) => {
+                if (!targetImg) return;
+                const { renderedWidth, renderedHeight, naturalWidth, naturalHeight, objectFit } = getImageRenderMetrics(sourceImg, targetImg);
+                const maxWidth = renderedWidth || naturalWidth;
+                const aspectWidth = renderedWidth || naturalWidth;
+                const aspectHeight = renderedHeight || naturalHeight;
+
+                if (renderedWidth > 0) {
+                    targetImg.setAttribute('data-remote-rendered-width', String(renderedWidth));
+                }
+                if (renderedHeight > 0) {
+                    targetImg.setAttribute('data-remote-rendered-height', String(renderedHeight));
+                }
+
+                if (kind === 'inline-icon') {
+                    if (renderedWidth > 0) {
+                        targetImg.style.setProperty('width', String(renderedWidth) + 'px', 'important');
+                        targetImg.style.setProperty('max-width', String(renderedWidth) + 'px', 'important');
+                    }
+                    if (renderedHeight > 0) {
+                        targetImg.style.setProperty('height', String(renderedHeight) + 'px', 'important');
+                        targetImg.style.setProperty('max-height', String(renderedHeight) + 'px', 'important');
+                    }
+                    targetImg.style.setProperty('display', 'inline-block', 'important');
+                } else {
+                    if (maxWidth > 0) {
+                        targetImg.style.setProperty('--remote-image-max-width', String(maxWidth) + 'px');
+                        targetImg.style.setProperty('max-width', String(maxWidth) + 'px', 'important');
+                    }
+                    if (aspectWidth > 0 && aspectHeight > 0) {
+                        targetImg.style.setProperty('aspect-ratio', String(aspectWidth) + ' / ' + String(aspectHeight), 'important');
+                    }
+                    targetImg.style.setProperty('width', '100%', 'important');
+                    targetImg.style.setProperty('height', 'auto', 'important');
+                    targetImg.style.setProperty('display', 'block', 'important');
+                }
+
+                if (objectFit) {
+                    targetImg.style.setProperty('object-fit', objectFit, 'important');
+                }
+            };
+            const inlineViaCanvas = (sourceImg) => {
+                try {
+                    if (!sourceImg || !sourceImg.complete || !sourceImg.naturalWidth || !sourceImg.naturalHeight) {
+                        return null;
+                    }
+                    const canvas = document.createElement('canvas');
+                    canvas.width = sourceImg.naturalWidth;
+                    canvas.height = sourceImg.naturalHeight;
+                    const ctx = canvas.getContext('2d');
+                    if (!ctx) return null;
+                    ctx.drawImage(sourceImg, 0, 0);
+                    const dataUrl = canvas.toDataURL('image/png');
+                    return dataUrl && dataUrl.startsWith('data:image/') ? dataUrl : null;
+                } catch (e) {
+                    return null;
+                }
+            };
+            const collectImageSources = (sourceImg, targetImg) => {
+                const candidates = [
+                    sourceImg?.currentSrc,
+                    sourceImg?.getAttribute('src'),
+                    sourceImg?.src,
+                    targetImg?.getAttribute('src'),
+                    targetImg?.src
+                ].filter(Boolean);
+                return Array.from(new Set(candidates.map(normalizeFetchSrc).filter(Boolean)));
+            };
+
+            const results = await Promise.all(clonedImages.map(async (targetImg, index) => {
+                const sourceImg = originalImages[index] || targetImg;
+                stripResponsiveImageAttrs(targetImg);
+                const imageKind = markImageKind(sourceImg, targetImg);
+                preserveImageSizing(sourceImg, targetImg, imageKind);
+                if (imageKind === 'content-image') {
+                    contentImageCount += 1;
+                }
+
+                const canvasDataUrl = inlineViaCanvas(sourceImg);
+                if (canvasDataUrl) {
+                    targetImg.setAttribute('src', canvasDataUrl);
+                    targetImg.removeAttribute('loading');
+                    return true;
+                }
+
+                for (const candidate of collectImageSources(sourceImg, targetImg)) {
+                    if (candidate.startsWith('data:')) {
+                        targetImg.setAttribute('src', candidate);
+                        targetImg.removeAttribute('loading');
+                        return true;
+                    }
+                    if (!shouldFetchImage(candidate)) continue;
+                    try {
+                        const res = await fetch(candidate);
+                        if (!res.ok) continue;
+                        const dataUrl = await toDataUrl(await res.blob());
+                        if (!dataUrl || !dataUrl.startsWith('data:image/')) continue;
+                        targetImg.setAttribute('src', dataUrl);
+                        targetImg.removeAttribute('loading');
+                        return true;
+                    } catch (e) { }
+                }
+
+                return false;
+            }));
+
+            inlinedImageCount = results.filter(Boolean).length;
+        } catch (e) { }
 
         // Fix inline file references: Antigravity nests <div> elements inside
         // <span> and <p> tags (e.g. file-type icons). Browsers auto-close <p> and
@@ -658,7 +869,7 @@ async function captureSnapshot(cdp) {
                 }
             } catch (e) { }
         }
-        const allCSS = rules.join('\\n');
+        const allCSS = rules.join('\n');
         
         // Extract comprehensive theme colors
         const bodyStyles = window.getComputedStyle(document.body);
@@ -707,12 +918,19 @@ async function captureSnapshot(cdp) {
             stats: {
                 nodes: clone.getElementsByTagName('*').length,
                 htmlSize: html.length,
-                cssSize: allCSS.length
+                cssSize: allCSS.length,
+                images: {
+                    total: clone.querySelectorAll('img').length,
+                    content: contentImageCount,
+                    inlined: inlinedImageCount
+                }
             }
         };
     })()`;
 
-    for (const ctx of cdp.contexts) {
+    let bestFailure = null;
+
+    for (const ctx of getPreferredContexts(cdp.contexts)) {
         try {
             // console.log(`Trying context ${ctx.id} (${ctx.name || ctx.origin})...`);
             const result = await cdp.call("Runtime.evaluate", {
@@ -723,25 +941,47 @@ async function captureSnapshot(cdp) {
             });
 
             if (result.exceptionDetails) {
-                // console.log(`Context ${ctx.id} exception:`, result.exceptionDetails);
+                bestFailure = {
+                    error: `Context ${ctx.id} exception: ${result.exceptionDetails.text || 'Runtime evaluation failed'} ${result.exceptionDetails.exception?.description || ''}`.trim(),
+                    contextId: ctx.id,
+                    contextName: ctx.name || '',
+                    isDefault: !!ctx?.auxData?.isDefault
+                };
                 continue;
             }
 
             if (result.result && result.result.value) {
                 const val = result.result.value;
                 if (val.error) {
-                    // console.log(`Context ${ctx.id} script error:`, val.error);
-                    // if (val.debug) console.log(`   Debug info:`, JSON.stringify(val.debug));
+                    bestFailure = {
+                        error: val.error,
+                        contextId: ctx.id,
+                        contextName: ctx.name || '',
+                        isDefault: !!ctx?.auxData?.isDefault,
+                        debug: val.debug || null
+                    };
                 } else {
                     return val;
                 }
+            } else {
+                bestFailure = {
+                    error: `Context ${ctx.id} returned no value`,
+                    contextId: ctx.id,
+                    contextName: ctx.name || '',
+                    isDefault: !!ctx?.auxData?.isDefault
+                };
             }
         } catch (e) {
-            console.log(`Context ${ctx.id} connection error:`, e.message);
+            bestFailure = {
+                error: `Context ${ctx.id} connection error: ${e.message}`,
+                contextId: ctx.id,
+                contextName: ctx.name || '',
+                isDefault: !!ctx?.auxData?.isDefault
+            };
         }
     }
 
-    return null;
+    return bestFailure || { error: 'No valid snapshot captured (check contexts)' };
 }
 
 // Inject message into Antigravity
@@ -1983,8 +2223,28 @@ async function startPolling(wss) {
         }
 
         try {
-            const snapshot = await captureSnapshot(cdpConnection);
+            let snapshot = await captureSnapshot(cdpConnection);
+            if (snapshot?.error) {
+                snapshotFailureStreak += 1;
+                const errorMsg = snapshot.error || 'No valid snapshot captured (check contexts)';
+                const shouldRecover =
+                    cdpConnection?.ws?.readyState === WebSocket.OPEN &&
+                    cdpConnection.contexts.length > 0 &&
+                    snapshotFailureStreak >= 3 &&
+                    !errorMsg.includes('chat container not found');
+
+                if (shouldRecover) {
+                    const recoveredSnapshot = await recoverSnapshotConnection();
+                    if (recoveredSnapshot && !recoveredSnapshot.error) {
+                        snapshotFailureStreak = 0;
+                        snapshot = recoveredSnapshot;
+                    } else if (recoveredSnapshot?.error) {
+                        snapshot = recoveredSnapshot;
+                    }
+                }
+            }
             if (snapshot && !snapshot.error) {
+                snapshotFailureStreak = 0;
                 const hash = hashString(snapshot.html);
 
                 // Only update if content changed
@@ -2009,14 +2269,21 @@ async function startPolling(wss) {
             } else {
                 // Snapshot is null or has error
                 const now = Date.now();
+                const errorMsg = snapshot?.error || 'No valid snapshot captured (check contexts)';
+
                 if (!lastErrorLog || now - lastErrorLog > 10000) {
-                    const errorMsg = snapshot?.error || 'No valid snapshot captured (check contexts)';
                     console.warn(`⚠️  Snapshot capture issue: ${errorMsg} `);
+                    if (snapshot?.debug) {
+                        console.warn(`   Debug: ${JSON.stringify(snapshot.debug)}`);
+                    }
                     if (errorMsg.includes('container not found')) {
                         console.log('   (Tip: Ensure an active chat is open in Antigravity)');
                     }
                     if (cdpConnection.contexts.length === 0) {
                         console.log('   (Tip: No active execution contexts found. Try interacting with the Antigravity window)');
+                    }
+                    if (isRecoveringSnapshotConnection) {
+                        console.warn(`   Snapshot recovery in progress after ${snapshotFailureStreak} consecutive capture failures`);
                     }
                     lastErrorLog = now;
                 }
