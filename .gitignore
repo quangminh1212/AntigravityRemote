@@ -43,6 +43,12 @@ registry/snapshot_debug.html
 .playwright-cli/
 test-results/
 output/playwright/
+tools/cloudflared*
+.cloudflared-quick-tunnel-home/
+
+# Localtunnel runtime files
+lt-cookie.txt
+lt-public.html
 
 # Tauri build artifacts
 src-tauri/target/
