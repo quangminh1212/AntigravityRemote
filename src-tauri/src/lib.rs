@@ -7,6 +7,14 @@ use std::thread;
 use std::time::{Duration, Instant};
 use serde_json::Value;
 use tauri::{LogicalSize, Manager, Monitor, PhysicalSize, Size, WebviewUrl};
+#[cfg(target_os = "windows")]
+use windows::Win32::Foundation::{LPARAM, WPARAM};
+#[cfg(target_os = "windows")]
+use windows::Win32::UI::WindowsAndMessaging::{
+    GetWindowLongPtrW, SendMessageW, SetWindowLongPtrW, SetWindowPos, GWL_EXSTYLE, ICON_BIG,
+    ICON_SMALL, SWP_FRAMECHANGED, SWP_NOMOVE, SWP_NOSIZE, SWP_NOZORDER, WM_SETICON,
+    WS_EX_DLGMODALFRAME,
+};
 
 const EMBEDDED_SERVER_URL: &str = "http://127.0.0.1:3000";
 const WINDOW_ASPECT_RATIO: f64 = 9.0 / 16.0;
@@ -315,6 +323,41 @@ fn start_node_server(app_dir: &Path, runtime_dir: &Path) -> Option<Child> {
     }
 }
 
+#[cfg(target_os = "windows")]
+fn remove_windows_title_bar_icon(window: &tauri::WebviewWindow) {
+    let Ok(hwnd) = window.hwnd() else {
+        println!("[TAURI] Failed to read HWND, keeping default title bar icon");
+        return;
+    };
+
+    unsafe {
+        // Dialog frame style hides the caption icon while keeping the native title bar.
+        let ex_style = GetWindowLongPtrW(hwnd, GWL_EXSTYLE);
+        let _ = SetWindowLongPtrW(hwnd, GWL_EXSTYLE, ex_style | WS_EX_DLGMODALFRAME.0 as isize);
+        let _ = SendMessageW(
+            hwnd,
+            WM_SETICON,
+            Some(WPARAM(ICON_SMALL as usize)),
+            Some(LPARAM(0)),
+        );
+        let _ = SendMessageW(
+            hwnd,
+            WM_SETICON,
+            Some(WPARAM(ICON_BIG as usize)),
+            Some(LPARAM(0)),
+        );
+        let _ = SetWindowPos(
+            hwnd,
+            None,
+            0,
+            0,
+            0,
+            0,
+            SWP_NOMOVE | SWP_NOSIZE | SWP_NOZORDER | SWP_FRAMECHANGED,
+        );
+    }
+}
+
 #[cfg_attr(mobile, tauri::mobile_entry_point)]
 pub fn run() {
     tauri::Builder::default()
@@ -375,7 +418,7 @@ pub fn run() {
                 last_applied_size: Mutex::new(Some(initial_physical_size)),
             });
 
-            tauri::WebviewWindowBuilder::new(
+            let main_window = tauri::WebviewWindowBuilder::new(
                 app,
                 "main",
                 WebviewUrl::External(EMBEDDED_SERVER_URL.parse().expect("valid embedded server URL")),
@@ -389,6 +432,9 @@ pub fn run() {
             .decorations(true)
             .transparent(false)
             .build()?;
+
+            #[cfg(target_os = "windows")]
+            remove_windows_title_bar_icon(&main_window);
 
             Ok(())
         })

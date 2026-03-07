@@ -52,6 +52,7 @@ dependencies = [
  "tauri-plugin-opener",
  "tauri-plugin-shell",
  "url",
+ "windows",
 ]
 
 [[package]]
