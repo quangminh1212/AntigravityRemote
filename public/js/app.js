@@ -163,6 +163,10 @@ function applyTheme(theme) {
     document.querySelectorAll('.settings-option[data-theme-value]').forEach(opt => {
         opt.classList.toggle('active', opt.dataset.themeValue === selectedTheme);
     });
+    syncThemeDomState();
+    if (lastSnapshotPayload) {
+        updateSnapshotStyles(lastSnapshotPayload);
+    }
     updateWorkspaceChrome();
 }
 
@@ -185,6 +189,7 @@ const modeText = document.getElementById('modeText');
 const modelText = document.getElementById('modelText');
 const historyLayer = document.getElementById('historyLayer');
 const historyList = document.getElementById('historyList');
+const themeColorMeta = document.querySelector('meta[name="theme-color"]');
 
 // --- State ---
 let autoRefreshEnabled = true;
@@ -196,12 +201,13 @@ let idleTimer = null;
 let lastHash = '';
 let currentMode = 'Fast';
 let chatIsOpen = true; // Track if a chat is currently open
-let cachedCssText = ''; // Cache CSS to avoid unnecessary re-injection
+let cachedSnapshotStyleKey = ''; // Cache snapshot CSS/theme combinations to avoid unnecessary re-injection
 let lastRenderedHash = ''; // Track last rendered HTML hash to skip identical updates
 let lastRenderedHtmlHash = ''; // Track content hash to avoid unnecessary DOM rebuilds
 let pendingSnapshot = null; // Buffer for incoming WebSocket snapshots
 let renderScheduled = false; // Prevent multiple rAF calls
 let hasSnapshotLoaded = false;
+let lastSnapshotPayload = null;
 
 // Init theme from localStorage or default to dark
 applyTheme(localStorage.getItem('arTheme') || 'dark');
@@ -226,6 +232,429 @@ function normalizeSnapshotCss(cssText) {
         .replace(/\\r\\n/g, '\n')
         .replace(/\\n/g, '\n')
         .replace(/\\r/g, '\r');
+}
+
+function getSelectedTheme() {
+    return document.documentElement.getAttribute('data-theme') === 'light' ? 'light' : 'dark';
+}
+
+function syncThemeDomState() {
+    const selectedTheme = getSelectedTheme();
+
+    document.documentElement.classList.toggle('dark', selectedTheme === 'dark');
+    document.documentElement.classList.toggle('light', selectedTheme === 'light');
+    document.documentElement.style.colorScheme = selectedTheme;
+
+    if (chatContent) {
+        chatContent.classList.toggle('dark', selectedTheme === 'dark');
+        chatContent.classList.toggle('light', selectedTheme === 'light');
+        chatContent.setAttribute('data-theme', selectedTheme);
+    }
+
+    if (themeColorMeta) {
+        themeColorMeta.setAttribute('content', selectedTheme === 'light' ? '#f4f6fb' : '#111215');
+    }
+}
+
+function rememberSnapshotSourceTheme(data) {
+    const tv = data.themeVars || {};
+    const rootStyle = document.documentElement.style;
+    const bg = tv['--vscode-editor-background'] || data.backgroundColor || data.bodyBackgroundColor || '';
+    const fg = tv['--vscode-editor-foreground'] || tv['--vscode-foreground'] || data.color || data.bodyColor || '';
+    const panelBg = tv['--vscode-panel-background'] || tv['--vscode-sideBar-background'] || bg;
+    const inputBg = tv['--vscode-input-background'] || panelBg;
+    const mutedFg = tv['--vscode-descriptionForeground'] || '';
+
+    const sourceTokens = {
+        '--snapshot-source-bg': bg,
+        '--snapshot-source-panel': panelBg,
+        '--snapshot-source-input': inputBg,
+        '--snapshot-source-fg': fg,
+        '--snapshot-source-muted': mutedFg
+    };
+
+    Object.entries(sourceTokens).forEach(([name, value]) => {
+        if (value) {
+            rootStyle.setProperty(name, value);
+        } else {
+            rootStyle.removeProperty(name);
+        }
+    });
+}
+
+function buildSnapshotThemeOverrides() {
+    const selectedTheme = getSelectedTheme();
+    const styles = getComputedStyle(document.documentElement);
+    const isLight = selectedTheme === 'light';
+    const text = styles.getPropertyValue('--text-main').trim() || (isLight ? '#0f172a' : '#e5e7eb');
+    const muted = styles.getPropertyValue('--text-muted').trim() || (isLight ? '#64748b' : '#8a8d92');
+    const accent = styles.getPropertyValue('--accent').trim() || (isLight ? '#2563eb' : '#6366f1');
+    const snapshotBorder = isLight ? 'rgba(148, 163, 184, 0.38)' : '#2a2b32';
+    const link = isLight ? '#2563eb' : '#818cf8';
+    const inlineCodeBg = isLight ? 'rgba(15, 23, 42, 0.06)' : 'rgba(255, 255, 255, 0.08)';
+    const codeBg = isLight ? '#f3f4f6' : '#1a1b20';
+    const codeText = isLight ? '#0f172a' : '#e0e0e4';
+    const copyBg = isLight ? 'rgba(255, 255, 255, 0.88)' : 'rgba(26, 27, 32, 0.6)';
+    const copyText = isLight ? '#475569' : '#8a8d92';
+    const copyHoverBg = isLight ? 'rgba(37, 99, 235, 0.12)' : 'rgba(99, 102, 241, 0.2)';
+    const copyHoverText = isLight ? '#2563eb' : '#818cf8';
+    const blockquoteBg = isLight ? 'rgba(37, 99, 235, 0.06)' : 'rgba(99, 102, 241, 0.08)';
+    const blockquoteText = isLight ? '#334155' : '#c8c8cc';
+    const framedPanelBg = isLight ? 'rgba(148, 163, 184, 0.12)' : 'rgba(128, 128, 128, 0.06)';
+    const userBubbleBg = isLight ? 'rgba(15, 23, 42, 0.05)' : 'rgba(128, 128, 128, 0.1)';
+    const lightTextFix = isLight ? `
+[style*="color: rgb(255, 255, 255)"],
+[style*="color: white"],
+[style*="color:#fff"],
+[style*="color: #fff"],
+[style*="color: rgb(248"],
+[style*="color: rgb(249"],
+[style*="color: rgb(250"],
+[style*="color: rgb(251"],
+[style*="color: rgb(252"],
+[style*="color: rgb(253"],
+[style*="color: rgb(254"],
+[style*="color: rgb(245"],
+[style*="color: rgb(240"],
+#chatContent [class*="text-white"] {
+    color: ${text} !important;
+}
+` : '';
+
+    return `/* --- THEME OVERRIDES --- */
+#conversation, #chat, #cascade {
+    background-color: transparent !important;
+    color: ${text} !important;
+    font-family: 'Inter', system-ui, sans-serif !important;
+    position: relative !important;
+    height: auto !important;
+    zoom: var(--display-scale) !important;
+    width: 100% !important;
+    width: calc(100% / var(--display-scale)) !important;
+}
+
+/* Fix stacking BUT preserve absolute/fixed positioning for dropdowns */
+#conversation > div, #chat > div, #cascade > div {
+    position: static !important;
+}
+
+/* Preserve absolute positioning needed for dropdowns, tooltips, popups */
+[style*="position: absolute"], [style*="position: fixed"],
+[data-headlessui-state], [id*="headlessui"] {
+    position: absolute !important;
+}
+
+/* Normalize forced inline text colors without flattening syntax accents */
+[style*="color: rgb(0, 0, 0)"], [style*="color: black"],
+[style*="color:#000"], [style*="color: #000"],
+[style*="color: rgb(3"], [style*="color: rgb(2"],
+[style*="color: rgb(1, "], [style*="color: rgb(5, "],
+[style*="color: rgb(10,"], [style*="color: rgb(15,"],
+[style*="color: rgb(20,"], [style*="color: rgb(25,"],
+[style*="color: rgb(30,"], [style*="color: rgb(35,"],
+[style*="color: rgb(40,"], [style*="color: rgb(45,"],
+[style*="color: rgb(50,"], [style*="color: rgb(55,"],
+[style*="color: rgb(60,"], [style*="color: rgb(65,"],
+[style*="color: rgb(70,"], [style*="color: rgb(75,"] {
+    color: ${text} !important;
+}
+${lightTextFix}
+#conversation a, #chat a, #cascade a {
+    color: ${link} !important;
+    text-decoration: underline;
+}
+
+/* Hide unresolved local-disk image paths that were not inlined during capture */
+#chatContent img[src^="/c:"], #chatContent img[src^="/C:"], #chatContent img[src*="AppData"] {
+    display: none !important;
+}
+
+/* Render real conversation images as block media instead of inline badges */
+#chatContent img[data-remote-image-kind="content-image"] {
+    display: block !important;
+    width: min(100%, var(--remote-image-max-width, 640px)) !important;
+    max-width: min(100%, var(--remote-image-max-width, 640px)) !important;
+    height: auto !important;
+    margin: 8px 0 !important;
+    border-radius: 14px !important;
+    object-fit: contain !important;
+}
+
+#chatContent div:has(> img[data-remote-image-kind="content-image"]),
+#chatContent span:has(> img[data-remote-image-kind="content-image"]),
+#chatContent picture:has(img[data-remote-image-kind="content-image"]) {
+    display: block !important;
+}
+
+/* Keep file icons and inline badges compact */
+#chatContent img[data-remote-image-kind="inline-icon"], #chatContent svg {
+    display: inline !important;
+    vertical-align: middle !important;
+}
+
+/* Fallback small-icon sizing when utility classes from the source app do not survive capture */
+#chatContent svg[class~="w-3"] { width: 0.75rem !important; }
+#chatContent svg[class~="h-3"] { height: 0.75rem !important; }
+#chatContent svg[class~="w-3.5"] { width: 0.875rem !important; }
+#chatContent svg[class~="h-3.5"] { height: 0.875rem !important; }
+#chatContent svg[class~="w-4"] { width: 1rem !important; }
+#chatContent svg[class~="h-4"] { height: 1rem !important; }
+#chatContent svg[class~="w-6"] { width: 1.5rem !important; }
+#chatContent svg[class~="h-6"] { height: 1.5rem !important; }
+#chatContent svg[class~="w-3"], #chatContent svg[class~="w-3.5"], #chatContent svg[class~="w-4"], #chatContent svg[class~="w-6"] {
+    max-width: none !important;
+    flex: 0 0 auto !important;
+}
+
+/* Force file-reference wrappers (icon + filename) to stay inline */
+#chatContent div:has(> img[data-remote-image-kind="inline-icon"]),
+#chatContent span:has(> img[data-remote-image-kind="inline-icon"]),
+#chatContent picture:has(img[data-remote-image-kind="inline-icon"]) {
+    display: inline !important;
+    vertical-align: middle !important;
+}
+
+/* Inline-flex containers from Antigravity (e.g. file mentions) */
+#chatContent [class*="inline-flex"]:has(img[data-remote-image-kind="inline-icon"]),
+#chatContent [class*="inline-block"]:has(img[data-remote-image-kind="inline-icon"]),
+#chatContent [class*="items-center"]:has(img[data-remote-image-kind="inline-icon"]) {
+    display: inline-flex !important;
+    vertical-align: middle !important;
+}
+
+/* Fix Inline Code - Ultra-compact */
+:not(pre) > code {
+    padding: 0 2px !important;
+    border-radius: 4px !important;
+    background-color: ${inlineCodeBg} !important;
+    color: ${text} !important;
+    font-size: 0.82em !important;
+    line-height: 1 !important;
+    white-space: normal !important;
+}
+
+pre, code, .monaco-editor-background, [class*="terminal"] {
+    background-color: ${codeBg} !important;
+    color: ${codeText} !important;
+    font-family: 'JetBrains Mono', monospace !important;
+    border-radius: 8px !important;
+    border: 1px solid ${snapshotBorder} !important;
+}
+
+/* Multi-line Code Block - Minimal */
+pre {
+    position: relative !important;
+    white-space: pre-wrap !important;
+    word-break: break-word !important;
+    padding: 10px 12px !important;
+    margin: 8px 0 !important;
+    display: block !important;
+    width: 100% !important;
+    overflow: hidden !important;
+}
+
+pre.has-copy-btn {
+    padding-right: 38px !important;
+}
+
+/* Single-line Code Block - Minimal */
+pre.single-line-pre {
+    display: inline-block !important;
+    width: auto !important;
+    max-width: 100% !important;
+    padding: 1px 6px !important;
+    margin: 0 !important;
+    vertical-align: middle !important;
+    background-color: ${codeBg} !important;
+    font-size: 0.85em !important;
+}
+
+pre.single-line-pre > code {
+    display: inline !important;
+    white-space: nowrap !important;
+}
+
+pre:not(.single-line-pre) > code {
+    display: block !important;
+    width: 100% !important;
+    overflow-x: auto !important;
+    background: transparent !important;
+    border: none !important;
+    padding: 0 !important;
+    margin: 0 !important;
+}
+
+.mobile-copy-btn {
+    position: absolute !important;
+    top: 6px !important;
+    right: 6px !important;
+    background: ${copyBg} !important;
+    color: ${copyText} !important;
+    border: 1px solid ${snapshotBorder} !important;
+    width: 24px !important;
+    height: 24px !important;
+    padding: 0 !important;
+    cursor: pointer !important;
+    display: flex !important;
+    align-items: center !important;
+    justify-content: center !important;
+    border-radius: 6px !important;
+    transition: all 0.2s ease !important;
+    -webkit-tap-highlight-color: transparent !important;
+    z-index: 10 !important;
+    margin: 0 !important;
+}
+
+.mobile-copy-btn:hover,
+.mobile-copy-btn:focus {
+    background: ${copyHoverBg} !important;
+    border-color: ${accent} !important;
+    color: ${copyHoverText} !important;
+}
+
+.mobile-copy-btn svg {
+    width: 16px !important;
+    height: 16px !important;
+    stroke: currentColor !important;
+    stroke-width: 2 !important;
+    fill: none !important;
+}
+
+blockquote {
+    border-left: 3px solid ${accent} !important;
+    background: ${blockquoteBg} !important;
+    color: ${blockquoteText} !important;
+    padding: 10px 14px !important;
+    margin: 10px 0 !important;
+    border-radius: 0 10px 10px 0 !important;
+}
+
+table {
+    border-collapse: collapse !important;
+    width: 100% !important;
+    border: 1px solid ${snapshotBorder} !important;
+}
+
+th, td {
+    border: 1px solid ${snapshotBorder} !important;
+    padding: 8px !important;
+    color: ${text} !important;
+}
+
+::-webkit-scrollbar {
+    width: 0 !important;
+}
+
+[style*="background-color: rgb(255, 255, 255)"],
+[style*="background-color: white"],
+[style*="background: white"],
+[style*="background-color: rgb(249"],
+[style*="background-color: rgb(248"],
+[style*="background-color: rgb(244"],
+[style*="background-color: rgb(243"],
+[style*="background-color: rgb(241"],
+[style*="background-color: rgb(31"],
+[style*="background-color: rgb(30"],
+[style*="background-color: rgb(15"],
+[style*="background-color: rgb(17"],
+[style*="background-color: rgb(24"],
+[style*="background-color: rgb(32"],
+[style*="background-color: rgb(38"],
+[class*="bg-black"], [class*="bg-gray"], [class*="bg-slate"],
+[class*="bg-neutral"], [class*="bg-zinc"],
+[class*="bg-ide-"], [class*="from-ide-"],
+[class*="bg-white"] {
+    background-color: transparent !important;
+}
+
+#conversation > div > div, #chat > div > div, #cascade > div > div {
+    background-color: transparent !important;
+}
+
+/* IDE-style framed panels (command blocks) */
+.rounded-lg {
+    background-color: ${framedPanelBg} !important;
+    border: 1px solid ${snapshotBorder} !important;
+    border-radius: 12px !important;
+    padding: 10px 12px !important;
+    margin: 6px 0 !important;
+}
+
+/* Thinking/thought sections - no frame like IDE */
+.rounded-lg:has(> details), .rounded-lg:has(> summary),
+details.rounded-lg, .rounded-lg > details {
+    background-color: transparent !important;
+    border: none !important;
+    padding: 0 !important;
+    margin: 0 !important;
+}
+
+/* Thinking/thought toggle section (.isolate wrapper) */
+.isolate, .isolate > button {
+    background-color: transparent !important;
+    border: none !important;
+    padding: 0 !important;
+    margin: 0 !important;
+    border-radius: 0 !important;
+    outline: none !important;
+    box-shadow: none !important;
+}
+
+/* Good/Bad feedback row - no frame */
+.rounded-lg:has([data-tooltip-id^="up-"], [data-tooltip-id^="down-"]) {
+    background-color: transparent !important;
+    border: none !important;
+    padding: 0 !important;
+    margin: 0 !important;
+}
+
+/* User message bubble */
+[data-role="user"] {
+    background-color: ${userBubbleBg} !important;
+    border-radius: 14px !important;
+    padding: 10px 14px !important;
+    margin-bottom: 6px !important;
+}
+
+/* Remove inner background/border inside user message */
+[data-role="user"] .rounded-lg,
+[data-role="user"] [class*="bg-gray-500"] {
+    background-color: transparent !important;
+    border: none !important;
+    padding: 0 !important;
+    margin: 0 !important;
+}
+
+/* IDE text color class sync */
+.text-ide-text-color {
+    color: ${text} !important;
+}
+
+.text-ide-description-color {
+    color: ${muted} !important;
+}`;
+}
+
+function updateSnapshotStyles(data) {
+    if (!data) return;
+
+    const normalizedSnapshotCss = normalizeSnapshotCss(data.css);
+    const nextStyleKey = `${getSelectedTheme()}::${fastHash(normalizedSnapshotCss)}`;
+
+    if (cachedSnapshotStyleKey === nextStyleKey) return;
+    cachedSnapshotStyleKey = nextStyleKey;
+
+    let styleTag = document.getElementById('cdp-styles');
+    if (!styleTag) {
+        styleTag = document.createElement('style');
+        styleTag.id = 'cdp-styles';
+        document.head.appendChild(styleTag);
+    }
+
+    styleTag.textContent = `/* --- BASE SNAPSHOT CSS --- */
+${normalizedSnapshotCss}
+
+${buildSnapshotThemeOverrides()}`;
 }
 
 
@@ -491,6 +920,7 @@ function scheduleRender() {
 function renderSnapshot(data) {
     chatIsOpen = true;
     hasSnapshotLoaded = true;
+    lastSnapshotPayload = data;
     setHomeScreen(false);
 
     // Capture scroll state BEFORE updating content
@@ -509,347 +939,15 @@ function renderSnapshot(data) {
         if (statsText) statsText.textContent = `${nodes} Nodes · ${kbs}KB`;
     }
 
-    // --- SYNC THEME FROM IDE ---
-    if (data.backgroundColor || data.themeVars) {
-        const tv = data.themeVars || {};
-        const root = document.documentElement.style;
-        // Determine best background: prefer VS Code theme var > effective cascade bg > body bg
-        const bg = tv['--vscode-editor-background'] || data.backgroundColor || data.bodyBackgroundColor;
-        const fg = tv['--vscode-editor-foreground'] || tv['--vscode-foreground'] || data.color || data.bodyColor;
-        const panelBg = tv['--vscode-panel-background'] || tv['--vscode-sideBar-background'] || bg;
-        const inputBg = tv['--vscode-input-background'] || panelBg;
-        const mutedFg = tv['--vscode-descriptionForeground'] || '';
-
-        // Update CSS custom properties so ALL elements using var(--bg-app) etc. auto-sync
-        if (bg) root.setProperty('--bg-app', bg);
-        if (panelBg) root.setProperty('--bg-panel', panelBg);
-        if (inputBg) root.setProperty('--bg-input', inputBg);
-        if (fg) root.setProperty('--text-main', fg);
-        if (mutedFg) root.setProperty('--text-muted', mutedFg);
-    }
-
-    // --- CSS INJECTION (Cached - only update when CSS changes) ---
-    let styleTag = document.getElementById('cdp-styles');
-    if (!styleTag) {
-        styleTag = document.createElement('style');
-        styleTag.id = 'cdp-styles';
-        document.head.appendChild(styleTag);
-    }
-
-    // Only rebuild CSS if the source CSS from snapshot changed
-    if (data.css !== cachedCssText) {
-        const normalizedSnapshotCss = normalizeSnapshotCss(data.css);
-        cachedCssText = normalizedSnapshotCss;
-        // Use IDE theme colors or fallback to defaults
-        const tv = data.themeVars || {};
-        const themeFg = tv['--vscode-editor-foreground'] || tv['--vscode-foreground'] || data.color || '#f0f0f2';
-        const themeMuted = tv['--vscode-descriptionForeground'] || '#8a8d92';
-        const darkModeOverrides = '/* --- BASE SNAPSHOT CSS --- */\n' +
-            normalizedSnapshotCss +
-            '\n\n/* --- THEME OVERRIDES --- */\n' +
-            '#conversation, #chat, #cascade {\n' +
-            '    background-color: transparent !important;\n' +
-            '    color: var(--text-main) !important;\n' +
-            '    font-family: \'Inter\', system-ui, sans-serif !important;\n' +
-            '    position: relative !important;\n' +
-            '    height: auto !important;\n' +
-            '    zoom: var(--display-scale) !important;\n' +
-            '    width: 100% !important;\n' +
-            '    width: calc(100% / var(--display-scale)) !important;\n' +
-            '}\n' +
-            '\n' +
-            '/* Fix stacking BUT preserve absolute/fixed positioning for dropdowns */\n' +
-            '#conversation > div, #chat > div, #cascade > div {\n' +
-            '    position: static !important;\n' +
-            '}\n' +
-            '/* Preserve absolute positioning needed for dropdowns, tooltips, popups */\n' +
-            '[style*="position: absolute"], [style*="position: fixed"],\n' +
-            '[data-headlessui-state], [id*="headlessui"] {\n' +
-            '    position: absolute !important;\n' +
-            '}\n' +
-            '\n' +
-            '/* Force black/very dark inline text to light (preserve other colors) */\n' +
-            '[style*="color: rgb(0, 0, 0)"], [style*="color: black"],\n' +
-            '[style*="color:#000"], [style*="color: #000"],\n' +
-            '[style*="color: rgb(3"], [style*="color: rgb(2"],\n' +
-            '[style*="color: rgb(1, "], [style*="color: rgb(5, "],\n' +
-            '[style*="color: rgb(10,"], [style*="color: rgb(15,"],\n' +
-            '[style*="color: rgb(20,"], [style*="color: rgb(25,"],\n' +
-            '[style*="color: rgb(30,"], [style*="color: rgb(35,"],\n' +
-            '[style*="color: rgb(40,"], [style*="color: rgb(45,"],\n' +
-            '[style*="color: rgb(50,"], [style*="color: rgb(55,"],\n' +
-            '[style*="color: rgb(60,"], [style*="color: rgb(65,"],\n' +
-            '[style*="color: rgb(70,"], [style*="color: rgb(75,"] {\n' +
-            '    color: var(--text-main) !important;\n' +
-            '}\n' +
-            '\n' +
-            '#conversation a, #chat a, #cascade a {\n' +
-            '    color: #818cf8 !important;\n' +
-            '    text-decoration: underline;\n' +
-            '}\n' +
-            '\n' +
-            '/* Hide unresolved local-disk image paths that were not inlined during capture */\n' +
-            '#chatContent img[src^="/c:"], #chatContent img[src^="/C:"], #chatContent img[src*="AppData"] {\n' +
-            '    display: none !important;\n' +
-            '}\n' +
-            '\n' +
-            '/* Render real conversation images as block media instead of inline badges */\n' +
-            '#chatContent img[data-remote-image-kind="content-image"] {\n' +
-            '    display: block !important;\n' +
-            '    width: min(100%, var(--remote-image-max-width, 640px)) !important;\n' +
-            '    max-width: min(100%, var(--remote-image-max-width, 640px)) !important;\n' +
-            '    height: auto !important;\n' +
-            '    margin: 8px 0 !important;\n' +
-            '    border-radius: 14px !important;\n' +
-            '    object-fit: contain !important;\n' +
-            '}\n' +
-            '#chatContent div:has(> img[data-remote-image-kind="content-image"]), #chatContent span:has(> img[data-remote-image-kind="content-image"]), #chatContent picture:has(img[data-remote-image-kind="content-image"]) {\n' +
-            '    display: block !important;\n' +
-            '}\n' +
-            '#chatContent picture:has(img[data-remote-image-kind="content-image"]) {\n' +
-            '    display: block !important;\n' +
-            '}\n' +
-            '\n' +
-            '/* Keep file icons and inline badges compact */\n' +
-            '#chatContent img[data-remote-image-kind="inline-icon"], #chatContent svg {\n' +
-            '    display: inline !important;\n' +
-            '    vertical-align: middle !important;\n' +
-            '}\n' +
-            '/* Fallback small-icon sizing when utility classes from the source app do not survive capture */\n' +
-            '#chatContent svg[class~="w-3"] { width: 0.75rem !important; }\n' +
-            '#chatContent svg[class~="h-3"] { height: 0.75rem !important; }\n' +
-            '#chatContent svg[class~="w-3.5"] { width: 0.875rem !important; }\n' +
-            '#chatContent svg[class~="h-3.5"] { height: 0.875rem !important; }\n' +
-            '#chatContent svg[class~="w-4"] { width: 1rem !important; }\n' +
-            '#chatContent svg[class~="h-4"] { height: 1rem !important; }\n' +
-            '#chatContent svg[class~="w-6"] { width: 1.5rem !important; }\n' +
-            '#chatContent svg[class~="h-6"] { height: 1.5rem !important; }\n' +
-            '#chatContent svg[class~="w-3"], #chatContent svg[class~="w-3.5"], #chatContent svg[class~="w-4"], #chatContent svg[class~="w-6"] {\n' +
-            '    max-width: none !important;\n' +
-            '    flex: 0 0 auto !important;\n' +
-            '}\n' +
-            '/* Force file-reference wrappers (icon + filename) to stay inline */\n' +
-            '#chatContent div:has(> img[data-remote-image-kind="inline-icon"]), #chatContent span:has(> img[data-remote-image-kind="inline-icon"]), #chatContent picture:has(img[data-remote-image-kind="inline-icon"]) {\n' +
-            '    display: inline !important;\n' +
-            '    vertical-align: middle !important;\n' +
-            '}\n' +
-            '/* Inline-flex containers from Antigravity (e.g. file mentions) */\n' +
-            '#chatContent [class*="inline-flex"]:has(img[data-remote-image-kind="inline-icon"]), #chatContent [class*="inline-block"]:has(img[data-remote-image-kind="inline-icon"]), #chatContent [class*="items-center"]:has(img[data-remote-image-kind="inline-icon"]) {\n' +
-            '    display: inline-flex !important;\n' +
-            '    vertical-align: middle !important;\n' +
-            '}\n' +
-            '\n' +
-            '/* Fix Inline Code - Ultra-compact */\n' +
-            ':not(pre) > code {\n' +
-            '    padding: 0px 2px !important;\n' +
-            '    border-radius: 2px !important;\n' +
-            '    background-color: rgba(255, 255, 255, 0.08) !important;\n' +
-            '    font-size: 0.82em !important;\n' +
-            '    line-height: 1 !important;\n' +
-            '    white-space: normal !important;\n' +
-            '}\n' +
-            '\n' +
-            'pre, code, .monaco-editor-background, [class*="terminal"] {\n' +
-            '    background-color: #1a1b20 !important;\n' +
-            '    color: #e0e0e4 !important;\n' +
-            '    font-family: \'JetBrains Mono\', monospace !important;\n' +
-            '    border-radius: 3px;\n' +
-            '    border: 1px solid #2a2b32;\n' +
-            '}\n' +
-            '                \n' +
-            '/* Multi-line Code Block - Minimal */\n' +
-            'pre {\n' +
-            '    position: relative !important;\n' +
-            '    white-space: pre-wrap !important; \n' +
-            '    word-break: break-word !important;\n' +
-            '    padding: 4px 6px !important;\n' +
-            '    margin: 2px 0 !important;\n' +
-            '    display: block !important;\n' +
-            '    width: 100% !important;\n' +
-            '}\n' +
-            '                \n' +
-            'pre.has-copy-btn {\n' +
-            '    padding-right: 28px !important;\n' +
-            '}\n' +
-            '                \n' +
-            '/* Single-line Code Block - Minimal */\n' +
-            'pre.single-line-pre {\n' +
-            '    display: inline-block !important;\n' +
-            '    width: auto !important;\n' +
-            '    max-width: 100% !important;\n' +
-            '    padding: 0px 4px !important;\n' +
-            '    margin: 0px !important;\n' +
-            '    vertical-align: middle !important;\n' +
-            '    background-color: #1a1b20 !important;\n' +
-            '    font-size: 0.85em !important;\n' +
-            '}\n' +
-            '                \n' +
-            'pre.single-line-pre > code {\n' +
-            '    display: inline !important;\n' +
-            '    white-space: nowrap !important;\n' +
-            '}\n' +
-            '                \n' +
-            'pre:not(.single-line-pre) > code {\n' +
-            '    display: block !important;\n' +
-            '    width: 100% !important;\n' +
-            '    overflow-x: auto !important;\n' +
-            '    background: transparent !important;\n' +
-            '    border: none !important;\n' +
-            '    padding: 0 !important;\n' +
-            '    margin: 0 !important;\n' +
-            '}\n' +
-            '                \n' +
-            '.mobile-copy-btn {\n' +
-            '    position: absolute !important;\n' +
-            '    top: 2px !important;\n' +
-            '    right: 2px !important;\n' +
-            '    background: rgba(26, 27, 32, 0.6) !important;\n' +
-            '    color: #8a8d92 !important;\n' +
-            '    border: none !important;\n' +
-            '    width: 24px !important; \n' +
-            '    height: 24px !important;\n' +
-            '    padding: 0 !important;\n' +
-            '    cursor: pointer !important;\n' +
-            '    display: flex !important;\n' +
-            '    align-items: center !important;\n' +
-            '    justify-content: center !important;\n' +
-            '    border-radius: 4px !important;\n' +
-            '    transition: all 0.2s ease !important;\n' +
-            '    -webkit-tap-highlight-color: transparent !important;\n' +
-            '    z-index: 10 !important;\n' +
-            '    margin: 0 !important;\n' +
-            '}\n' +
-            '                \n' +
-            '.mobile-copy-btn:hover,\n' +
-            '.mobile-copy-btn:focus {\n' +
-            '    background: rgba(99, 102, 241, 0.2) !important;\n' +
-            '    color: #818cf8 !important;\n' +
-            '}\n' +
-            '                \n' +
-            '.mobile-copy-btn svg {\n' +
-            '    width: 16px !important;\n' +
-            '    height: 16px !important;\n' +
-            '    stroke: currentColor !important;\n' +
-            '    stroke-width: 2 !important;\n' +
-            '    fill: none !important;\n' +
-            '}\n' +
-            '                \n' +
-            'blockquote {\n' +
-            '    border-left: 3px solid #6366f1 !important;\n' +
-            '    background: rgba(99, 102, 241, 0.08) !important;\n' +
-            '    color: #c8c8cc !important;\n' +
-            '    padding: 8px 12px !important;\n' +
-            '    margin: 8px 0 !important;\n' +
-            '}\n' +
-            '\n' +
-            'table {\n' +
-            '    border-collapse: collapse !important;\n' +
-            '    width: 100% !important;\n' +
-            '    border: 1px solid #2a2b32 !important;\n' +
-            '}\n' +
-            'th, td {\n' +
-            '    border: 1px solid #2a2b32 !important;\n' +
-            '    padding: 8px !important;\n' +
-            '    color: #e0e0e4 !important;\n' +
-            '}\n' +
-            '\n' +
-            '::-webkit-scrollbar {\n' +
-            '    width: 0 !important;\n' +
-            '}\n' +
-            '                \n' +
-            '[style*="background-color: rgb(255, 255, 255)"],\n' +
-            '[style*="background-color: white"],\n' +
-            '[style*="background: white"],\n' +
-            '[style*="background-color: rgb(249"],\n' +
-            '[style*="background-color: rgb(248"],\n' +
-            '[style*="background-color: rgb(244"],\n' +
-            '[style*="background-color: rgb(243"],\n' +
-            '[style*="background-color: rgb(241"],\n' +
-            '[style*="background-color: rgb(31"],\n' +
-            '[style*="background-color: rgb(30"],\n' +
-            '[style*="background-color: rgb(15"],\n' +
-            '[style*="background-color: rgb(17"],\n' +
-            '[style*="background-color: rgb(24"],\n' +
-            '[style*="background-color: rgb(32"],\n' +
-            '[style*="background-color: rgb(38"],\n' +
-            '[class*="bg-gray"], [class*="bg-slate"],\n' +
-            '[class*="bg-neutral"], [class*="bg-zinc"],\n' +
-            '[class*="bg-ide-"], [class*="from-ide-"],\n' +
-            '[class*="bg-white"] {\n' +
-            '    background-color: transparent !important;\n' +
-            '}\n' +
-            '#conversation > div > div, #chat > div > div, #cascade > div > div {\n' +
-            '    background-color: transparent !important;\n' +
-            '}\n' +
-            '\n' +
-            '/* IDE-style framed panels (command blocks) */\n' +
-            '.rounded-lg {\n' +
-            '    background-color: rgba(128, 128, 128, 0.06) !important;\n' +
-            '    border: 1px solid var(--border-color, #2a2b32) !important;\n' +
-            '    border-radius: 8px !important;\n' +
-            '    padding: 8px !important;\n' +
-            '    margin: 4px 0 !important;\n' +
-            '}\n' +
-            '/* Thinking/thought sections - no frame like IDE */\n' +
-            '.rounded-lg:has(> details), .rounded-lg:has(> summary),\n' +
-            'details.rounded-lg, .rounded-lg > details {\n' +
-            '    background-color: transparent !important;\n' +
-            '    border: none !important;\n' +
-            '    padding: 0 !important;\n' +
-            '    margin: 0 !important;\n' +
-            '}\n' +
-            '/* Thinking/thought toggle section (.isolate wrapper) */\n' +
-            '.isolate, .isolate > button {\n' +
-            '    background-color: transparent !important;\n' +
-            '    border: none !important;\n' +
-            '    padding: 0 !important;\n' +
-            '    margin: 0 !important;\n' +
-            '    border-radius: 0 !important;\n' +
-            '    outline: none !important;\n' +
-            '    box-shadow: none !important;\n' +
-            '}\n' +
-            '/* Good/Bad feedback row - no frame */\n' +
-            '.rounded-lg:has([data-tooltip-id^="up-"], [data-tooltip-id^="down-"]) {\n' +
-            '    background-color: transparent !important;\n' +
-            '    border: none !important;\n' +
-            '    padding: 0 !important;\n' +
-            '    margin: 0 !important;\n' +
-            '}\n' +
-            '\n' +
-            '/* User message bubble */\n' +
-            '[data-role="user"] {\n' +
-            '    background-color: rgba(128, 128, 128, 0.1) !important;\n' +
-            '    border-radius: 12px !important;\n' +
-            '    padding: 10px 14px !important;\n' +
-            '    margin-bottom: 4px !important;\n' +
-            '}\n' +
-            '/* Remove inner background/border inside user message */\n' +
-            '[data-role="user"] .rounded-lg,\n' +
-            '[data-role="user"] [class*="bg-gray-500"] {\n' +
-            '    background-color: transparent !important;\n' +
-            '    border: none !important;\n' +
-            '    padding: 0 !important;\n' +
-            '    margin: 0 !important;\n' +
-            '}\n' +
-            '\n' +
-            '/* IDE text color class sync */\n' +
-            '.text-ide-text-color {\n' +
-            '    color: var(--text-main) !important;\n' +
-            '}';
-        styleTag.textContent = darkModeOverrides;
-    }
+    rememberSnapshotSourceTheme(data);
+    updateSnapshotStyles(data);
 
     // --- HTML UPDATE (skip if unchanged to prevent text jittering) ---
     const htmlHash = fastHash(data.html);
     if (htmlHash !== lastRenderedHtmlHash) {
         lastRenderedHtmlHash = htmlHash;
         chatContent.innerHTML = data.html;
-
-        // Ensure dark mode classes are set for Tailwind dark variant activation
-        chatContent.classList.add('dark');
-        chatContent.setAttribute('data-theme', 'dark');
-        document.documentElement.classList.add('dark');
-        document.documentElement.style.colorScheme = 'dark';
+        syncThemeDomState();
 
         // Add mobile copy buttons to all code blocks
         addMobileCopyButtons();
