@@ -217,6 +217,17 @@ function fastHash(str) {
     return hash.toString(36);
 }
 
+function normalizeSnapshotCss(cssText) {
+    if (typeof cssText !== 'string') return '';
+    if (cssText.includes('\n') || cssText.includes('\r')) return cssText;
+    if (!cssText.includes('\\n') && !cssText.includes('\\r')) return cssText;
+
+    return cssText
+        .replace(/\\r\\n/g, '\n')
+        .replace(/\\n/g, '\n')
+        .replace(/\\r/g, '\r');
+}
+
 
 // --- Auth Utilities ---
 async function fetchWithAuth(url, options = {}) {
@@ -527,13 +538,14 @@ function renderSnapshot(data) {
 
     // Only rebuild CSS if the source CSS from snapshot changed
     if (data.css !== cachedCssText) {
-        cachedCssText = data.css;
+        const normalizedSnapshotCss = normalizeSnapshotCss(data.css);
+        cachedCssText = normalizedSnapshotCss;
         // Use IDE theme colors or fallback to defaults
         const tv = data.themeVars || {};
         const themeFg = tv['--vscode-editor-foreground'] || tv['--vscode-foreground'] || data.color || '#f0f0f2';
         const themeMuted = tv['--vscode-descriptionForeground'] || '#8a8d92';
         const darkModeOverrides = '/* --- BASE SNAPSHOT CSS --- */\n' +
-            data.css +
+            normalizedSnapshotCss +
             '\n\n/* --- THEME OVERRIDES --- */\n' +
             '#conversation, #chat, #cascade {\n' +
             '    background-color: transparent !important;\n' +
@@ -576,23 +588,53 @@ function renderSnapshot(data) {
             '    text-decoration: underline;\n' +
             '}\n' +
             '\n' +
-            '/* Hide broken local file icons (served from /c:/Users/... paths) */\n' +
-            'img[src^="/c:"], img[src^="/C:"], img[src*="AppData"] {\n' +
+            '/* Hide unresolved local-disk image paths that were not inlined during capture */\n' +
+            '#chatContent img[src^="/c:"], #chatContent img[src^="/C:"], #chatContent img[src*="AppData"] {\n' +
             '    display: none !important;\n' +
             '}\n' +
             '\n' +
-            '/* Override Tailwind default block display for embedded file icons */\n' +
-            'img, svg {\n' +
+            '/* Render real conversation images as block media instead of inline badges */\n' +
+            '#chatContent img[data-remote-image-kind="content-image"] {\n' +
+            '    display: block !important;\n' +
+            '    width: min(100%, var(--remote-image-max-width, 640px)) !important;\n' +
+            '    max-width: min(100%, var(--remote-image-max-width, 640px)) !important;\n' +
+            '    height: auto !important;\n' +
+            '    margin: 8px 0 !important;\n' +
+            '    border-radius: 14px !important;\n' +
+            '    object-fit: contain !important;\n' +
+            '}\n' +
+            '#chatContent div:has(> img[data-remote-image-kind="content-image"]), #chatContent span:has(> img[data-remote-image-kind="content-image"]), #chatContent picture:has(img[data-remote-image-kind="content-image"]) {\n' +
+            '    display: block !important;\n' +
+            '}\n' +
+            '#chatContent picture:has(img[data-remote-image-kind="content-image"]) {\n' +
+            '    display: block !important;\n' +
+            '}\n' +
+            '\n' +
+            '/* Keep file icons and inline badges compact */\n' +
+            '#chatContent img[data-remote-image-kind="inline-icon"], #chatContent svg {\n' +
             '    display: inline !important;\n' +
             '    vertical-align: middle !important;\n' +
             '}\n' +
+            '/* Fallback small-icon sizing when utility classes from the source app do not survive capture */\n' +
+            '#chatContent svg[class~="w-3"] { width: 0.75rem !important; }\n' +
+            '#chatContent svg[class~="h-3"] { height: 0.75rem !important; }\n' +
+            '#chatContent svg[class~="w-3.5"] { width: 0.875rem !important; }\n' +
+            '#chatContent svg[class~="h-3.5"] { height: 0.875rem !important; }\n' +
+            '#chatContent svg[class~="w-4"] { width: 1rem !important; }\n' +
+            '#chatContent svg[class~="h-4"] { height: 1rem !important; }\n' +
+            '#chatContent svg[class~="w-6"] { width: 1.5rem !important; }\n' +
+            '#chatContent svg[class~="h-6"] { height: 1.5rem !important; }\n' +
+            '#chatContent svg[class~="w-3"], #chatContent svg[class~="w-3.5"], #chatContent svg[class~="w-4"], #chatContent svg[class~="w-6"] {\n' +
+            '    max-width: none !important;\n' +
+            '    flex: 0 0 auto !important;\n' +
+            '}\n' +
             '/* Force file-reference wrappers (icon + filename) to stay inline */\n' +
-            'div:has(> img[src^="data:"]), div:has(> img[alt]), span:has(> img) {\n' +
+            '#chatContent div:has(> img[data-remote-image-kind="inline-icon"]), #chatContent span:has(> img[data-remote-image-kind="inline-icon"]), #chatContent picture:has(img[data-remote-image-kind="inline-icon"]) {\n' +
             '    display: inline !important;\n' +
             '    vertical-align: middle !important;\n' +
             '}\n' +
             '/* Inline-flex containers from Antigravity (e.g. file mentions) */\n' +
-            '[class*="inline-flex"], [class*="inline-block"], [class*="items-center"]:has(img) {\n' +
+            '#chatContent [class*="inline-flex"]:has(img[data-remote-image-kind="inline-icon"]), #chatContent [class*="inline-block"]:has(img[data-remote-image-kind="inline-icon"]), #chatContent [class*="items-center"]:has(img[data-remote-image-kind="inline-icon"]) {\n' +
             '    display: inline-flex !important;\n' +
             '    vertical-align: middle !important;\n' +
             '}\n' +
