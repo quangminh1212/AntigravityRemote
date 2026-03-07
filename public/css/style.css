@@ -580,10 +580,18 @@ body {
     overflow-x: hidden;
     position: relative;
     background: var(--bg-app);
-    overscroll-behavior-y: contain;
+    overscroll-behavior: none;
     -webkit-overflow-scrolling: touch;
     touch-action: pan-y;
-    scrollbar-gutter: stable;
+    scrollbar-gutter: auto;
+    -ms-overflow-style: none;
+    scrollbar-width: none;
+}
+
+.chat-container::-webkit-scrollbar {
+    width: 0;
+    height: 0;
+    display: none;
 }
 
 .chat-content {
@@ -1406,7 +1414,7 @@ body.agent-running .toolbar-stop-btn {
 /* Antigravity-style shell refinements */
 .header {
     background: rgba(9, 11, 15, 0.92);
-    padding: 10px 14px;
+    padding: 8px 12px;
     border-bottom: 1px solid var(--border);
 }
 
@@ -1437,15 +1445,15 @@ body.agent-running .toolbar-stop-btn {
 }
 
 .header-controls {
-    gap: 10px;
+    gap: 8px;
 }
 
 .new-chat-btn,
 .refresh-btn,
 .settings-btn {
-    width: 30px;
-    height: 30px;
-    border-radius: 8px;
+    width: 28px;
+    height: 28px;
+    border-radius: 7px;
 }
 
 .new-chat-btn svg,
@@ -1453,6 +1461,10 @@ body.agent-running .toolbar-stop-btn {
 .settings-btn svg {
     width: 17px;
     height: 17px;
+}
+
+.header-logo {
+    height: 24px;
 }
 
 .settings-dropdown {
@@ -1670,11 +1682,11 @@ body.home-screen .fab {
 
 @media (max-width: 720px) {
     .header {
-        padding: 8px 10px;
+        padding: 6px 10px;
     }
 
     .header-controls {
-        gap: 8px;
+        gap: 6px;
     }
 
     .chat-content {

@@ -661,15 +661,37 @@ async function captureSnapshot(cdp) {
         
         // Clone cascade to modify it without affecting the original
         const clone = cascade.cloneNode(true);
+        const collectText = (node) => (node?.innerText || node?.textContent || '').replace(/\s+/g, ' ').trim();
+        const hasMeasuredHeight = (el) => /height\s*:\s*\d+(\.\d+)?px/i.test(el?.getAttribute('style') || '');
+        const isSkeletonLikeElement = (el) => {
+            const className = typeof el?.className === 'string' ? el.className : '';
+            return className.includes('bg-gray-500/10') || className.includes('animate-pulse') || className.includes('skeleton');
+        };
+        const isIgnorableTurnChild = (el) => {
+            if (!el) return false;
+            const text = collectText(el);
+            if (text) return false;
+
+            const className = typeof el.className === 'string' ? el.className : '';
+            const styleText = el.getAttribute('style') || '';
+            const isHidden =
+                className.includes('hidden') ||
+                className.includes('opacity-0') ||
+                /display\s*:\s*none/i.test(styleText) ||
+                /visibility\s*:\s*hidden/i.test(styleText);
+            const hasRichContent = !!el.querySelector('img, video, canvas, pre, code, table, a[href], button');
+
+            return !hasRichContent && (isSkeletonLikeElement(el) || (isHidden && el.children.length <= 2) || hasMeasuredHeight(el));
+        };
         
-        // Aggressively remove the entire interaction/input/review area
+        // Remove the interaction/input area without touching message content.
         try {
             // 1. Identify common interaction wrappers by class combinations
             const interactionSelectors = [
                 '.relative.flex.flex-col.gap-8',
                 '.flex.grow.flex-col.justify-start.gap-8',
                 'div[class*="interaction-area"]',
-                '.p-1.bg-gray-500\\/10',
+                '[class*="bg-gray-500/10"]',
                 '.outline-solid.justify-between',
                 '[contenteditable="true"]'
             ];
@@ -691,21 +713,6 @@ async function captureSnapshot(cdp) {
                     } catch(e) {}
                 });
             });
-
-            // 2. Text-based cleanup for stray status bars
-            const allElements = clone.querySelectorAll('*');
-            allElements.forEach(el => {
-                try {
-                    const text = (el.innerText || '').toLowerCase();
-                    if (text.includes('review changes') || text.includes('files with changes') || text.includes('context found')) {
-                        // If it's a small structural element or has buttons, it's likely a bar
-                        if (el.children.length < 10 || el.querySelector('button') || el.classList?.contains('justify-between')) {
-                            el.style.display = 'none'; // Use both hide and remove
-                            el.remove();
-                        }
-                    }
-                } catch (e) {}
-            });
         } catch (globalErr) { }
 
         // Mark user messages vs assistant messages for styling
@@ -713,8 +720,14 @@ async function captureSnapshot(cdp) {
             const turnsContainer = clone.querySelector('.relative.flex.flex-col.gap-y-3.px-4') || clone;
             const turns = Array.from(turnsContainer.children).filter(el => el.tagName === 'DIV');
             turns.forEach(turn => {
-                const children = Array.from(turn.children).filter(c => c.tagName === 'DIV');
-                if (children.length >= 1) {
+                const children = Array.from(turn.children)
+                    .filter(c => c.tagName === 'DIV')
+                    .filter(c => !isIgnorableTurnChild(c));
+                // Only infer a user/assistant pair when the turn actually has
+                // multiple meaningful blocks. Virtualized scroll buckets often
+                // collapse to a single wrapper, and tagging that wrapper as
+                // "user" paints the entire assistant output like a chat bubble.
+                if (children.length >= 2) {
                     children[0].setAttribute('data-role', 'user');
                     for (let i = 1; i < children.length; i++) {
                         children[i].setAttribute('data-role', 'assistant');
@@ -987,15 +1000,10 @@ async function captureSnapshot(cdp) {
             if (val) themeVars[v] = val;
         });
         
-        const collectText = (node) => (node?.innerText || node?.textContent || '').replace(/\s+/g, ' ').trim();
         const isPlaceholderBlock = (el) => {
             const text = collectText(el);
             if (text) return false;
-            const className = typeof el.className === 'string' ? el.className : '';
-            const styleText = el.getAttribute('style') || '';
-            const hasSkeletonClass = className.includes('bg-gray-500/10') || className.includes('animate-pulse') || className.includes('skeleton');
-            const hasMeasuredHeight = /height\s*:\s*\d+(\.\d+)?px/i.test(styleText);
-            return hasSkeletonClass && hasMeasuredHeight;
+            return isSkeletonLikeElement(el) && hasMeasuredHeight(el);
         };
         const snapshotText = collectText(clone);
         const measurableBlocks = Array.from(clone.querySelectorAll('*'));
@@ -1830,8 +1838,18 @@ async function startNewChat(cdp) {
     return { error: 'Context failed' };
 }
 // Get Chat History - Click history button and scrape conversations
-async function getChatHistory(cdp) {
+async function getChatHistory(cdp, options = {}) {
+    const keepOpen = options.keepOpen === true;
     const EXP = `(async () => {
+        const KEEP_OPEN = ${keepOpen ? 'true' : 'false'};
+        let historyOpened = false;
+
+        const closeHistoryPanel = async () => {
+            document.dispatchEvent(new KeyboardEvent('keydown', { key: 'Escape', code: 'Escape', bubbles: true }));
+            document.dispatchEvent(new KeyboardEvent('keyup',   { key: 'Escape', code: 'Escape', bubbles: true }));
+            await new Promise(r => setTimeout(r, 150));
+        };
+
         try {
             const chats = [];
             const seenTitles = new Set();
@@ -1874,6 +1892,7 @@ async function getChatHistory(cdp) {
 
             // Click and Wait
             historyBtn.click();
+            historyOpened = true;
             await new Promise(r => setTimeout(r, 2000));
             
             // Find the side panel
@@ -1986,11 +2005,15 @@ async function getChatHistory(cdp) {
                 }
             }
             
-            // Note: Panel is left open on PC as requested ("launch history on pc")
-
             return { success: true, chats: chats, debug: debugInfo };
         } catch(e) {
             return { error: e.toString(), chats: [] };
+        } finally {
+            if (historyOpened && !KEEP_OPEN) {
+                try {
+                    await closeHistoryPanel();
+                } catch (closeErr) { }
+            }
         }
     })()`;
 
@@ -2021,99 +2044,171 @@ async function selectChat(cdp, chatTitle) {
     const EXP = `(async () => {
     try {
         const targetTitle = ${safeChatTitle};
+        const normalizeTitle = (value) => String(value || '')
+            .toLowerCase()
+            .replace(/[^a-z0-9]+/g, '');
+        const levenshtein = (a, b) => {
+            const rows = a.length + 1;
+            const cols = b.length + 1;
+            const dp = Array.from({ length: rows }, () => Array(cols).fill(0));
+            for (let i = 0; i < rows; i++) dp[i][0] = i;
+            for (let j = 0; j < cols; j++) dp[0][j] = j;
+            for (let i = 1; i < rows; i++) {
+                for (let j = 1; j < cols; j++) {
+                    const cost = a[i - 1] === b[j - 1] ? 0 : 1;
+                    dp[i][j] = Math.min(
+                        dp[i - 1][j] + 1,
+                        dp[i][j - 1] + 1,
+                        dp[i - 1][j - 1] + cost
+                    );
+                }
+            }
+            return dp[a.length][b.length];
+        };
+        const getSimilarity = (candidate, target) => {
+            const normalizedCandidate = normalizeTitle(candidate);
+            const normalizedTarget = normalizeTitle(target);
+            if (!normalizedCandidate || !normalizedTarget) return 0;
+            if (normalizedCandidate === normalizedTarget) return 1;
+            if (normalizedCandidate.includes(normalizedTarget) || normalizedTarget.includes(normalizedCandidate)) {
+                return Math.min(normalizedCandidate.length, normalizedTarget.length) / Math.max(normalizedCandidate.length, normalizedTarget.length);
+            }
+            const distance = levenshtein(normalizedCandidate, normalizedTarget);
+            return 1 - (distance / Math.max(normalizedCandidate.length, normalizedTarget.length));
+        };
+        const getDepth = (el) => {
+            let depth = 0;
+            let current = el;
+            while (current) {
+                depth++;
+                current = current.parentElement;
+            }
+            return depth;
+        };
+        const findClickable = (el) => {
+            let current = el;
+            for (let i = 0; i < 6 && current; i++) {
+                const style = window.getComputedStyle(current);
+                if (
+                    current.tagName === 'BUTTON' ||
+                    current.getAttribute('role') === 'button' ||
+                    style.cursor === 'pointer' ||
+                    current.classList?.contains('cursor-pointer')
+                ) {
+                    return current;
+                }
+                current = current.parentElement;
+            }
+            return el;
+        };
 
-        // First, we need to open the history panel
-        // Find the history button at the top (next to + button)
-        const allButtons = Array.from(document.querySelectorAll('button, [role="button"]'));
-
-        let historyBtn = null;
-
-        // Find by icon type
-        for (const btn of allButtons) {
-            if (btn.offsetParent === null) continue;
-            const hasHistoryIcon = btn.querySelector('svg.lucide-clock') ||
-                btn.querySelector('svg.lucide-history') ||
-                btn.querySelector('svg.lucide-folder') ||
-                btn.querySelector('svg.lucide-clock-rotate-left');
-            if (hasHistoryIcon) {
-                historyBtn = btn;
-                break;
+        // Open the same history panel that getChatHistory() scrapes from.
+        let historyBtn = document.querySelector('[data-tooltip-id*="history"], [data-tooltip-id*="past"], [data-tooltip-id*="recent"], [data-tooltip-id*="conversation-history"]');
+        if (!historyBtn) {
+            const newChatBtn = document.querySelector('[data-tooltip-id="new-conversation-tooltip"]');
+            if (newChatBtn?.parentElement) {
+                const siblings = Array.from(newChatBtn.parentElement.children).filter(el => el !== newChatBtn);
+                historyBtn = siblings.find(el => el.tagName === 'A' || el.tagName === 'BUTTON' || el.getAttribute('role') === 'button') || null;
             }
         }
-
-        // Fallback: Find by position (second button at top)
         if (!historyBtn) {
-            const topButtons = allButtons.filter(btn => {
-                if (btn.offsetParent === null) return false;
-                const rect = btn.getBoundingClientRect();
-                return rect.top < 100 && rect.top > 0;
-            }).sort((a, b) => a.getBoundingClientRect().left - b.getBoundingClientRect().left);
-
-            if (topButtons.length >= 2) {
-                historyBtn = topButtons[1];
-            }
+            const allButtons = Array.from(document.querySelectorAll('button, [role="button"], a[data-tooltip-id]'));
+            historyBtn = allButtons.find(btn =>
+                btn.offsetParent !== null &&
+                (
+                    btn.querySelector('svg.lucide-clock') ||
+                    btn.querySelector('svg.lucide-history') ||
+                    btn.querySelector('svg.lucide-folder') ||
+                    btn.querySelector('svg.lucide-clock-rotate-left') ||
+                    btn.querySelector('svg[class*="clock"]') ||
+                    btn.querySelector('svg[class*="history"]')
+                )
+            ) || null;
         }
 
         if (historyBtn) {
             historyBtn.click();
-            await new Promise(r => setTimeout(r, 600));
+            await new Promise(r => setTimeout(r, 1200));
         }
 
-        // Now find the chat by title in the opened panel
-        await new Promise(r => setTimeout(r, 200));
+        let panel = null;
+        let searchInput = null;
+        const inputs = Array.from(document.querySelectorAll('input'));
+        searchInput = inputs.find(i => {
+            const ph = (i.placeholder || '').toLowerCase();
+            return ph.includes('select') || ph.includes('conversation');
+        });
+        if (!searchInput) {
+            const allInputs = Array.from(document.querySelectorAll('input[type="text"]'));
+            searchInput = allInputs.find(i =>
+                i.offsetParent !== null &&
+                (i.className.includes('w-full') || i.classList.contains('w-full'))
+            ) || null;
+        }
+        let anchorElement = null;
+        if (!searchInput) {
+            const allSpans = Array.from(document.querySelectorAll('span, div, p'));
+            anchorElement = allSpans.find(s => {
+                const text = (s.innerText || '').trim();
+                return text === 'Current' || text.startsWith('Recent in ');
+            }) || null;
+        }
+        const startElement = searchInput || anchorElement;
+        if (startElement) {
+            let container = startElement;
+            for (let i = 0; i < 15; i++) {
+                if (!container.parentElement) break;
+                container = container.parentElement;
+                const rect = container.getBoundingClientRect();
+                if (rect.width > 50 && rect.height > 100) {
+                    panel = container;
+                    const style = window.getComputedStyle(container);
+                    if (style.position === 'fixed' || style.position === 'absolute' || style.zIndex > 10) {
+                        break;
+                    }
+                }
+            }
+        }
+        if (!panel) {
+            panel = document.body;
+        }
 
-        const allElements = Array.from(document.querySelectorAll('*'));
-
-        // Find elements matching the title
-        const candidates = allElements.filter(el => {
+        const allElements = Array.from(panel.querySelectorAll('span, div, p')).filter(el => {
             if (el.offsetParent === null) return false;
-            const text = el.innerText?.trim();
-            return text && text.startsWith(targetTitle.substring(0, Math.min(30, targetTitle.length)));
+            const text = (el.innerText || el.textContent || '').replace(/\s+/g, ' ').trim();
+            return text && text.length >= 3 && text.length <= Math.max(targetTitle.length + 40, 140);
         });
 
-        // Find the most specific (deepest) visible element with the title
-        let target = null;
-        let maxDepth = -1;
+        const ranked = allElements.map(el => {
+            const text = (el.innerText || el.textContent || '').replace(/\s+/g, ' ').trim();
+            return {
+                el,
+                text,
+                score: getSimilarity(text, targetTitle),
+                depth: getDepth(el)
+            };
+        }).filter(candidate => candidate.score >= 0.72);
 
-        for (const el of candidates) {
-            // Skip if it has too many children (likely a container)
-            if (el.children.length > 5) continue;
+        ranked.sort((a, b) =>
+            b.score - a.score ||
+            a.text.length - b.text.length ||
+            b.depth - a.depth
+        );
 
-            let depth = 0;
-            let parent = el;
-            while (parent) {
-                depth++;
-                parent = parent.parentElement;
+        const best = ranked[0] || null;
+        if (best) {
+            const clickable = findClickable(best.el);
+            if (clickable?.scrollIntoView) {
+                clickable.scrollIntoView({ block: 'center' });
+                await new Promise(r => setTimeout(r, 120));
             }
-
-            if (depth > maxDepth) {
-                maxDepth = depth;
-                target = el;
-            }
-        }
-
-        if (target) {
-            // Find clickable parent if needed
-            let clickable = target;
-            for (let i = 0; i < 5; i++) {
-                if (!clickable) break;
-                const style = window.getComputedStyle(clickable);
-                if (style.cursor === 'pointer' || clickable.tagName === 'BUTTON') {
-                    break;
-                }
-                clickable = clickable.parentElement;
-            }
-
             if (clickable) {
                 clickable.click();
-                return { success: true, method: 'clickable_parent' };
+                return { success: true, method: 'fuzzy_click', matchedText: best.text, score: best.score };
             }
-
-            target.click();
-            return { success: true, method: 'direct_click' };
         }
 
-        return { error: 'Chat not found: ' + targetTitle };
+        return { error: 'Chat not found: ' + targetTitle, candidates: ranked.slice(0, 5).map(item => ({ text: item.text, score: item.score })) };
     } catch (e) {
         return { error: e.toString() };
     }
@@ -3379,7 +3474,8 @@ async function main() {
         // Get Chat History
         app.get('/chat-history', async (req, res) => {
             if (!cdpConnection) return res.json({ error: 'CDP disconnected', chats: [] });
-            const result = await getChatHistory(cdpConnection);
+            const keepOpen = req.query.keepOpen === '1' || req.query.keepOpen === 'true';
+            const result = await getChatHistory(cdpConnection, { keepOpen });
             res.json(result);
         });
 

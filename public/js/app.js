@@ -69,6 +69,7 @@ const sidebarTransportText = document.getElementById('sidebarTransportText');
 
 const LOOPBACK_HOSTS = new Set(['localhost', '127.0.0.1', '::1']);
 const isLoopbackHost = LOOPBACK_HOSTS.has(window.location.hostname);
+const HOME_RECENTS_STORAGE_KEY = 'agHomeRecents';
 const TEXT_SIZE_PRESETS = {
     small: 0.92,
     medium: 1,
@@ -81,6 +82,51 @@ function setTextContent(element, value) {
 
 function setHomeRecentsVisibility(visible) {
     if (homeRecents) homeRecents.hidden = !visible;
+}
+
+function normalizeHomeRecents(chats = []) {
+    return chats
+        .filter(chat => chat && typeof chat.title === 'string' && chat.title.trim())
+        .slice(0, 3)
+        .map((chat) => ({
+            title: chat.title.trim(),
+            lastModified: chat.lastModified || chat.date || null
+        }));
+}
+
+function readCachedHomeRecents() {
+    try {
+        const raw = localStorage.getItem(HOME_RECENTS_STORAGE_KEY);
+        if (!raw) return [];
+        const parsed = JSON.parse(raw);
+        return Array.isArray(parsed) ? normalizeHomeRecents(parsed) : [];
+    } catch (e) {
+        return [];
+    }
+}
+
+function writeCachedHomeRecents(chats = []) {
+    try {
+        const normalized = normalizeHomeRecents(chats);
+        if (normalized.length === 0) {
+            localStorage.removeItem(HOME_RECENTS_STORAGE_KEY);
+            return;
+        }
+        localStorage.setItem(HOME_RECENTS_STORAGE_KEY, JSON.stringify(normalized));
+    } catch (e) {
+        console.error('Failed to cache home recents:', e);
+    }
+}
+
+function promoteCachedHomeRecent(title) {
+    if (!title) return;
+
+    const head = {
+        title: String(title).trim(),
+        lastModified: new Date().toISOString()
+    };
+    const tail = readCachedHomeRecents().filter((chat) => chat.title !== head.title);
+    writeCachedHomeRecents([head, ...tail]);
 }
 
 function getTransportLabel() {
@@ -213,6 +259,8 @@ let renderScheduled = false; // Prevent multiple rAF calls
 let hasSnapshotLoaded = false;
 let lastSnapshotPayload = null;
 let snapshotRetryTimer = null;
+const localExpandedCollapsibleKeys = new Set();
+const localCollapsibleSections = new Map();
 
 // Init theme from localStorage or default to dark
 applyTheme(localStorage.getItem('arTheme') || 'dark');
@@ -868,11 +916,8 @@ async function loadHomeRecents() {
     homeRecentsList.innerHTML = '';
 
     try {
-        const res = await fetchWithAuth('/chat-history');
-        const data = await res.json();
-        const chats = Array.isArray(data.chats) ? data.chats.slice(0, 3) : [];
-
-        if (data.error || chats.length === 0) {
+        const chats = readCachedHomeRecents();
+        if (chats.length === 0) {
             return;
         }
 
@@ -985,6 +1030,134 @@ function scheduleRender() {
     });
 }
 
+function normalizeCollapsibleLabel(value) {
+    return String(value || '')
+        .toLowerCase()
+        .replace(/\s+/g, ' ')
+        .trim();
+}
+
+function getCollapsibleLabel(element) {
+    if (!element) return '';
+    const rawText = String(element.innerText || element.textContent || '')
+        .replace(/\s+/g, ' ')
+        .trim();
+    if (!rawText || rawText.length > 80) return '';
+
+    if (/^show details$/i.test(rawText)) {
+        return 'Show Details';
+    }
+
+    if (/^(thought|thinking)\b/i.test(rawText)) {
+        return rawText;
+    }
+
+    return '';
+}
+
+function getCollapsibleType(label) {
+    return /^show details$/i.test(label) ? 'details' : 'thought';
+}
+
+function findCollapsibleBody(trigger) {
+    if (!trigger?.nextElementSibling) return null;
+
+    const body = trigger.nextElementSibling;
+    const signature = `${body.className || ''} ${body.getAttribute('style') || ''}`;
+    const looksCollapsible = /overflow-hidden|transition-all|max-h-|max-height|opacity-0|opacity-100/i.test(signature);
+
+    return looksCollapsible ? body : null;
+}
+
+function setCollapsibleExpanded(section, expanded) {
+    if (!section?.trigger || !section?.body) return;
+
+    const { trigger, body, type } = section;
+    const targetHeight = Math.max(body.scrollHeight, 24);
+
+    trigger.dataset.agCollapseState = expanded ? 'expanded' : 'collapsed';
+    body.dataset.agCollapseState = expanded ? 'expanded' : 'collapsed';
+    body.style.setProperty('overflow', 'hidden', 'important');
+    body.style.setProperty('max-height', expanded ? `${targetHeight}px` : '0px', 'important');
+    body.style.setProperty('opacity', expanded ? '1' : '0', 'important');
+    body.style.pointerEvents = expanded ? 'auto' : 'none';
+
+    const icons = Array.from(trigger.querySelectorAll('svg'));
+    const icon = icons.length > 0 ? icons[icons.length - 1] : null;
+    if (icon) {
+        icon.style.transition = 'transform 0.18s ease';
+        if (type === 'thought') {
+            icon.style.transform = expanded ? 'rotate(0deg)' : 'rotate(-90deg)';
+        } else {
+            icon.style.transform = expanded ? 'rotate(180deg)' : 'rotate(0deg)';
+        }
+    }
+}
+
+function initializeLocalCollapsibleSections(resetExpanded = false) {
+    if (!chatContent) return;
+
+    if (resetExpanded) {
+        localExpandedCollapsibleKeys.clear();
+    }
+
+    localCollapsibleSections.clear();
+    const seenBodies = new WeakSet();
+    let sequence = 0;
+
+    const candidates = Array.from(chatContent.querySelectorAll('button, div, summary'));
+    candidates.forEach((trigger) => {
+        const label = getCollapsibleLabel(trigger);
+        if (!label) return;
+
+        const body = findCollapsibleBody(trigger);
+        if (!body || seenBodies.has(body)) return;
+
+        seenBodies.add(body);
+        const type = getCollapsibleType(label);
+        const key = `${type}:${sequence++}:${normalizeCollapsibleLabel(label)}`;
+        const section = { key, label, type, trigger, body };
+
+        trigger.dataset.agCollapseKey = key;
+        trigger.dataset.agCollapseType = type;
+        trigger.title = 'Double-click to expand or collapse';
+        body.dataset.agCollapseBodyFor = key;
+        localCollapsibleSections.set(key, section);
+        setCollapsibleExpanded(section, localExpandedCollapsibleKeys.has(key));
+    });
+}
+
+function findLocalCollapsibleSection(target) {
+    let current = target;
+    for (let depth = 0; current && current !== chatContent && depth < 6; depth++) {
+        const key = current.dataset?.agCollapseKey;
+        if (key && localCollapsibleSections.has(key)) {
+            return localCollapsibleSections.get(key);
+        }
+        current = current.parentElement;
+    }
+    return null;
+}
+
+function handleLocalCollapsibleInteraction(event) {
+    const section = findLocalCollapsibleSection(event?.target);
+    if (!section) return false;
+
+    // Only a real double-click/two-click sequence recognized by the browser
+    // can toggle a collapsible section. Single clicks are ignored.
+    if ((event.detail || 0) < 2) return true;
+
+    const shouldExpand = !localExpandedCollapsibleKeys.has(section.key);
+    if (shouldExpand) {
+        localExpandedCollapsibleKeys.add(section.key);
+    } else {
+        localExpandedCollapsibleKeys.delete(section.key);
+    }
+    setCollapsibleExpanded(section, shouldExpand);
+
+    return true;
+}
+
 // --- Core render function (used by both WS and HTTP paths) ---
 function renderSnapshot(data) {
     chatIsOpen = true;
@@ -1021,6 +1194,7 @@ function renderSnapshot(data) {
 
         // Add mobile copy buttons to all code blocks
         addMobileCopyButtons();
+        initializeLocalCollapsibleSections(true);
     }
 
     // Smart scroll behavior: respect user scroll, only auto-scroll when appropriate
@@ -1621,7 +1795,7 @@ async function showChatHistory() {
     historyBtn.style.opacity = '1';
 
     try {
-        const res = await fetchWithAuth('/chat-history');
+        const res = await fetchWithAuth('/chat-history?keepOpen=1');
         const data = await res.json();
 
         if (data.error) {
@@ -1644,6 +1818,7 @@ async function showChatHistory() {
         }
 
         const chats = data.chats || [];
+        writeCachedHomeRecents(chats);
         if (chats.length === 0) {
             historyList.innerHTML = `
                 <div class="history-state-container">
@@ -1749,6 +1924,7 @@ async function selectChat(title) {
         const data = await res.json();
 
         if (data.success) {
+            promoteCachedHomeRecent(title);
             setHomeScreen(false);
             setTimeout(loadSnapshot, 300);
             setTimeout(loadSnapshot, 800);
@@ -1939,67 +2115,11 @@ if (window.visualViewport) {
     document.body.style.height = window.innerHeight + 'px'; // Init
 }
 
-// --- Remote Click Logic (Thinking/Thought) ---
+// --- Chat Interaction Logic ---
 chatContainer.addEventListener('click', async (e) => {
-    // Strategy: Check if the clicked element OR its parent contains "Thought" or "Thinking" text.
-    // This handles both opening (collapsed) and closing (expanded) states.
-
-    // 1. Find the nearest container that might be the "Thought" block
-    const target = e.target.closest('div, span, p, summary, button, details');
-    if (!target) return;
-
-    const text = target.innerText || '';
-
-    // Check if this looks like a thought toggle (matches "Thought for Xs" or "Thinking" patterns)
-    // Also match the header of expanded thoughts which may have more content
-    const isThoughtToggle = /Thought|Thinking/i.test(text) && text.length < 500;
-
-    if (isThoughtToggle) {
-        // Visual feedback - briefly dim the clicked element
-        target.style.opacity = '0.5';
-        setTimeout(() => target.style.opacity = '1', 300);
-
-        // Extract just the first line for matching (e.g., "Thought for 3s")
-        const firstLine = text.split('\n')[0].trim();
-
-        // Determine which occurrence of this text the user tapped
-        // This handles multiple Thought blocks with identical labels
-        const allElements = chatContainer.querySelectorAll(target.tagName.toLowerCase());
-        let tapIndex = 0;
-        for (let i = 0; i < allElements.length; i++) {
-            const el = allElements[i];
-            const elText = el.innerText || '';
-            const elFirstLine = elText.split('\n')[0].trim();
-
-            // Only count if it looks like a thought toggle and matches the first line exactly
-            if (/Thought|Thinking/i.test(elText) && elText.length < 500 && elFirstLine === firstLine) {
-                // If this is our target (or contains it), we've found the correct index
-                if (el === target || el.contains(target)) {
-                    break;
-                }
-                tapIndex++;
-            }
-        }
-
-        try {
-            const response = await fetchWithAuth('/remote-click', {
-                method: 'POST',
-                headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify({
-                    selector: target.tagName.toLowerCase(),
-                    index: tapIndex,
-                    textContent: firstLine  // Use first line for more reliable matching
-                })
-            });
-
-            // Reload snapshot multiple times to catch the UI change
-            // Desktop animation takes time, so we poll a few times
-            setTimeout(loadSnapshot, 400);   // Quick check
-            setTimeout(loadSnapshot, 800);   // After animation starts
-            setTimeout(loadSnapshot, 1500);  // After animation completes
-        } catch (e) {
-            console.error('Remote click failed:', e);
-        }
+    if (handleLocalCollapsibleInteraction(e)) {
+        e.preventDefault();
+        e.stopPropagation();
         return;
     }
 
