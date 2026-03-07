@@ -209,6 +209,7 @@ let pendingSnapshot = null; // Buffer for incoming WebSocket snapshots
 let renderScheduled = false; // Prevent multiple rAF calls
 let hasSnapshotLoaded = false;
 let lastSnapshotPayload = null;
+let snapshotRetryTimer = null;
 
 // Init theme from localStorage or default to dark
 applyTheme(localStorage.getItem('arTheme') || 'dark');
@@ -938,7 +939,7 @@ function connectWebSocket() {
     ws.onopen = () => {
         console.log('WS Connected');
         updateStatus(true);
-        loadSnapshot(); // Initial load via HTTP
+        loadSnapshot({ waitMs: 3500 }); // Initial load via HTTP
     };
 
     ws.onmessage = (event) => {
@@ -993,6 +994,7 @@ function renderSnapshot(data) {
     chatIsOpen = true;
     hasSnapshotLoaded = true;
     lastSnapshotPayload = data;
+    clearTimeout(snapshotRetryTimer);
     setHomeScreen(false);
 
     // Capture scroll state BEFORE updating content
@@ -1052,22 +1054,45 @@ function renderSnapshot(data) {
 }
 
 // --- Rendering (HTTP fallback - used for initial load and manual refresh) ---
-async function loadSnapshot() {
+function scheduleSnapshotRetry(delay = 700, options = {}) {
+    clearTimeout(snapshotRetryTimer);
+    snapshotRetryTimer = setTimeout(() => {
+        loadSnapshot(options);
+    }, delay);
+}
+
+async function loadSnapshot(options = {}) {
     try {
+        const waitMs = Number.isFinite(options.waitMs) ? Math.max(0, options.waitMs) : 0;
+        const snapshotUrl = waitMs > 0 ? `/snapshot?waitMs=${waitMs}` : '/snapshot';
+
         // Add spin animation to refresh button
         const icon = refreshBtn.querySelector('svg');
         icon.classList.remove('spin-anim');
         void icon.offsetWidth; // trigger reflow
         icon.classList.add('spin-anim');
 
-        const response = await fetchWithAuth('/snapshot');
+        const response = await fetchWithAuth(snapshotUrl);
         if (!response.ok) {
+            let payload = null;
+            try {
+                payload = await response.json();
+            } catch (e) { }
+
             if (response.status === 503) {
-                // No snapshot available - likely no chat open
-                chatIsOpen = false;
+                const snapshotWarming = !!(payload?.warming || payload?.hasChat);
+                chatIsOpen = snapshotWarming;
                 hasSnapshotLoaded = false;
                 updateWorkspaceChrome({ snapshotReady: false });
-                showEmptyState();
+
+                if (snapshotWarming) {
+                    showSnapshotLoading(payload?.error || 'Syncing current chat...');
+                    scheduleSnapshotRetry(payload?.retryAfterMs || 700, {
+                        waitMs: Math.max(waitMs, 2500)
+                    });
+                } else {
+                    showEmptyState();
+                }
                 return;
             }
             throw new Error('Failed to load');
@@ -1758,14 +1783,29 @@ async function checkChatStatus() {
             showEmptyState();
         } else {
             setHomeScreen(false);
+            if (!hasSnapshotLoaded) {
+                loadSnapshot({ waitMs: 2500 });
+            }
         }
     } catch (e) {
         console.error('Chat status check failed:', e);
     }
 }
 
+function showSnapshotLoading(message = 'Syncing current chat...') {
+    chatContent.innerHTML = `
+        <div class="loading-state">
+            <div class="loading-spinner"></div>
+            <div>${escapeHtml(message)}</div>
+        </div>
+    `;
+    setHomeScreen(false);
+    updateWorkspaceChrome({ snapshotReady: false });
+}
+
 // --- Empty State (No Chat Open) ---
 function showEmptyState() {
+    clearTimeout(snapshotRetryTimer);
     chatContent.innerHTML = `
         <div class="chat-home-spacer" aria-hidden="true">
         </div>

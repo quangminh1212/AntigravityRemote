@@ -95,6 +95,11 @@ console.log('========================================');
 const PORTS = [9000, 9001, 9002, 9003];
 const PRIMARY_CDP_PORT = PORTS[0];
 const POLL_INTERVAL = 500; // 500ms for smoother updates
+const SNAPSHOT_WARMUP_DELAY_MS = 350;
+const SNAPSHOT_REQUEST_WAIT_MS = 3500;
+const SNAPSHOT_REQUEST_WAIT_MAX_MS = 5000;
+const SNAPSHOT_READY_TEXT_THRESHOLD = 120;
+const SNAPSHOT_PLACEHOLDER_TEXT_MAX = 90;
 const SERVER_PORT = Number(process.env.PORT || 3000);
 const APP_PASSWORD = process.env.APP_PASSWORD || 'antigravity';
 const AUTH_COOKIE_NAME = 'ag_auth_token';
@@ -110,6 +115,8 @@ let lastSnapshotHash = null;
 let antigravityLaunchPromise = null;
 let snapshotFailureStreak = 0;
 let isRecoveringSnapshotConnection = false;
+let snapshotWarmupPromise = null;
+let snapshotWarmupStreak = 0;
 
 // Kill any existing process on the server port (prevents EADDRINUSE)
 async function killPortProcess(port) {
@@ -905,6 +912,32 @@ async function captureSnapshot(cdp) {
             if (val) themeVars[v] = val;
         });
         
+        const collectText = (node) => (node?.innerText || node?.textContent || '').replace(/\s+/g, ' ').trim();
+        const snapshotText = collectText(clone);
+        const measurableBlocks = Array.from(clone.querySelectorAll('*'));
+        const placeholderBlockCount = measurableBlocks.filter(el => {
+            const text = collectText(el);
+            if (text) return false;
+            const className = typeof el.className === 'string' ? el.className : '';
+            const styleText = el.getAttribute('style') || '';
+            const hasSkeletonClass = className.includes('bg-gray-500/10') || className.includes('animate-pulse') || className.includes('skeleton');
+            const hasMeasuredHeight = /height\s*:\s*\d+(\.\d+)?px/i.test(styleText);
+            return hasSkeletonClass && hasMeasuredHeight;
+        }).length;
+        const blankSizedBlockCount = measurableBlocks.filter(el => {
+            const text = collectText(el);
+            if (text) return false;
+            const styleText = el.getAttribute('style') || '';
+            return /height\s*:\s*\d+(\.\d+)?px/i.test(styleText);
+        }).length;
+        const meaningfulTextBlockCount = measurableBlocks.filter(el => {
+            const text = collectText(el);
+            return text.length >= 24 && el.children.length < 12;
+        }).length;
+        const turnCount = clone.querySelectorAll('[data-role]').length;
+        const codeBlockCount = clone.querySelectorAll('pre, code').length;
+        const linkCount = clone.querySelectorAll('a[href]').length;
+
         return {
             html: html,
             css: allCSS,
@@ -919,16 +952,27 @@ async function captureSnapshot(cdp) {
                 nodes: clone.getElementsByTagName('*').length,
                 htmlSize: html.length,
                 cssSize: allCSS.length,
+                textLength: snapshotText.length,
                 images: {
                     total: clone.querySelectorAll('img').length,
                     content: contentImageCount,
                     inlined: inlinedImageCount
                 }
+            },
+            captureMeta: {
+                textLength: snapshotText.length,
+                meaningfulTextBlockCount: meaningfulTextBlockCount,
+                placeholderBlockCount: placeholderBlockCount,
+                blankSizedBlockCount: blankSizedBlockCount,
+                turnCount: turnCount,
+                codeBlockCount: codeBlockCount,
+                linkCount: linkCount
             }
         };
     })()`;
 
     let bestFailure = null;
+    const candidates = [];
 
     for (const ctx of getPreferredContexts(cdp.contexts)) {
         try {
@@ -961,7 +1005,16 @@ async function captureSnapshot(cdp) {
                         debug: val.debug || null
                     };
                 } else {
-                    return val;
+                    const snapshot = annotateSnapshotQuality(val, {
+                        contextId: ctx.id,
+                        contextName: ctx.name || '',
+                        isDefault: !!ctx?.auxData?.isDefault
+                    });
+                    candidates.push({
+                        snapshot,
+                        quality: getSnapshotQuality(snapshot),
+                        context: ctx
+                    });
                 }
             } else {
                 bestFailure = {
@@ -979,6 +1032,11 @@ async function captureSnapshot(cdp) {
                 isDefault: !!ctx?.auxData?.isDefault
             };
         }
+    }
+
+    if (candidates.length > 0) {
+        candidates.sort(compareSnapshotCandidates);
+        return candidates[0].snapshot;
     }
 
     return bestFailure || { error: 'No valid snapshot captured (check contexts)' };
@@ -2158,6 +2216,179 @@ function hashString(str) {
     return hash.toString(36);
 }
 
+function getSnapshotQuality(snapshot) {
+    const meta = snapshot?.captureMeta || {};
+    const textLength = meta.textLength || snapshot?.stats?.textLength || 0;
+    const meaningfulTextBlockCount = meta.meaningfulTextBlockCount || 0;
+    const placeholderBlockCount = meta.placeholderBlockCount || 0;
+    const blankSizedBlockCount = meta.blankSizedBlockCount || 0;
+    const turnCount = meta.turnCount || 0;
+    const codeBlockCount = meta.codeBlockCount || 0;
+    const linkCount = meta.linkCount || 0;
+    const contentImageCount = snapshot?.stats?.images?.content || 0;
+    const hasMeaningfulContent =
+        textLength >= SNAPSHOT_READY_TEXT_THRESHOLD ||
+        meaningfulTextBlockCount >= 2 ||
+        codeBlockCount > 0 ||
+        contentImageCount > 0 ||
+        linkCount >= 2;
+    const isPlaceholderOnly =
+        placeholderBlockCount >= 2 &&
+        textLength <= SNAPSHOT_PLACEHOLDER_TEXT_MAX &&
+        meaningfulTextBlockCount === 0 &&
+        codeBlockCount === 0 &&
+        contentImageCount === 0 &&
+        linkCount === 0;
+    const isReady =
+        !snapshot?.error &&
+        !isPlaceholderOnly &&
+        (hasMeaningfulContent || turnCount > 0 || textLength > 0 || placeholderBlockCount === 0);
+    const score =
+        textLength +
+        (meaningfulTextBlockCount * 220) +
+        (codeBlockCount * 160) +
+        (contentImageCount * 200) +
+        (linkCount * 40) +
+        (turnCount * 15) -
+        (placeholderBlockCount * 360) -
+        (blankSizedBlockCount * 20);
+
+    return {
+        textLength,
+        meaningfulTextBlockCount,
+        placeholderBlockCount,
+        blankSizedBlockCount,
+        turnCount,
+        codeBlockCount,
+        linkCount,
+        contentImageCount,
+        hasMeaningfulContent,
+        isPlaceholderOnly,
+        isReady,
+        score
+    };
+}
+
+function annotateSnapshotQuality(snapshot, extraMeta = {}) {
+    if (!snapshot || snapshot.error) return snapshot;
+    const quality = getSnapshotQuality(snapshot);
+    snapshot.captureMeta = {
+        ...(snapshot.captureMeta || {}),
+        ...quality,
+        ...extraMeta
+    };
+    return snapshot;
+}
+
+function compareSnapshotQuality(a, b) {
+    if (!b) return 1;
+    return (
+        (Number(a.isReady) - Number(b.isReady)) ||
+        (Number(!a.isPlaceholderOnly) - Number(!b.isPlaceholderOnly)) ||
+        (a.score - b.score) ||
+        (a.textLength - b.textLength)
+    );
+}
+
+function compareSnapshotCandidates(a, b) {
+    return (
+        compareSnapshotQuality(b.quality, a.quality) ||
+        (Number(b.context?.auxData?.isDefault) - Number(a.context?.auxData?.isDefault)) ||
+        ((a.context?.id || 0) - (b.context?.id || 0))
+    );
+}
+
+function publishSnapshot(snapshot, wss) {
+    const preparedSnapshot = annotateSnapshotQuality(snapshot);
+    if (!preparedSnapshot || preparedSnapshot.error) {
+        return { changed: false, hash: null };
+    }
+
+    const hash = hashString(preparedSnapshot.html);
+    const changed = hash !== lastSnapshotHash;
+    lastSnapshot = preparedSnapshot;
+    lastSnapshotHash = hash;
+
+    if (changed && wss) {
+        const wsNotify = JSON.stringify({
+            type: 'snapshot_update',
+            hash
+        });
+        wss.clients.forEach(client => {
+            if (client.readyState === WebSocket.OPEN) {
+                try { client.send(wsNotify); } catch (e) { }
+            }
+        });
+    }
+
+    return { changed, hash };
+}
+
+async function warmSnapshotCache(wss, options = {}) {
+    const {
+        timeoutMs = SNAPSHOT_REQUEST_WAIT_MS,
+        force = false,
+        minAttempts = 1
+    } = options;
+
+    if (!cdpConnection || cdpConnection.ws?.readyState !== WebSocket.OPEN) {
+        return lastSnapshot;
+    }
+
+    if (!force && lastSnapshot) {
+        const cachedQuality = getSnapshotQuality(lastSnapshot);
+        if (cachedQuality.isReady) {
+            return lastSnapshot;
+        }
+    }
+
+    if (snapshotWarmupPromise) {
+        return snapshotWarmupPromise;
+    }
+
+    snapshotWarmupPromise = (async () => {
+        const totalAttempts = Math.max(
+            minAttempts,
+            timeoutMs > 0 ? Math.ceil(timeoutMs / SNAPSHOT_WARMUP_DELAY_MS) + 1 : 1
+        );
+        let bestCandidate = null;
+        let bestQuality = null;
+
+        for (let attempt = 0; attempt < totalAttempts; attempt++) {
+            const snapshot = await captureSnapshot(cdpConnection);
+
+            if (snapshot && !snapshot.error) {
+                const quality = getSnapshotQuality(snapshot);
+                if (!bestQuality || compareSnapshotQuality(quality, bestQuality) > 0) {
+                    bestCandidate = snapshot;
+                    bestQuality = quality;
+                }
+
+                if (quality.isReady) {
+                    snapshotWarmupStreak = 0;
+                    publishSnapshot(snapshot, wss);
+                    return snapshot;
+                }
+            }
+
+            if (attempt < totalAttempts - 1) {
+                await sleep(SNAPSHOT_WARMUP_DELAY_MS);
+            }
+        }
+
+        if (bestCandidate && !getSnapshotQuality(bestCandidate).isPlaceholderOnly) {
+            publishSnapshot(bestCandidate, wss);
+            return bestCandidate;
+        }
+
+        return bestCandidate || lastSnapshot;
+    })().finally(() => {
+        snapshotWarmupPromise = null;
+    });
+
+    return snapshotWarmupPromise;
+}
+
 // Check if a request is from the same Wi-Fi (internal network)
 function isLocalRequest(req) {
     // 1. Check for proxy headers (Cloudflare, ngrok, etc.)
@@ -2214,6 +2445,13 @@ async function startPolling(wss) {
                 if (cdpConnection) {
                     console.log('✅ CDP Connection established from polling loop');
                     isConnecting = false;
+                    void warmSnapshotCache(wss, {
+                        timeoutMs: SNAPSHOT_REQUEST_WAIT_MS,
+                        force: true,
+                        minAttempts: 2
+                    }).catch((error) => {
+                        console.warn(`Snapshot warm-up after connect failed: ${error.message}`);
+                    });
                 }
             } catch (err) {
                 // Not found yet, just wait for next cycle
@@ -2224,6 +2462,44 @@ async function startPolling(wss) {
 
         try {
             let snapshot = await captureSnapshot(cdpConnection);
+            if (snapshot && !snapshot.error) {
+                const quality = getSnapshotQuality(snapshot);
+
+                if (quality.isReady) {
+                    snapshotFailureStreak = 0;
+                    snapshotWarmupStreak = 0;
+                    const { changed, hash } = publishSnapshot(snapshot, wss);
+                    if (changed) {
+                        console.log(`ðŸ“¸ Snapshot updated(hash: ${hash})`);
+                    }
+                    setTimeout(poll, POLL_INTERVAL);
+                    return;
+                }
+
+                snapshotWarmupStreak += 1;
+                const now = Date.now();
+                const cachedQuality = lastSnapshot ? getSnapshotQuality(lastSnapshot) : null;
+
+                if ((!cachedQuality || cachedQuality.isPlaceholderOnly) && !snapshotWarmupPromise) {
+                    void warmSnapshotCache(wss, {
+                        timeoutMs: SNAPSHOT_REQUEST_WAIT_MS,
+                        force: true,
+                        minAttempts: 2
+                    }).catch((error) => {
+                        console.warn(`Snapshot warm-up retry failed: ${error.message}`);
+                    });
+                }
+
+                if (!lastErrorLog || now - lastErrorLog > 5000) {
+                    console.log(
+                        `â³ Snapshot warming up (text=${quality.textLength}, blocks=${quality.meaningfulTextBlockCount}, placeholders=${quality.placeholderBlockCount})`
+                    );
+                    lastErrorLog = now;
+                }
+
+                setTimeout(poll, POLL_INTERVAL);
+                return;
+            }
             if (snapshot?.error) {
                 snapshotFailureStreak += 1;
                 const errorMsg = snapshot.error || 'No valid snapshot captured (check contexts)';
@@ -2245,25 +2521,10 @@ async function startPolling(wss) {
             }
             if (snapshot && !snapshot.error) {
                 snapshotFailureStreak = 0;
-                const hash = hashString(snapshot.html);
+                const { changed, hash } = publishSnapshot(snapshot, wss);
 
                 // Only update if content changed
-                if (hash !== lastSnapshotHash) {
-                    lastSnapshot = snapshot;
-                    lastSnapshotHash = hash;
-
-                    // Broadcast lightweight notification via WebSocket (hash only)
-                    // Full snapshot data stays on server, client fetches via HTTP only when hash changes
-                    const wsNotify = JSON.stringify({
-                        type: 'snapshot_update',
-                        hash: hash
-                    });
-                    wss.clients.forEach(client => {
-                        if (client.readyState === WebSocket.OPEN) {
-                            try { client.send(wsNotify); } catch (e) { /* ignore dead sockets */ }
-                        }
-                    });
-
+                if (changed) {
                     console.log(`📸 Snapshot updated(hash: ${hash})`);
                 }
             } else {
@@ -2421,12 +2682,51 @@ async function createServer() {
     });
 
     // Get current snapshot
-    app.get('/snapshot', (req, res) => {
-        if (!lastSnapshot) {
-            return res.status(503).json({ error: 'No snapshot available yet' });
+    app.get('/snapshot', async (req, res) => {
+        const requestedWaitMs = Number.parseInt(String(req.query.waitMs || ''), 10);
+        const waitMs = Number.isFinite(requestedWaitMs)
+            ? Math.max(0, Math.min(requestedWaitMs, SNAPSHOT_REQUEST_WAIT_MAX_MS))
+            : SNAPSHOT_REQUEST_WAIT_MS;
+
+        let snapshot = lastSnapshot;
+        let quality = snapshot ? getSnapshotQuality(snapshot) : null;
+        const needsWarmup = !snapshot || quality?.isPlaceholderOnly;
+
+        if (needsWarmup && cdpConnection?.ws?.readyState === WebSocket.OPEN) {
+            try {
+                const warmedSnapshot = await warmSnapshotCache(wss, {
+                    timeoutMs: waitMs,
+                    force: true,
+                    minAttempts: 2
+                });
+                if (warmedSnapshot && !warmedSnapshot.error) {
+                    snapshot = warmedSnapshot;
+                    quality = getSnapshotQuality(snapshot);
+                }
+            } catch (error) {
+                console.warn(`Snapshot request warm-up failed: ${error.message}`);
+            }
         }
+
+        if (!snapshot || quality?.isPlaceholderOnly) {
+            let chatState = { hasChat: false, editorFound: false };
+            if (cdpConnection?.ws?.readyState === WebSocket.OPEN) {
+                try {
+                    chatState = await hasChatOpen(cdpConnection);
+                } catch (error) { }
+            }
+
+            const hasChat = !!(chatState?.hasChat || chatState?.editorFound);
+            return res.status(503).json({
+                error: hasChat ? 'Snapshot warming up' : 'No snapshot available yet',
+                warming: hasChat,
+                hasChat,
+                retryAfterMs: 700
+            });
+        }
+
         res.setHeader('Content-Type', 'application/json; charset=utf-8');
-        res.json(lastSnapshot);
+        res.json(snapshot);
     });
 
     // Health check endpoint
@@ -2853,6 +3153,14 @@ async function createServer() {
         }
 
         console.log('📱 Client connected (Authenticated)');
+
+        void warmSnapshotCache(wss, {
+            timeoutMs: SNAPSHOT_REQUEST_WAIT_MS,
+            force: !lastSnapshot || getSnapshotQuality(lastSnapshot).isPlaceholderOnly,
+            minAttempts: 2
+        }).catch((error) => {
+            console.warn(`Snapshot warm-up on client connect failed: ${error.message}`);
+        });
 
         ws.on('close', () => {
             console.log('📱 Client disconnected');
