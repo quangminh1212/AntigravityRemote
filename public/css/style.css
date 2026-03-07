@@ -338,6 +338,46 @@ body.aspect-lock .fab {
     fill: none;
 }
 
+.qr-btn {
+    background: var(--surface-subtle);
+    border: none;
+    color: var(--text-main);
+    cursor: pointer;
+    height: 32px;
+    padding: 0 10px 0 8px;
+    border-radius: 999px;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    gap: 6px;
+    font: inherit;
+    font-size: 12px;
+    font-weight: 600;
+    letter-spacing: -0.01em;
+    transition: background 0.2s, transform 0.2s;
+    flex-shrink: 0;
+}
+
+.qr-btn:hover {
+    background: var(--surface-hover-strong);
+}
+
+.qr-btn:active {
+    transform: scale(0.98);
+}
+
+.qr-btn svg {
+    width: 16px;
+    height: 16px;
+    stroke: currentColor;
+    stroke-width: 1.8;
+    fill: none;
+}
+
+.qr-btn span {
+    white-space: nowrap;
+}
+
 .settings-dropdown {
     display: none;
     position: absolute;
@@ -1139,7 +1179,141 @@ body.agent-running .toolbar-stop-btn {
     border-color: #8b5cf6;
 }
 
-/* (Modal styles removed - replaced by dropdown popover) */
+/* QR modal */
+.qr-overlay {
+    position: fixed;
+    inset: 0;
+    display: none;
+    align-items: center;
+    justify-content: center;
+    padding: 20px;
+    background: rgba(5, 8, 12, 0.7);
+    z-index: 220;
+}
+
+.qr-overlay.open {
+    display: flex;
+}
+
+.qr-modal {
+    position: relative;
+    width: min(420px, 100%);
+    background: var(--bg-panel-elevated);
+    border: 1px solid var(--border);
+    border-radius: 24px;
+    box-shadow: var(--overlay-shadow);
+    padding: 22px 22px 18px;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    gap: 12px;
+    text-align: center;
+}
+
+.qr-close-btn {
+    position: absolute;
+    top: 14px;
+    right: 14px;
+    width: 32px;
+    height: 32px;
+    border-radius: 999px;
+    border: none;
+    background: transparent;
+    color: var(--text-muted);
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    cursor: pointer;
+    transition: background 0.2s, color 0.2s;
+}
+
+.qr-close-btn:hover {
+    background: var(--surface-card-strong);
+    color: var(--text-main);
+}
+
+.qr-close-btn svg {
+    width: 16px;
+    height: 16px;
+    stroke: currentColor;
+    stroke-width: 2.2;
+    fill: none;
+}
+
+.qr-kicker {
+    margin: 0;
+    color: var(--accent);
+    font-size: 11px;
+    font-weight: 700;
+    letter-spacing: 0.12em;
+    text-transform: uppercase;
+}
+
+.qr-title {
+    margin: 0;
+    color: var(--text-main);
+    font-size: 24px;
+    font-weight: 600;
+    line-height: 1.15;
+    letter-spacing: -0.03em;
+}
+
+.qr-description,
+.qr-hint,
+.qr-loading p {
+    margin: 0;
+    color: var(--text-muted);
+    font-size: 13px;
+    line-height: 1.55;
+}
+
+.qr-loading {
+    width: 100%;
+    min-height: 276px;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    gap: 12px;
+    padding: 10px 0;
+}
+
+.qr-image {
+    width: min(280px, 72vw);
+    max-width: 100%;
+    border-radius: 18px;
+    border: 1px solid var(--border);
+    box-shadow: 0 12px 32px rgba(0, 0, 0, 0.22);
+}
+
+.qr-url {
+    width: 100%;
+    border: 1px dashed var(--border);
+    border-radius: 14px;
+    background: var(--surface-card-strong);
+    color: var(--text-main);
+    padding: 12px 14px;
+    font: inherit;
+    font-family: 'JetBrains Mono', monospace;
+    font-size: 12px;
+    line-height: 1.5;
+    word-break: break-all;
+    cursor: pointer;
+    transition: background 0.2s, border-color 0.2s;
+}
+
+.qr-url:empty {
+    display: none;
+}
+
+.qr-url:hover {
+    background: var(--surface-hover-strong);
+    border-color: rgba(255, 255, 255, 0.16);
+}
+
+.qr-hint {
+    max-width: 32ch;
+}
 
 /* SSL Banner */
 .ssl-banner {
@@ -1741,6 +1915,16 @@ body.home-screen .fab {
         gap: 6px;
     }
 
+    .qr-btn {
+        width: 28px;
+        padding: 0;
+        border-radius: 7px;
+    }
+
+    .qr-btn span {
+        display: none;
+    }
+
     .chat-content {
         padding: 10px 8px 8px;
     }
@@ -1773,5 +1957,18 @@ body.home-screen .fab {
 
     #modeText {
         max-width: 30px;
+    }
+
+    .qr-modal {
+        padding: 20px 16px 16px;
+        border-radius: 20px;
+    }
+
+    .qr-title {
+        font-size: 20px;
+    }
+
+    .qr-loading {
+        min-height: 240px;
     }
 }

@@ -24,6 +24,20 @@
         </h1>
 
         <div class="header-controls">
+            <button class="qr-btn" id="qrBtn" aria-label="Connect phone" aria-haspopup="dialog"
+                aria-controls="qrOverlay" data-tooltip="Phone QR">
+                <svg viewBox="0 0 24 24" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+                    <path d="M4 4h6v6H4z"></path>
+                    <path d="M14 4h6v6h-6z"></path>
+                    <path d="M4 14h6v6H4z"></path>
+                    <path d="M14 14h2v2h-2z"></path>
+                    <path d="M18 14h2v2h-2z"></path>
+                    <path d="M14 18h2v2h-2z"></path>
+                    <path d="M18 18h2v2h-2z"></path>
+                </svg>
+                <span>Phone QR</span>
+            </button>
+
             <button class="new-chat-btn" id="newChatBtn" aria-label="New Chat" data-tooltip="New Chat">
                 <svg viewBox="0 0 24 24" stroke-linecap="round" stroke-linejoin="round">
                     <line x1="12" y1="5" x2="12" y2="19"></line>
@@ -228,6 +242,28 @@
             <div class="header-spacer"></div>
         </div>
         <div class="history-content" id="historyList"></div>
+    </div>
+
+    <div class="qr-overlay" id="qrOverlay" aria-hidden="true">
+        <div class="qr-modal" role="dialog" aria-modal="true" aria-labelledby="qrTitle">
+            <button class="qr-close-btn" id="qrCloseBtn" aria-label="Close phone QR">
+                <svg viewBox="0 0 24 24" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+                    <path d="M18 6 6 18"></path>
+                    <path d="m6 6 12 12"></path>
+                </svg>
+            </button>
+            <p class="qr-kicker">Phone control</p>
+            <h2 class="qr-title" id="qrTitle">Scan this QR with your phone</h2>
+            <p class="qr-description">Your phone will open Antigravity Remote directly on the current local address.</p>
+            <div class="qr-loading" id="qrLoading">
+                <div class="loading-spinner"></div>
+                <p>Generating phone QR...</p>
+            </div>
+            <img class="qr-image" id="qrImage" alt="QR code to open Antigravity Remote on your phone"
+                style="display: none;">
+            <button class="qr-url" id="qrUrl" type="button" title="Copy connection URL"></button>
+            <p class="qr-hint">Keep the phone on the same Wi-Fi as this machine when using the local connection.</p>
+        </div>
     </div>
 
     </div>

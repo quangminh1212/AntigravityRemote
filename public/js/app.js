@@ -2286,16 +2286,32 @@ const qrCloseBtn = document.getElementById('qrCloseBtn');
 const qrImage = document.getElementById('qrImage');
 const qrUrl = document.getElementById('qrUrl');
 const qrLoading = document.getElementById('qrLoading');
+const qrLoadingMarkup = '<div class="loading-spinner"></div><p>Generating phone QR...</p>';
 
-if (qrBtn) {
+function setQrModalOpen(isOpen) {
+    if (!qrOverlay) return;
+    qrOverlay.classList.toggle('open', isOpen);
+    qrOverlay.setAttribute('aria-hidden', isOpen ? 'false' : 'true');
+}
+
+function resetQrModalState() {
+    if (!qrImage || !qrUrl || !qrLoading) return;
+    qrImage.style.display = 'none';
+    qrImage.removeAttribute('src');
+    qrUrl.textContent = '';
+    qrLoading.innerHTML = qrLoadingMarkup;
+    qrLoading.style.display = 'flex';
+}
+
+if (qrBtn && qrOverlay && qrCloseBtn && qrImage && qrUrl && qrLoading) {
     qrBtn.addEventListener('click', async () => {
-        qrOverlay.classList.add('open');
-        qrImage.style.display = 'none';
-        qrUrl.textContent = '';
-        qrLoading.style.display = 'flex';
+        setQrModalOpen(true);
+        resetQrModalState();
+        qrCloseBtn.focus();
 
         try {
             const res = await fetchWithAuth('/qr-info');
+            if (!res.ok) throw new Error(`QR request failed with status ${res.status}`);
             const data = await res.json();
 
             qrImage.src = data.qrDataUrl;
@@ -2303,21 +2319,23 @@ if (qrBtn) {
             qrUrl.textContent = data.connectUrl;
             qrLoading.style.display = 'none';
         } catch (e) {
-            qrLoading.innerHTML = '<p style="color: var(--error)">Failed to generate QR code</p>';
+            qrLoading.innerHTML = '<p style="color: var(--error)">Failed to generate phone QR</p>';
             console.error('[QR] Error:', e);
         }
     });
-}
 
-if (qrCloseBtn) {
     qrCloseBtn.addEventListener('click', () => {
-        qrOverlay.classList.remove('open');
+        setQrModalOpen(false);
     });
-}
 
-if (qrOverlay) {
     qrOverlay.addEventListener('click', (e) => {
-        if (e.target === qrOverlay) qrOverlay.classList.remove('open');
+        if (e.target === qrOverlay) setQrModalOpen(false);
+    });
+
+    document.addEventListener('keydown', (e) => {
+        if (e.key === 'Escape' && qrOverlay.classList.contains('open')) {
+            setQrModalOpen(false);
+        }
     });
 }
 
