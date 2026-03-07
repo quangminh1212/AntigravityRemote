@@ -1469,7 +1469,7 @@ body.agent-running .toolbar-stop-btn {
 }
 
 .chat-content {
-    padding: 0 12px 12px;
+    padding: 10px 12px 12px;
     font-size: calc(14px * var(--display-scale));
 }
 
@@ -1703,7 +1703,7 @@ body.home-screen .fab {
     }
 
     .chat-content {
-        padding: 0 8px 8px;
+        padding: 10px 8px 8px;
     }
 
     .input-section {
