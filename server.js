@@ -102,6 +102,7 @@ const SNAPSHOT_READY_TEXT_THRESHOLD = 120;
 const SNAPSHOT_PLACEHOLDER_TEXT_MAX = 90;
 const SERVER_PORT = Number(process.env.PORT || 3000);
 const EMBEDDED_HTTPS_PORT = Number(process.env.HTTPS_PORT || 3443);
+const PUBLIC_BASE_URL = normalizePublicBaseUrl(process.env.PUBLIC_BASE_URL || process.env.AG_PUBLIC_URL || '');
 const APP_PASSWORD = process.env.APP_PASSWORD || 'antigravity';
 const AUTH_COOKIE_NAME = 'ag_auth_token';
 const AUTO_LAUNCH_ANTIGRAVITY = process.env.AG_SKIP_AUTO_LAUNCH !== '1';
@@ -199,6 +200,30 @@ function getLocalIP() {
     // Sort by priority and return the best one
     candidates.sort((a, b) => a.priority - b.priority);
     return candidates.length > 0 ? candidates[0].address : 'localhost';
+}
+
+function normalizePublicBaseUrl(rawUrl) {
+    if (!rawUrl) {
+        return null;
+    }
+
+    try {
+        const url = new URL(rawUrl);
+        if (!['http:', 'https:'].includes(url.protocol)) {
+            throw new Error('PUBLIC_BASE_URL must start with http:// or https://');
+        }
+
+        return url.origin;
+    } catch (error) {
+        console.warn(`Ignoring invalid PUBLIC_BASE_URL: ${error.message}`);
+        return null;
+    }
+}
+
+function buildConnectUrl(baseUrl, password) {
+    const url = new URL(baseUrl);
+    url.searchParams.set('key', password);
+    return url.toString();
 }
 
 // Helper: HTTP GET JSON
@@ -2837,6 +2862,40 @@ async function createServer() {
     const phoneProtocol = phoneUsesHttps ? 'https' : 'http';
     const phonePort = phoneUsesHttps ? phoneHttpsPort : SERVER_PORT;
     const webProtocol = primaryUsesHttps ? 'https' : 'http';
+    const publicAccessEnabled = Boolean(PUBLIC_BASE_URL);
+
+    const resolveAccessInfo = () => {
+        const localIP = getLocalIP();
+
+        if (publicAccessEnabled) {
+            const publicUrl = new URL(PUBLIC_BASE_URL);
+            return {
+                connectUrl: buildConnectUrl(PUBLIC_BASE_URL, APP_PASSWORD),
+                baseUrl: PUBLIC_BASE_URL,
+                localIP,
+                host: publicUrl.host,
+                port: publicUrl.port ? Number(publicUrl.port) : (publicUrl.protocol === 'https:' ? 443 : 80),
+                protocol: publicUrl.protocol.replace(':', ''),
+                accessMode: 'public',
+                sameNetworkRequired: false,
+                description: 'Your phone will open Antigravity Remote through the configured public URL.',
+                hint: 'This QR uses a public URL, so the phone can connect from outside your local Wi-Fi as long as this machine and the tunnel stay online.'
+            };
+        }
+
+        return {
+            connectUrl: `${phoneProtocol}://${localIP}:${phonePort}?key=${encodeURIComponent(APP_PASSWORD)}`,
+            baseUrl: `${phoneProtocol}://${localIP}:${phonePort}`,
+            localIP,
+            host: `${localIP}:${phonePort}`,
+            port: phonePort,
+            protocol: phoneProtocol,
+            accessMode: 'local',
+            sameNetworkRequired: true,
+            description: 'Your phone will open Antigravity Remote directly on the current local address.',
+            hint: 'Keep the phone on the same Wi-Fi as this machine when using the local connection.'
+        };
+    };
 
     let server;
     let httpsServer = null;
@@ -2851,6 +2910,10 @@ async function createServer() {
 
     if (certsExist && IS_EMBEDDED_RUNTIME) {
         console.log(`[EMBEDDED] SSL certificates detected. Keeping local HTTP on port ${SERVER_PORT} for the embedded webview and enabling HTTPS on port ${phoneHttpsPort} for phone access.`);
+    }
+
+    if (publicAccessEnabled) {
+        console.log(`[PUBLIC] External access configured. QR links will use ${PUBLIC_BASE_URL}`);
     }
 
     if (primaryUsesHttps) {
@@ -3023,15 +3086,17 @@ async function createServer() {
             uptime: process.uptime(),
             timestamp: new Date().toISOString(),
             https: phoneUsesHttps,
-            embedded: IS_EMBEDDED_RUNTIME
+            embedded: IS_EMBEDDED_RUNTIME,
+            publicAccessEnabled,
+            publicBaseUrl: PUBLIC_BASE_URL
         });
     });
 
     // QR Code endpoint - generates QR for phone connection
     app.get('/qr-info', async (req, res) => {
         try {
-            const localIP = getLocalIP();
-            const connectUrl = `${phoneProtocol}://${localIP}:${phonePort}?key=${encodeURIComponent(APP_PASSWORD)}`;
+            const accessInfo = resolveAccessInfo();
+            const connectUrl = accessInfo.connectUrl;
 
             const qrDataUrl = await QRCode.toDataURL(connectUrl, {
                 width: 280,
@@ -3044,10 +3109,7 @@ async function createServer() {
 
             res.json({
                 qrDataUrl,
-                connectUrl,
-                localIP,
-                port: phonePort,
-                protocol: phoneProtocol
+                ...accessInfo
             });
         } catch (e) {
             res.status(500).json({ error: e.message });
@@ -3056,13 +3118,19 @@ async function createServer() {
 
     // SSL status endpoint
     app.get('/ssl-status', (req, res) => {
+        const accessInfo = resolveAccessInfo();
         res.json({
             enabled: phoneUsesHttps,
             certsExist: certsExist,
             embedded: IS_EMBEDDED_RUNTIME,
-            port: phonePort,
-            protocol: phoneProtocol,
-            message: phoneUsesHttps && IS_EMBEDDED_RUNTIME ? `HTTPS is active for phone access on port ${phonePort}. Embedded webview stays on local HTTP.` :
+            port: accessInfo.port,
+            protocol: accessInfo.protocol,
+            publicAccessEnabled,
+            publicBaseUrl: PUBLIC_BASE_URL,
+            accessMode: accessInfo.accessMode,
+            sameNetworkRequired: accessInfo.sameNetworkRequired,
+            message: publicAccessEnabled ? `Public access is enabled via ${PUBLIC_BASE_URL}. QR links will use this public URL.` :
+                phoneUsesHttps && IS_EMBEDDED_RUNTIME ? `HTTPS is active for phone access on port ${phonePort}. Embedded webview stays on local HTTP.` :
                 phoneUsesHttps ? 'HTTPS is active' :
                     'No certificates found'
         });
@@ -3600,6 +3668,10 @@ async function main() {
 
         listenWithRetries(server, SERVER_PORT, 'Primary', () => {
             console.log(`[SERVER] Primary server running on ${webProtocol}://${localIP}:${SERVER_PORT}`);
+
+            if (PUBLIC_BASE_URL) {
+                console.log(`[PUBLIC] Share ${PUBLIC_BASE_URL} to access this machine from outside the local network.`);
+            }
 
             if (httpsServer && httpsServer !== server) {
                 console.log(`[SERVER] Phone HTTPS server will be available on https://${localIP}:${phonePort}`);
