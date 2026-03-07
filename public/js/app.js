@@ -428,7 +428,7 @@ function buildSnapshotThemeOverrides() {
     min-width: 0 !important;
 }
 
-#chatContent [class*="overflow-hidden"] {
+#chatContent [class*="overflow-hidden"]:not([class*="transition-all"]):not([class*="max-h-"]) {
     overflow: visible !important;
 }
 
@@ -436,15 +436,6 @@ function buildSnapshotThemeOverrides() {
 #chatContent [class*="inline-flex"],
 #chatContent [class*="gap-"] {
     flex-wrap: wrap !important;
-}
-
-#chatContent [class*="overflow-y-auto"][class*="max-h-"],
-#chatContent [style*="overflow-y: auto"][style*="max-height"],
-#chatContent [style*="overflow-y:auto"][style*="max-height"],
-#chatContent [style*="overflow: auto"][style*="max-height"],
-#chatContent [style*="overflow:auto"][style*="max-height"] {
-    max-height: none !important;
-    overflow-y: visible !important;
 }
 
 #chatContent [class*="grow"],
