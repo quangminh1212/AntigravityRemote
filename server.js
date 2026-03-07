@@ -401,35 +401,94 @@ async function launchAntigravityWithCDP() {
 
 // Find Antigravity CDP endpoint
 // Find Antigravity CDP endpoint
+function describeCDPTarget(target = {}) {
+    return String(target.title || '').trim() || target.url || 'unknown target';
+}
+
+function classifyCDPTarget(target = {}) {
+    const url = String(target.url || '').toLowerCase();
+    const title = String(target.title || '').trim();
+    const lowerTitle = title.toLowerCase();
+
+    if (target.type !== 'page' || !target.webSocketDebuggerUrl) {
+        return { kind: 'unsupported', score: -1000, label: describeCDPTarget(target) };
+    }
+
+    if (url.includes('/workbench/workbench.html')) {
+        return { kind: 'standard-workbench', score: 300, label: describeCDPTarget(target) };
+    }
+
+    if (url.includes('workbench-jetski-agent.html') || lowerTitle === 'launchpad') {
+        return { kind: 'launchpad', score: 50, label: describeCDPTarget(target) };
+    }
+
+    if (url.includes('workbench') && !url.includes('jetski')) {
+        return { kind: 'workbench', score: 220, label: describeCDPTarget(target) };
+    }
+
+    if (lowerTitle.includes('antigravity')) {
+        return { kind: 'antigravity-page', score: 180, label: describeCDPTarget(target) };
+    }
+
+    return { kind: 'other', score: 0, label: describeCDPTarget(target) };
+}
+
 async function discoverCDP() {
     const errors = [];
+    const candidates = [];
+    const launchpadCandidates = [];
+
     for (const port of PORTS) {
         try {
             const list = await getJson(`http://127.0.0.1:${port}/json/list`);
+            for (const target of Array.isArray(list) ? list : []) {
+                const meta = classifyCDPTarget(target);
+                if (meta.kind === 'unsupported') continue;
 
-            // Priority 1: Standard Workbench (The main window)
-            const workbench = list.find(t => t.url?.includes('workbench.html') || (t.title && t.title.includes('workbench')));
-            if (workbench && workbench.webSocketDebuggerUrl) {
-                console.log('Found Workbench target:', workbench.title);
-                return { port, url: workbench.webSocketDebuggerUrl };
-            }
+                const candidate = {
+                    port,
+                    url: target.webSocketDebuggerUrl,
+                    target,
+                    kind: meta.kind,
+                    score: meta.score,
+                    label: meta.label
+                };
 
-            // Priority 2: Jetski/Launchpad (Fallback)
-            const jetski = list.find(t => t.url?.includes('jetski') || t.title === 'Launchpad');
-            if (jetski && jetski.webSocketDebuggerUrl) {
-                console.log('Found Jetski/Launchpad target:', jetski.title);
-                return { port, url: jetski.webSocketDebuggerUrl };
+                if (meta.kind === 'launchpad') {
+                    launchpadCandidates.push(candidate);
+                } else if (meta.score > 0) {
+                    candidates.push(candidate);
+                }
             }
         } catch (e) {
             errors.push(`${port}: ${e.message}`);
         }
     }
+
+    if (candidates.length > 0) {
+        candidates.sort((a, b) =>
+            b.score - a.score ||
+            String(b.target?.title || '').length - String(a.target?.title || '').length ||
+            a.port - b.port
+        );
+        const best = candidates[0];
+        console.log(`Found ${best.kind} target:`, best.label);
+        return best;
+    }
+
+    if (launchpadCandidates.length > 0) {
+        const summary = launchpadCandidates
+            .map(candidate => `${candidate.port}:${candidate.label}`)
+            .join(', ');
+        throw new Error(`Standard workbench target not ready yet. Launchpad detected on ${summary}`);
+    }
+
     const errorSummary = errors.length ? `Errors: ${errors.join(', ')}` : 'No ports responding';
     throw new Error(`CDP not found. ${errorSummary}`);
 }
 
 // Connect to CDP
-async function connectCDP(url) {
+async function connectCDP(url, targetInfo = null) {
     const ws = new WebSocket(url);
     await new Promise((resolve, reject) => {
         ws.on('open', resolve);
@@ -518,7 +577,13 @@ async function connectCDP(url) {
     await call("Runtime.enable", {});
     await new Promise(r => setTimeout(r, 1000));
 
-    return { ws, call, contexts };
+    return {
+        ws,
+        call,
+        contexts,
+        targetInfo,
+        connectedAt: Date.now()
+    };
 }
 
 function getPreferredContexts(contexts = []) {
@@ -528,6 +593,16 @@ function getPreferredContexts(contexts = []) {
         if (aDefault !== bDefault) return bDefault - aDefault;
         return (a?.id || 0) - (b?.id || 0);
     });
+}
+
+function shouldRetryChatContainerRecovery(connection) {
+    const targetKind = connection?.targetInfo?.kind || '';
+    if (targetKind === 'launchpad') {
+        return true;
+    }
+
+    const connectedAt = connection?.connectedAt || 0;
+    return connectedAt > 0 && (Date.now() - connectedAt) < 15000;
 }
 
 async function recoverSnapshotConnection() {
@@ -541,7 +616,7 @@ async function recoverSnapshotConnection() {
     try {
         console.warn('Attempting fresh CDP snapshot recovery...');
         const cdpInfo = await discoverCDP();
-        const freshConnection = await connectCDP(cdpInfo.url);
+        const freshConnection = await connectCDP(cdpInfo.url, cdpInfo);
         const freshSnapshot = await captureSnapshot(freshConnection);
 
         if (freshSnapshot && !freshSnapshot.error) {
@@ -913,9 +988,7 @@ async function captureSnapshot(cdp) {
         });
         
         const collectText = (node) => (node?.innerText || node?.textContent || '').replace(/\s+/g, ' ').trim();
-        const snapshotText = collectText(clone);
-        const measurableBlocks = Array.from(clone.querySelectorAll('*'));
-        const placeholderBlockCount = measurableBlocks.filter(el => {
+        const isPlaceholderBlock = (el) => {
             const text = collectText(el);
             if (text) return false;
             const className = typeof el.className === 'string' ? el.className : '';
@@ -923,7 +996,10 @@ async function captureSnapshot(cdp) {
             const hasSkeletonClass = className.includes('bg-gray-500/10') || className.includes('animate-pulse') || className.includes('skeleton');
             const hasMeasuredHeight = /height\s*:\s*\d+(\.\d+)?px/i.test(styleText);
             return hasSkeletonClass && hasMeasuredHeight;
-        }).length;
+        };
+        const snapshotText = collectText(clone);
+        const measurableBlocks = Array.from(clone.querySelectorAll('*'));
+        const placeholderBlockCount = measurableBlocks.filter(isPlaceholderBlock).length;
         const blankSizedBlockCount = measurableBlocks.filter(el => {
             const text = collectText(el);
             if (text) return false;
@@ -934,7 +1010,13 @@ async function captureSnapshot(cdp) {
             const text = collectText(el);
             return text.length >= 24 && el.children.length < 12;
         }).length;
-        const turnCount = clone.querySelectorAll('[data-role]').length;
+        const roleNodes = Array.from(clone.querySelectorAll('[data-role]'));
+        const userRoleNodes = roleNodes.filter(node => node.getAttribute('data-role') === 'user');
+        const assistantRoleNodes = roleNodes.filter(node => node.getAttribute('data-role') === 'assistant');
+        const userPlaceholderCount = userRoleNodes.filter(isPlaceholderBlock).length;
+        const assistantPlaceholderCount = assistantRoleNodes.filter(isPlaceholderBlock).length;
+        const leadingPlaceholderCount = roleNodes.slice(0, Math.min(roleNodes.length, 3)).filter(isPlaceholderBlock).length;
+        const turnCount = roleNodes.length;
         const codeBlockCount = clone.querySelectorAll('pre, code').length;
         const linkCount = clone.querySelectorAll('a[href]').length;
 
@@ -964,6 +1046,9 @@ async function captureSnapshot(cdp) {
                 meaningfulTextBlockCount: meaningfulTextBlockCount,
                 placeholderBlockCount: placeholderBlockCount,
                 blankSizedBlockCount: blankSizedBlockCount,
+                userPlaceholderCount: userPlaceholderCount,
+                assistantPlaceholderCount: assistantPlaceholderCount,
+                leadingPlaceholderCount: leadingPlaceholderCount,
                 turnCount: turnCount,
                 codeBlockCount: codeBlockCount,
                 linkCount: linkCount
@@ -2222,6 +2307,9 @@ function getSnapshotQuality(snapshot) {
     const meaningfulTextBlockCount = meta.meaningfulTextBlockCount || 0;
     const placeholderBlockCount = meta.placeholderBlockCount || 0;
     const blankSizedBlockCount = meta.blankSizedBlockCount || 0;
+    const userPlaceholderCount = meta.userPlaceholderCount || 0;
+    const assistantPlaceholderCount = meta.assistantPlaceholderCount || 0;
+    const leadingPlaceholderCount = meta.leadingPlaceholderCount || 0;
     const turnCount = meta.turnCount || 0;
     const codeBlockCount = meta.codeBlockCount || 0;
     const linkCount = meta.linkCount || 0;
@@ -2239,9 +2327,11 @@ function getSnapshotQuality(snapshot) {
         codeBlockCount === 0 &&
         contentImageCount === 0 &&
         linkCount === 0;
+    const hasCriticalPlaceholders = userPlaceholderCount > 0 || leadingPlaceholderCount > 0;
     const isReady =
         !snapshot?.error &&
         !isPlaceholderOnly &&
+        !hasCriticalPlaceholders &&
         (hasMeaningfulContent || turnCount > 0 || textLength > 0 || placeholderBlockCount === 0);
     const score =
         textLength +
@@ -2250,6 +2340,9 @@ function getSnapshotQuality(snapshot) {
         (contentImageCount * 200) +
         (linkCount * 40) +
         (turnCount * 15) -
+        (userPlaceholderCount * 2200) -
+        (leadingPlaceholderCount * 1800) -
+        (assistantPlaceholderCount * 900) -
         (placeholderBlockCount * 360) -
         (blankSizedBlockCount * 20);
 
@@ -2258,11 +2351,15 @@ function getSnapshotQuality(snapshot) {
         meaningfulTextBlockCount,
         placeholderBlockCount,
         blankSizedBlockCount,
+        userPlaceholderCount,
+        assistantPlaceholderCount,
+        leadingPlaceholderCount,
         turnCount,
         codeBlockCount,
         linkCount,
         contentImageCount,
         hasMeaningfulContent,
+        hasCriticalPlaceholders,
         isPlaceholderOnly,
         isReady,
         score
@@ -2298,10 +2395,47 @@ function compareSnapshotCandidates(a, b) {
     );
 }
 
+function shouldReplaceSnapshot(existingSnapshot, nextSnapshot) {
+    if (!existingSnapshot || existingSnapshot.error) {
+        return true;
+    }
+
+    const current = getSnapshotQuality(existingSnapshot);
+    const next = getSnapshotQuality(nextSnapshot);
+
+    if (!next.isReady && current.isReady) {
+        return false;
+    }
+
+    const placeholderRegression =
+        next.userPlaceholderCount > current.userPlaceholderCount ||
+        next.leadingPlaceholderCount > current.leadingPlaceholderCount ||
+        next.hasCriticalPlaceholders;
+    const majorTextDrop =
+        current.textLength >= SNAPSHOT_READY_TEXT_THRESHOLD &&
+        next.textLength < Math.max(current.textLength * 0.72, SNAPSHOT_READY_TEXT_THRESHOLD);
+    const majorScoreDrop = next.score + 1200 < current.score;
+
+    if (placeholderRegression && (current.isReady || majorTextDrop || majorScoreDrop)) {
+        return false;
+    }
+
+    return true;
+}
+
 function publishSnapshot(snapshot, wss) {
     const preparedSnapshot = annotateSnapshotQuality(snapshot);
     if (!preparedSnapshot || preparedSnapshot.error) {
         return { changed: false, hash: null };
+    }
+    const quality = getSnapshotQuality(preparedSnapshot);
+
+    if (!quality.isReady) {
+        return { changed: false, hash: lastSnapshotHash, skipped: true, reason: 'not_ready' };
+    }
+
+    if (!shouldReplaceSnapshot(lastSnapshot, preparedSnapshot)) {
+        return { changed: false, hash: lastSnapshotHash, skipped: true };
     }
 
     const hash = hashString(preparedSnapshot.html);
@@ -2351,8 +2485,8 @@ async function warmSnapshotCache(wss, options = {}) {
             minAttempts,
             timeoutMs > 0 ? Math.ceil(timeoutMs / SNAPSHOT_WARMUP_DELAY_MS) + 1 : 1
         );
-        let bestCandidate = null;
-        let bestQuality = null;
+        let bestCandidate = lastSnapshot;
+        let bestQuality = bestCandidate ? getSnapshotQuality(bestCandidate) : null;
 
         for (let attempt = 0; attempt < totalAttempts; attempt++) {
             const snapshot = await captureSnapshot(cdpConnection);
@@ -2366,8 +2500,10 @@ async function warmSnapshotCache(wss, options = {}) {
 
                 if (quality.isReady) {
                     snapshotWarmupStreak = 0;
-                    publishSnapshot(snapshot, wss);
-                    return snapshot;
+                    const publishResult = publishSnapshot(snapshot, wss);
+                    if (!publishResult.skipped) {
+                        return snapshot;
+                    }
                 }
             }
 
@@ -2376,12 +2512,14 @@ async function warmSnapshotCache(wss, options = {}) {
             }
         }
 
-        if (bestCandidate && !getSnapshotQuality(bestCandidate).isPlaceholderOnly) {
-            publishSnapshot(bestCandidate, wss);
-            return bestCandidate;
+        if (bestCandidate && bestCandidate !== lastSnapshot && getSnapshotQuality(bestCandidate).isReady) {
+            const publishResult = publishSnapshot(bestCandidate, wss);
+            if (!publishResult.skipped) {
+                return bestCandidate;
+            }
         }
 
-        return bestCandidate || lastSnapshot;
+        return lastSnapshot && getSnapshotQuality(lastSnapshot).isReady ? lastSnapshot : null;
     })().finally(() => {
         snapshotWarmupPromise = null;
     });
@@ -2420,7 +2558,8 @@ async function initCDP() {
     console.log(`✅ Found Antigravity on port ${cdpInfo.port} `);
 
     console.log('🔌 Connecting to CDP...');
-    cdpConnection = await connectCDP(cdpInfo.url);
+    cdpConnection = await connectCDP(cdpInfo.url, cdpInfo);
+    console.log(`🎯 Using target: ${cdpInfo.label}`);
     console.log(`✅ Connected! Found ${cdpConnection.contexts.length} execution contexts\n`);
 }
 
@@ -2507,7 +2646,10 @@ async function startPolling(wss) {
                     cdpConnection?.ws?.readyState === WebSocket.OPEN &&
                     cdpConnection.contexts.length > 0 &&
                     snapshotFailureStreak >= 3 &&
-                    !errorMsg.includes('chat container not found');
+                    (
+                        !errorMsg.includes('chat container not found') ||
+                        shouldRetryChatContainerRecovery(cdpConnection)
+                    );
 
                 if (shouldRecover) {
                     const recoveredSnapshot = await recoverSnapshotConnection();
@@ -2538,7 +2680,11 @@ async function startPolling(wss) {
                         console.warn(`   Debug: ${JSON.stringify(snapshot.debug)}`);
                     }
                     if (errorMsg.includes('container not found')) {
-                        console.log('   (Tip: Ensure an active chat is open in Antigravity)');
+                        if (cdpConnection?.targetInfo?.kind === 'launchpad') {
+                            console.log('   (Tip: Launchpad target detected. Waiting for the main Antigravity workspace target.)');
+                        } else {
+                            console.log('   (Tip: Ensure an active chat is open in Antigravity)');
+                        }
                     }
                     if (cdpConnection.contexts.length === 0) {
                         console.log('   (Tip: No active execution contexts found. Try interacting with the Antigravity window)');
@@ -2690,7 +2836,7 @@ async function createServer() {
 
         let snapshot = lastSnapshot;
         let quality = snapshot ? getSnapshotQuality(snapshot) : null;
-        const needsWarmup = !snapshot || quality?.isPlaceholderOnly;
+        const needsWarmup = !snapshot || !quality?.isReady;
 
         if (needsWarmup && cdpConnection?.ws?.readyState === WebSocket.OPEN) {
             try {
@@ -2708,7 +2854,7 @@ async function createServer() {
             }
         }
 
-        if (!snapshot || quality?.isPlaceholderOnly) {
+        if (!snapshot || !quality?.isReady) {
             let chatState = { hasChat: false, editorFound: false };
             if (cdpConnection?.ws?.readyState === WebSocket.OPEN) {
                 try {
