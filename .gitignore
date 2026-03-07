@@ -42,6 +42,7 @@ uploads/
 registry/snapshot_debug.html
 .playwright-cli/
 test-results/
+output/playwright/
 
 # Tauri build artifacts
 src-tauri/target/

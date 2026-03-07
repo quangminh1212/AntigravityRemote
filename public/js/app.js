@@ -50,6 +50,7 @@ const fileInput = document.getElementById('fileInput');
 const settingsBtn = document.getElementById('settingsBtn');
 const settingsDropdown = document.getElementById('settingsDropdown');
 const fullscreenBtn = document.getElementById('fullscreenBtn');
+const fullscreenIcon = document.getElementById('fullscreenIcon');
 const homeContext = document.getElementById('homeContext');
 const homeContextAgent = document.getElementById('homeContextAgent');
 const homeRecents = document.getElementById('homeRecents');
@@ -70,11 +71,16 @@ const sidebarTransportText = document.getElementById('sidebarTransportText');
 const LOOPBACK_HOSTS = new Set(['localhost', '127.0.0.1', '::1']);
 const isLoopbackHost = LOOPBACK_HOSTS.has(window.location.hostname);
 const HOME_RECENTS_STORAGE_KEY = 'agHomeRecents';
+const EXPAND_FULLSCREEN_ICON = '<path d="M8 3H5a2 2 0 0 0-2 2v3"></path><path d="M21 8V5a2 2 0 0 0-2-2h-3"></path><path d="M3 16v3a2 2 0 0 0 2 2h3"></path><path d="M16 21h3a2 2 0 0 0 2-2v-3"></path>';
+const COLLAPSE_FULLSCREEN_ICON = '<path d="M4 14h3a2 2 0 0 1 2 2v3"></path><path d="M20 10h-3a2 2 0 0 1-2-2V5"></path><path d="M14 20v-3a2 2 0 0 1 2-2h3"></path><path d="M10 4v3a2 2 0 0 1-2 2H5"></path>';
+const tauriInvoke = window.__TAURI__?.core?.invoke;
 const TEXT_SIZE_PRESETS = {
     small: 0.92,
     medium: 1,
     large: 1.12
 };
+let nativeFullscreenActive = false;
+let nativeFullscreenSyncTimer = null;
 
 function setTextContent(element, value) {
     if (element) element.textContent = value;
@@ -179,29 +185,131 @@ function updateWorkspaceChrome(overrides = {}) {
     setTextContent(sidebarProtocolChip, protocolChip);
 }
 
-// --- Fullscreen Toggle ---
-if (!document.fullscreenEnabled || typeof document.documentElement.requestFullscreen !== 'function' || (isLoopbackHost && window.innerWidth <= 520)) {
-    fullscreenBtn.style.display = 'none';
-} else {
-    fullscreenBtn.addEventListener('click', () => {
-        if (!document.fullscreenElement) {
-            document.documentElement.requestFullscreen().catch(() => { });
-        } else {
-            document.exitFullscreen().catch(() => { });
-        }
-    });
+function getCurrentFullscreenElement() {
+    return document.fullscreenElement || document.webkitFullscreenElement || null;
 }
 
-document.addEventListener('fullscreenchange', () => {
-    const icon = document.getElementById('fullscreenIcon');
-    if (document.fullscreenElement) {
-        icon.innerHTML = '<path d="M4 14h3a2 2 0 0 1 2 2v3"></path><path d="M20 10h-3a2 2 0 0 1-2-2V5"></path><path d="M14 20v-3a2 2 0 0 1 2-2h3"></path><path d="M10 4v3a2 2 0 0 1-2 2H5"></path>';
-        fullscreenBtn.setAttribute('data-tooltip', 'Exit Fullscreen');
-    } else {
-        icon.innerHTML = '<path d="M8 3H5a2 2 0 0 0-2 2v3"></path><path d="M21 8V5a2 2 0 0 0-2-2h-3"></path><path d="M3 16v3a2 2 0 0 0 2 2h3"></path><path d="M16 21h3a2 2 0 0 0 2-2v-3"></path>';
-        fullscreenBtn.setAttribute('data-tooltip', 'Fullscreen');
+function canUseWebFullscreen() {
+    const root = document.documentElement;
+    return typeof root.requestFullscreen === 'function'
+        || typeof root.webkitRequestFullscreen === 'function'
+        || typeof document.exitFullscreen === 'function'
+        || typeof document.webkitExitFullscreen === 'function';
+}
+
+function canUseTauriFullscreen() {
+    return typeof tauriInvoke === 'function';
+}
+
+async function syncNativeFullscreenState() {
+    if (!canUseTauriFullscreen()) return;
+    try {
+        nativeFullscreenActive = await tauriInvoke('get_window_fullscreen');
+        updateFullscreenButtonState();
+    } catch (error) {
+        console.warn('Unable to read native fullscreen state.', error);
     }
-});
+}
+
+function isFullscreenActive() {
+    return nativeFullscreenActive || !!getCurrentFullscreenElement();
+}
+
+function updateAspectLockState() {
+    document.body.classList.toggle('aspect-lock', isFullscreenActive());
+}
+
+function updateFullscreenButtonState() {
+    const active = isFullscreenActive();
+    if (fullscreenIcon) {
+        fullscreenIcon.innerHTML = active ? COLLAPSE_FULLSCREEN_ICON : EXPAND_FULLSCREEN_ICON;
+    }
+    if (fullscreenBtn) {
+        fullscreenBtn.setAttribute('data-tooltip', active ? 'Exit Fullscreen' : 'Fullscreen');
+        fullscreenBtn.setAttribute('aria-label', active ? 'Exit Fullscreen' : 'Fullscreen');
+    }
+    updateAspectLockState();
+}
+
+async function requestWebFullscreen() {
+    const root = document.documentElement;
+    if (typeof root.requestFullscreen === 'function') {
+        try {
+            await root.requestFullscreen({ navigationUI: 'hide' });
+        } catch (error) {
+            await root.requestFullscreen();
+        }
+        return true;
+    }
+    if (typeof root.webkitRequestFullscreen === 'function') {
+        root.webkitRequestFullscreen();
+        return true;
+    }
+    return false;
+}
+
+async function exitWebFullscreen() {
+    if (typeof document.exitFullscreen === 'function') {
+        await document.exitFullscreen();
+        return true;
+    }
+    if (typeof document.webkitExitFullscreen === 'function') {
+        document.webkitExitFullscreen();
+        return true;
+    }
+    return false;
+}
+
+async function toggleFullscreen() {
+    if (!fullscreenBtn) return;
+
+    if (canUseTauriFullscreen()) {
+        try {
+            nativeFullscreenActive = await tauriInvoke('set_window_fullscreen', {
+                fullscreen: !nativeFullscreenActive
+            });
+            updateFullscreenButtonState();
+            return;
+        } catch (error) {
+            console.warn('Native fullscreen failed, falling back to web fullscreen.', error);
+        }
+    }
+
+    if (!canUseWebFullscreen()) {
+        fullscreenBtn.style.display = 'none';
+        return;
+    }
+
+    if (!getCurrentFullscreenElement()) {
+        await requestWebFullscreen();
+    } else {
+        await exitWebFullscreen();
+    }
+}
+
+if (!fullscreenBtn || (!canUseTauriFullscreen() && !canUseWebFullscreen())) {
+    if (fullscreenBtn) fullscreenBtn.style.display = 'none';
+} else {
+    fullscreenBtn.addEventListener('click', () => {
+        toggleFullscreen().catch((error) => {
+            console.error('Failed to toggle fullscreen:', error);
+        });
+    });
+    updateFullscreenButtonState();
+}
+
+document.addEventListener('fullscreenchange', updateFullscreenButtonState);
+document.addEventListener('webkitfullscreenchange', updateFullscreenButtonState);
+
+if (canUseTauriFullscreen()) {
+    syncNativeFullscreenState();
+    window.addEventListener('resize', () => {
+        clearTimeout(nativeFullscreenSyncTimer);
+        nativeFullscreenSyncTimer = setTimeout(() => {
+            syncNativeFullscreenState();
+        }, 120);
+    });
+}
 
 // --- Theme management ---
 function applyTheme(theme) {
@@ -2084,10 +2192,16 @@ modelMenu.addEventListener('click', async (e) => {
 
 // --- Viewport / Keyboard Handling ---
 // This fixes the issue where the keyboard hides the input or layout breaks
+function applyViewportHeight(height) {
+    document.documentElement.style.setProperty('--viewport-height', `${height}px`);
+    document.body.style.height = `${height}px`;
+    updateAspectLockState();
+}
+
 if (window.visualViewport) {
     function handleResize() {
         // Resize the body to match the visual viewport (screen minus keyboard)
-        document.body.style.height = window.visualViewport.height + 'px';
+        applyViewportHeight(window.visualViewport.height);
 
         // Scroll to bottom if keyboard opened
         if (document.activeElement === messageInput) {
@@ -2101,9 +2215,9 @@ if (window.visualViewport) {
 } else {
     // Fallback for older browsers without visualViewport support
     window.addEventListener('resize', () => {
-        document.body.style.height = window.innerHeight + 'px';
+        applyViewportHeight(window.innerHeight);
     });
-    document.body.style.height = window.innerHeight + 'px'; // Init
+    applyViewportHeight(window.innerHeight); // Init
 }
 
 // --- Chat Interaction Logic ---

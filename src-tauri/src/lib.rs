@@ -358,9 +358,27 @@ fn remove_windows_title_bar_icon(window: &tauri::WebviewWindow) {
     }
 }
 
+#[tauri::command]
+fn set_window_fullscreen(window: tauri::Window, fullscreen: bool) -> Result<bool, String> {
+    window
+        .set_fullscreen(fullscreen)
+        .map_err(|error| error.to_string())?;
+
+    window.is_fullscreen().map_err(|error| error.to_string())
+}
+
+#[tauri::command]
+fn get_window_fullscreen(window: tauri::Window) -> Result<bool, String> {
+    window.is_fullscreen().map_err(|error| error.to_string())
+}
+
 #[cfg_attr(mobile, tauri::mobile_entry_point)]
 pub fn run() {
     tauri::Builder::default()
+        .invoke_handler(tauri::generate_handler![
+            set_window_fullscreen,
+            get_window_fullscreen
+        ])
         .plugin(tauri_plugin_shell::init())
         .plugin(tauri_plugin_opener::init())
         .setup(|app| {
@@ -442,6 +460,10 @@ pub fn run() {
             match event {
                 tauri::WindowEvent::Resized(size) => {
                     if size.width == 0 || size.height == 0 {
+                        return;
+                    }
+
+                    if window.is_fullscreen().ok().unwrap_or(false) {
                         return;
                     }
 
