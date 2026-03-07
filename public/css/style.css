@@ -745,6 +745,12 @@ body {
     border: 1px solid var(--chip-border);
 }
 
+#modeBtn,
+#modelBtn {
+    border: none;
+    box-shadow: none;
+}
+
 .toolbar-chip:hover {
     color: var(--text-main);
     background: var(--chip-bg-open);

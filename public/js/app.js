@@ -331,6 +331,64 @@ function buildSnapshotThemeOverrides() {
     zoom: var(--display-scale) !important;
     width: 100% !important;
     width: calc(100% / var(--display-scale)) !important;
+    max-width: 100% !important;
+    overflow-x: hidden !important;
+    overflow-wrap: anywhere !important;
+    word-break: break-word !important;
+}
+
+#chatContent, #chatContent * {
+    max-width: 100%;
+    min-width: 0 !important;
+    overflow-wrap: anywhere !important;
+    word-break: break-word !important;
+}
+
+#chatContent .truncate,
+#chatContent [class*="truncate"],
+#chatContent .whitespace-nowrap,
+#chatContent [class*="whitespace-nowrap"],
+#chatContent [class*="text-ellipsis"] {
+    white-space: normal !important;
+    overflow: visible !important;
+    text-overflow: clip !important;
+    flex-wrap: wrap !important;
+}
+
+#chatContent .break-all,
+#chatContent [class*="break-all"] {
+    word-break: break-all !important;
+}
+
+#chatContent .break-words,
+#chatContent [class*="break-words"] {
+    overflow-wrap: anywhere !important;
+    word-break: break-word !important;
+}
+
+#chatContent .flex,
+#chatContent [class~="flex"],
+#chatContent .inline-flex,
+#chatContent [class*="inline-flex"],
+#chatContent [class*="items-center"],
+#chatContent [class*="justify-between"] {
+    min-width: 0 !important;
+}
+
+#chatContent [class*="overflow-hidden"] {
+    overflow: visible !important;
+}
+
+#chatContent .inline-flex,
+#chatContent [class*="inline-flex"],
+#chatContent [class*="gap-"] {
+    flex-wrap: wrap !important;
+}
+
+#chatContent [class*="grow"],
+#chatContent [class*="flex-1"],
+#chatContent [class*="basis-0"] {
+    min-width: 0 !important;
 }
 
 /* Fix stacking BUT preserve absolute/fixed positioning for dropdowns */
