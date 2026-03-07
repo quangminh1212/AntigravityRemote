@@ -1406,7 +1406,7 @@ body.agent-running .toolbar-stop-btn {
 /* Antigravity-style shell refinements */
 .header {
     background: rgba(9, 11, 15, 0.92);
-    padding: 12px 14px;
+    padding: 10px 14px;
     border-bottom: 1px solid var(--border);
 }
 
@@ -1576,6 +1576,10 @@ body.agent-running .toolbar-stop-btn {
     padding: 16px 2px 0;
 }
 
+.home-recents[hidden] {
+    display: none !important;
+}
+
 .home-recents-list {
     display: flex;
     flex-direction: column;
@@ -1615,35 +1619,6 @@ body.agent-running .toolbar-stop-btn {
     flex-shrink: 0;
     font-size: 14px;
     color: var(--text-muted);
-}
-
-.home-recents-link {
-    margin-top: 14px;
-    align-self: flex-start;
-    border: none;
-    background: transparent;
-    color: var(--text-muted);
-    font: inherit;
-    font-size: 15px;
-    cursor: pointer;
-    padding: 0;
-}
-
-.home-recents-link:hover {
-    color: var(--text-main);
-}
-
-.home-recents-empty {
-    color: var(--text-muted);
-    font-size: 13px;
-    line-height: 1.6;
-}
-
-.home-disclaimer {
-    margin-top: 34px;
-    color: var(--text-muted);
-    font-size: 13px;
-    line-height: 1.5;
 }
 
 .history-new-btn {
@@ -1695,7 +1670,7 @@ body.home-screen .fab {
 
 @media (max-width: 720px) {
     .header {
-        padding: 12px 10px;
+        padding: 8px 10px;
     }
 
     .header-controls {
@@ -1723,9 +1698,7 @@ body.home-screen .fab {
         font-size: 14px;
     }
 
-    .home-recent-time,
-    .home-recents-link,
-    .home-disclaimer {
+    .home-recent-time {
         font-size: 13px;
     }
 

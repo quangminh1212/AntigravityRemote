@@ -54,7 +54,6 @@ const homeContext = document.getElementById('homeContext');
 const homeContextAgent = document.getElementById('homeContextAgent');
 const homeRecents = document.getElementById('homeRecents');
 const homeRecentsList = document.getElementById('homeRecentsList');
-const homeRecentsLink = document.getElementById('homeRecentsLink');
 const heroStatusTitle = document.getElementById('heroStatusTitle');
 const heroStatusDetail = document.getElementById('heroStatusDetail');
 const heroModeText = document.getElementById('heroModeText');
@@ -78,6 +77,10 @@ const TEXT_SIZE_PRESETS = {
 
 function setTextContent(element, value) {
     if (element) element.textContent = value;
+}
+
+function setHomeRecentsVisibility(visible) {
+    if (homeRecents) homeRecents.hidden = !visible;
 }
 
 function getTransportLabel() {
@@ -860,8 +863,9 @@ function setHomeScreen(enabled) {
 }
 
 async function loadHomeRecents() {
-    if (!homeRecentsList) return;
-    homeRecentsList.innerHTML = '<div class="home-recents-empty">Loading recent conversations...</div>';
+    if (!homeRecents || !homeRecentsList) return;
+    setHomeRecentsVisibility(false);
+    homeRecentsList.innerHTML = '';
 
     try {
         const res = await fetchWithAuth('/chat-history');
@@ -869,11 +873,6 @@ async function loadHomeRecents() {
         const chats = Array.isArray(data.chats) ? data.chats.slice(0, 3) : [];
 
         if (data.error || chats.length === 0) {
-            homeRecentsList.innerHTML = `
-                <div class="home-recents-empty">
-                    Start a new conversation or open history to continue where you left off.
-                </div>
-            `;
             return;
         }
 
@@ -887,12 +886,9 @@ async function loadHomeRecents() {
                 </button>
             `;
         }).join('');
+        setHomeRecentsVisibility(true);
     } catch (e) {
-        homeRecentsList.innerHTML = `
-            <div class="home-recents-empty">
-                Waiting for chat history from the desktop session.
-            </div>
-        `;
+        homeRecentsList.innerHTML = '';
     }
 }
 
@@ -1739,12 +1735,6 @@ if (homeRecentsList) {
         if (!title) return;
 
         selectChat(title);
-    });
-}
-
-if (homeRecentsLink) {
-    homeRecentsLink.addEventListener('click', () => {
-        showChatHistory();
     });
 }
 
