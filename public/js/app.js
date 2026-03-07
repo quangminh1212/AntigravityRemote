@@ -42,6 +42,7 @@ const scrollToBottomBtn = document.getElementById('scrollToBottom');
 const statusDot = document.getElementById('statusDot');
 const statusText = document.getElementById('statusText');
 const refreshBtn = document.getElementById('refreshBtn');
+const refreshIcon = refreshBtn?.querySelector('svg');
 const stopBtn = document.getElementById('stopBtn');
 const newChatBtn = document.getElementById('newChatBtn');
 const historyBtn = document.getElementById('historyBtn');
@@ -81,9 +82,17 @@ const TEXT_SIZE_PRESETS = {
 };
 let nativeFullscreenActive = false;
 let nativeFullscreenSyncTimer = null;
+let manualRefreshInFlight = false;
+let stableViewportHeight = window.visualViewport?.height || window.innerHeight;
 
 function setTextContent(element, value) {
     if (element) element.textContent = value;
+}
+
+function setRefreshBusyState(isBusy) {
+    if (!refreshBtn || !refreshIcon) return;
+    refreshBtn.classList.toggle('is-busy', isBusy);
+    refreshBtn.setAttribute('aria-busy', isBusy ? 'true' : 'false');
 }
 
 function setHomeRecentsVisibility(visible) {
@@ -941,7 +950,7 @@ async function checkSslStatus() {
     // Check if user dismissed the banner before
     if (localStorage.getItem('sslBannerDismissed')) return;
 
-    sslBanner.style.display = 'flex';
+    sslBanner.style.display = 'grid';
 }
 
 async function enableHttps() {
@@ -1335,12 +1344,6 @@ async function loadSnapshot(options = {}) {
         const waitMs = Number.isFinite(options.waitMs) ? Math.max(0, options.waitMs) : 0;
         const snapshotUrl = waitMs > 0 ? `/snapshot?waitMs=${waitMs}` : '/snapshot';
 
-        // Add spin animation to refresh button
-        const icon = refreshBtn.querySelector('svg');
-        icon.classList.remove('spin-anim');
-        void icon.offsetWidth; // trigger reflow
-        icon.classList.add('spin-anim');
-
         const response = await fetchWithAuth(snapshotUrl);
         if (!response.ok) {
             let payload = null;
@@ -1611,10 +1614,27 @@ async function sendMessage() {
 // --- Event Listeners ---
 sendBtn.addEventListener('click', sendMessage);
 
-refreshBtn.addEventListener('click', () => {
-    // Refresh both Chat and State (Mode/Model)
-    loadSnapshot();
-    fetchAppState(); // PRIORITY: Sync from Desktop
+refreshBtn.addEventListener('click', async () => {
+    if (manualRefreshInFlight) return;
+
+    manualRefreshInFlight = true;
+    const startedAt = performance.now();
+    setRefreshBusyState(true);
+
+    try {
+        await Promise.allSettled([
+            loadSnapshot(),
+            fetchAppState() // PRIORITY: Sync from Desktop
+        ]);
+    } finally {
+        const elapsed = performance.now() - startedAt;
+        const remaining = Math.max(0, 450 - elapsed);
+        if (remaining > 0) {
+            await new Promise((resolve) => setTimeout(resolve, remaining));
+        }
+        setRefreshBusyState(false);
+        manualRefreshInFlight = false;
+    }
 });
 
 messageInput.addEventListener('keydown', (e) => {
@@ -2193,8 +2213,21 @@ modelMenu.addEventListener('click', async (e) => {
 // --- Viewport / Keyboard Handling ---
 // This fixes the issue where the keyboard hides the input or layout breaks
 function applyViewportHeight(height) {
-    document.documentElement.style.setProperty('--viewport-height', `${height}px`);
-    document.body.style.height = `${height}px`;
+    const viewportHeight = Math.max(0, Math.round(height || window.innerHeight));
+    const composerFocused = document.activeElement === messageInput;
+
+    if (!composerFocused || viewportHeight > stableViewportHeight) {
+        stableViewportHeight = viewportHeight;
+    }
+
+    const layoutViewportHeight = Math.max(window.innerHeight, stableViewportHeight);
+    const keyboardInset = Math.max(0, layoutViewportHeight - viewportHeight);
+    const keyboardOpen = composerFocused && keyboardInset > 120;
+
+    document.documentElement.style.setProperty('--viewport-height', `${viewportHeight}px`);
+    document.documentElement.style.setProperty('--keyboard-inset', `${keyboardOpen ? keyboardInset : 0}px`);
+    document.body.style.height = `${viewportHeight}px`;
+    document.body.classList.toggle('keyboard-open', keyboardOpen);
     updateAspectLockState();
 }
 
@@ -2219,6 +2252,22 @@ if (window.visualViewport) {
     });
     applyViewportHeight(window.innerHeight); // Init
 }
+
+messageInput.addEventListener('focus', () => {
+    stableViewportHeight = Math.max(stableViewportHeight, window.visualViewport?.height || window.innerHeight);
+    requestAnimationFrame(() => applyViewportHeight(window.visualViewport?.height || window.innerHeight));
+});
+
+messageInput.addEventListener('blur', () => {
+    document.body.classList.remove('keyboard-open');
+    document.documentElement.style.setProperty('--keyboard-inset', '0px');
+    setTimeout(() => applyViewportHeight(window.visualViewport?.height || window.innerHeight), 80);
+});
+
+window.addEventListener('orientationchange', () => {
+    stableViewportHeight = window.visualViewport?.height || window.innerHeight;
+    setTimeout(() => applyViewportHeight(window.visualViewport?.height || window.innerHeight), 120);
+});
 
 // --- Chat Interaction Logic ---
 chatContainer.addEventListener('click', async (e) => {

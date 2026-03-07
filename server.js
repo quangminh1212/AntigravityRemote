@@ -101,6 +101,7 @@ const SNAPSHOT_REQUEST_WAIT_MAX_MS = 5000;
 const SNAPSHOT_READY_TEXT_THRESHOLD = 120;
 const SNAPSHOT_PLACEHOLDER_TEXT_MAX = 90;
 const SERVER_PORT = Number(process.env.PORT || 3000);
+const EMBEDDED_HTTPS_PORT = Number(process.env.HTTPS_PORT || 3443);
 const APP_PASSWORD = process.env.APP_PASSWORD || 'antigravity';
 const AUTH_COOKIE_NAME = 'ag_auth_token';
 const AUTO_LAUNCH_ANTIGRAVITY = process.env.AG_SKIP_AUTO_LAUNCH !== '1';
@@ -215,6 +216,28 @@ function getJson(url) {
 
 function sleep(ms) {
     return new Promise(resolve => setTimeout(resolve, ms));
+}
+
+function ensureRuntimeSslCertificates(keyPath, certPath) {
+    if (fs.existsSync(keyPath) && fs.existsSync(certPath)) {
+        return true;
+    }
+
+    try {
+        console.log('SSL certificates not found. Generating certificates for default HTTPS access...');
+        execSync('node generate_ssl.js', {
+            cwd: __dirname,
+            stdio: 'pipe',
+            env: {
+                ...process.env,
+                AG_RUNTIME_DIR: RUNTIME_ROOT
+            }
+        });
+    } catch (error) {
+        console.warn(`Auto SSL certificate generation failed: ${error.message}`);
+    }
+
+    return fs.existsSync(keyPath) && fs.existsSync(certPath);
 }
 
 function getAntigravityStoragePath() {
@@ -2807,22 +2830,30 @@ async function createServer() {
     // Check for SSL certificates
     const keyPath = join(RUNTIME_ROOT, 'certs', 'server.key');
     const certPath = join(RUNTIME_ROOT, 'certs', 'server.cert');
-    const certsExist = fs.existsSync(keyPath) && fs.existsSync(certPath);
-    const hasSSL = certsExist && !IS_EMBEDDED_RUNTIME;
+    const certsExist = ensureRuntimeSslCertificates(keyPath, certPath);
+    const primaryUsesHttps = certsExist && !IS_EMBEDDED_RUNTIME;
+    const phoneUsesHttps = certsExist;
+    const phoneHttpsPort = primaryUsesHttps ? SERVER_PORT : EMBEDDED_HTTPS_PORT;
+    const phoneProtocol = phoneUsesHttps ? 'https' : 'http';
+    const phonePort = phoneUsesHttps ? phoneHttpsPort : SERVER_PORT;
+    const webProtocol = primaryUsesHttps ? 'https' : 'http';
 
     let server;
     let httpsServer = null;
 
-    if (certsExist && IS_EMBEDDED_RUNTIME) {
-        console.log('[EMBEDDED] SSL certificates detected, but embedded runtime will use local HTTP for webview compatibility.');
-    }
-
-    if (hasSSL) {
+    if (certsExist) {
         const sslOptions = {
             key: fs.readFileSync(keyPath),
             cert: fs.readFileSync(certPath)
         };
         httpsServer = https.createServer(sslOptions, app);
+    }
+
+    if (certsExist && IS_EMBEDDED_RUNTIME) {
+        console.log(`[EMBEDDED] SSL certificates detected. Keeping local HTTP on port ${SERVER_PORT} for the embedded webview and enabling HTTPS on port ${phoneHttpsPort} for phone access.`);
+    }
+
+    if (primaryUsesHttps) {
         server = httpsServer;
 
         // Create HTTP redirect server → always redirect to HTTPS
@@ -2843,7 +2874,21 @@ async function createServer() {
         server = http.createServer(app);
     }
 
-    const wss = new WebSocketServer({ server });
+    const websocketServers = [new WebSocketServer({ server })];
+    if (httpsServer && httpsServer !== server) {
+        websocketServers.push(new WebSocketServer({ server: httpsServer }));
+    }
+
+    const wss = {
+        servers: websocketServers,
+        get clients() {
+            const clients = new Set();
+            for (const wsServer of websocketServers) {
+                wsServer.clients.forEach((client) => clients.add(client));
+            }
+            return clients;
+        }
+    };
 
     // Initialize Auth Token using a unique salt from environment
     const authSalt = process.env.AUTH_SALT || 'antigravity_default_salt_99';
@@ -2977,7 +3022,7 @@ async function createServer() {
             cdpConnected: cdpConnection?.ws?.readyState === 1, // WebSocket.OPEN = 1
             uptime: process.uptime(),
             timestamp: new Date().toISOString(),
-            https: hasSSL,
+            https: phoneUsesHttps,
             embedded: IS_EMBEDDED_RUNTIME
         });
     });
@@ -2986,8 +3031,7 @@ async function createServer() {
     app.get('/qr-info', async (req, res) => {
         try {
             const localIP = getLocalIP();
-            const protocol = hasSSL ? 'https' : 'http';
-            const connectUrl = `${protocol}://${localIP}:${SERVER_PORT}?key=${encodeURIComponent(APP_PASSWORD)}`;
+            const connectUrl = `${phoneProtocol}://${localIP}:${phonePort}?key=${encodeURIComponent(APP_PASSWORD)}`;
 
             const qrDataUrl = await QRCode.toDataURL(connectUrl, {
                 width: 280,
@@ -3002,8 +3046,8 @@ async function createServer() {
                 qrDataUrl,
                 connectUrl,
                 localIP,
-                port: SERVER_PORT,
-                protocol
+                port: phonePort,
+                protocol: phoneProtocol
             });
         } catch (e) {
             res.status(500).json({ error: e.message });
@@ -3013,12 +3057,13 @@ async function createServer() {
     // SSL status endpoint
     app.get('/ssl-status', (req, res) => {
         res.json({
-            enabled: hasSSL,
+            enabled: phoneUsesHttps,
             certsExist: certsExist,
             embedded: IS_EMBEDDED_RUNTIME,
-            message: hasSSL ? 'HTTPS is active' :
-                certsExist && IS_EMBEDDED_RUNTIME ? 'Embedded runtime uses local HTTP. Browser mode can still use HTTPS.' :
-                certsExist ? 'Certificates exist, restart server to enable HTTPS' :
+            port: phonePort,
+            protocol: phoneProtocol,
+            message: phoneUsesHttps && IS_EMBEDDED_RUNTIME ? `HTTPS is active for phone access on port ${phonePort}. Embedded webview stays on local HTTP.` :
+                phoneUsesHttps ? 'HTTPS is active' :
                     'No certificates found'
         });
     });
@@ -3356,7 +3401,7 @@ async function createServer() {
     });
 
     // WebSocket connection with Auth check
-    wss.on('connection', (ws, req) => {
+    const handleWebSocketConnection = (ws, req) => {
         // Parse cookies from headers
         const rawCookies = req.headers.cookie || '';
         const parsedCookies = {};
@@ -3406,9 +3451,22 @@ async function createServer() {
         ws.on('close', () => {
             console.log('📱 Client disconnected');
         });
+    };
+
+    websocketServers.forEach((wsServer) => {
+        wsServer.on('connection', handleWebSocketConnection);
     });
 
-    return { server, wss, app, hasSSL };
+    return {
+        server,
+        httpsServer,
+        wss,
+        app,
+        hasSSL: phoneUsesHttps,
+        webProtocol,
+        phoneProtocol,
+        phonePort
+    };
 }
 
 // Main
@@ -3436,7 +3494,7 @@ async function main() {
     }
 
     try {
-        const { server, wss, app, hasSSL } = await createServer();
+        const { server, httpsServer, wss, app, hasSSL, webProtocol, phoneProtocol, phonePort } = await createServer();
 
         // Start background polling (it will now handle reconnections)
         startPolling(wss);
@@ -3502,53 +3560,93 @@ async function main() {
             res.json(result);
         });
 
-        // Kill any existing process on the port before starting
+        // Kill any existing process on the ports before starting
         await killPortProcess(SERVER_PORT);
+        if (httpsServer && httpsServer !== server && phonePort !== SERVER_PORT) {
+            await killPortProcess(phonePort);
+        }
 
-        // Start server with EADDRINUSE retry
+        // Start server(s) with EADDRINUSE retry
         const localIP = getLocalIP();
-        const protocol = hasSSL ? 'https' : 'http';
-        let listenRetries = 0;
         const MAX_LISTEN_RETRIES = 3;
 
-        const startListening = () => {
-            server.listen(SERVER_PORT, '0.0.0.0', () => {
-                console.log(`🚀 Server running on ${protocol}://${localIP}:${SERVER_PORT}`);
-                if (hasSSL) {
-                    console.log(`💡 First time on phone? Accept the security warning to proceed.`);
+        const listenWithRetries = (targetServer, port, label, onReady) => {
+            let listenRetries = 0;
+
+            const startListening = () => {
+                targetServer.listen(port, '0.0.0.0', onReady);
+            };
+
+            targetServer.on('error', async (err) => {
+                if (err.code === 'EADDRINUSE' && listenRetries < MAX_LISTEN_RETRIES) {
+                    listenRetries++;
+                    console.warn(`[LISTEN] ${label} port ${port} busy, retry ${listenRetries}/${MAX_LISTEN_RETRIES}...`);
+                    await killPortProcess(port);
+                    setTimeout(startListening, 1000);
+                    return;
                 }
+
+                if (err.code === 'EADDRINUSE') {
+                    console.error(`[LISTEN] ${label} port ${port} still in use after ${MAX_LISTEN_RETRIES} retries. Exiting.`);
+                    process.exit(1);
+                    return;
+                }
+
+                console.error(`[LISTEN] ${label} server error:`, err.message);
             });
+
+            startListening();
         };
 
-        server.on('error', async (err) => {
-            if (err.code === 'EADDRINUSE' && listenRetries < MAX_LISTEN_RETRIES) {
-                listenRetries++;
-                console.warn(`⚠️  Port ${SERVER_PORT} busy, retry ${listenRetries}/${MAX_LISTEN_RETRIES}...`);
-                await killPortProcess(SERVER_PORT);
-                setTimeout(startListening, 1000);
-            } else if (err.code === 'EADDRINUSE') {
-                console.error(`❌ Port ${SERVER_PORT} still in use after ${MAX_LISTEN_RETRIES} retries. Exiting.`);
-                process.exit(1);
-            } else {
-                console.error('❌ Server error:', err.message);
+        listenWithRetries(server, SERVER_PORT, 'Primary', () => {
+            console.log(`[SERVER] Primary server running on ${webProtocol}://${localIP}:${SERVER_PORT}`);
+
+            if (httpsServer && httpsServer !== server) {
+                console.log(`[SERVER] Phone HTTPS server will be available on https://${localIP}:${phonePort}`);
+                console.log('[SERVER] First time on phone? Accept the security warning to proceed.');
+                return;
+            }
+
+            if (hasSSL) {
+                console.log('[SERVER] First time on phone? Accept the security warning to proceed.');
             }
         });
 
-        startListening();
+        if (httpsServer && httpsServer !== server) {
+            listenWithRetries(httpsServer, phonePort, 'Phone HTTPS', () => {
+                console.log(`[SERVER] Phone HTTPS server running on https://${localIP}:${phonePort}`);
+            });
+        }
 
         // Graceful shutdown handlers
+        let isShuttingDown = false;
         const gracefulShutdown = (signal) => {
-            console.log(`\n🛑 Received ${signal}. Shutting down gracefully...`);
-            wss.close(() => {
-                console.log('   WebSocket server closed');
+            if (isShuttingDown) return;
+            isShuttingDown = true;
+
+            console.log(`\n[SHUTDOWN] Received ${signal}. Shutting down gracefully...`);
+
+            wss.servers.forEach((wsServer) => {
+                wsServer.close(() => {
+                    console.log('   WebSocket server closed');
+                });
             });
+
             server.close(() => {
-                console.log('   HTTP server closed');
+                console.log(`   ${server === httpsServer ? 'HTTPS' : 'HTTP'} server closed`);
             });
+
+            if (httpsServer && httpsServer !== server) {
+                httpsServer.close(() => {
+                    console.log('   HTTPS phone server closed');
+                });
+            }
+
             if (cdpConnection?.ws) {
                 cdpConnection.ws.close();
                 console.log('   CDP connection closed');
             }
+
             setTimeout(() => process.exit(0), 1000);
         };
 

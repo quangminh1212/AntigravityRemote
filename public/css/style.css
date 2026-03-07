@@ -3,6 +3,7 @@
     /* Dark Theme Tokens */
     --display-scale: 1;
     --viewport-height: 100vh;
+    --keyboard-inset: 0px;
     --bg-app: #111215;
     --bg-panel: #1a1b20;
     --bg-panel-elevated: rgba(30, 32, 37, 0.96);
@@ -14,6 +15,9 @@
     --input-shadow-soft: rgba(17, 18, 21, 0.34);
     --text-main: #cccccc;
     --text-muted: #717175;
+    --brand-logo: #1b807c;
+    --brand-logo-strong: #b6ebe3;
+    --brand-logo-surface: rgba(27, 128, 124, 0.28);
     --accent: #6366f1;
     --accent-hover: #4f46e5;
     --accent-gradient: linear-gradient(135deg, #8b5cf6 0%, #3b82f6 100%);
@@ -116,6 +120,9 @@
     --input-shadow-soft: rgba(148, 163, 184, 0.22);
     --text-main: #0f172a;
     --text-muted: #64748b;
+    --brand-logo: #1b807c;
+    --brand-logo-strong: #145f5c;
+    --brand-logo-surface: rgba(27, 128, 124, 0.14);
     --accent: #2563eb;
     --accent-hover: #1d4ed8;
     --accent-gradient: linear-gradient(135deg, #2563eb 0%, #4f46e5 100%);
@@ -169,6 +176,7 @@ body {
     background: var(--bg-app);
     color: var(--text-main);
     height: 100%;
+    min-height: var(--viewport-height, 100vh);
     /* Revert to standard percent height */
     position: relative;
     /* Remove fixed */
@@ -180,6 +188,7 @@ body {
 
 .app-shell {
     flex: 1;
+    height: var(--viewport-height, 100vh);
     min-height: 0;
     width: 100%;
     display: flex;
@@ -305,6 +314,14 @@ body.aspect-lock .fab {
     fill: none;
 }
 
+.refresh-btn.is-busy {
+    color: var(--text-main);
+}
+
+.refresh-btn.is-busy svg {
+    animation: spin 0.8s linear infinite;
+}
+
 /* Settings Button */
 .settings-wrapper {
     position: relative;
@@ -339,7 +356,7 @@ body.aspect-lock .fab {
 }
 
 .qr-btn {
-    background: var(--surface-subtle);
+    background: transparent;
     border: none;
     color: var(--text-main);
     cursor: pointer;
@@ -438,8 +455,8 @@ body.aspect-lock .fab {
 }
 
 .settings-option.active {
-    background: var(--dropdown-active-bg);
-    color: var(--dropdown-active-fg);
+    background: var(--brand-logo-surface);
+    color: var(--brand-logo-strong);
 }
 
 .settings-option svg {
@@ -1124,20 +1141,6 @@ body.agent-running .toolbar-stop-btn {
     stroke-width: 2.5;
 }
 
-@keyframes spin-once {
-    0% {
-        transform: rotate(0deg);
-    }
-
-    100% {
-        transform: rotate(360deg);
-    }
-}
-
-.spin-anim {
-    animation: spin-once 0.5s ease-out;
-}
-
 /* Settings Bar */
 .settings-bar {
     background: rgba(26, 27, 32, 0.8);
@@ -1242,7 +1245,7 @@ body.agent-running .toolbar-stop-btn {
 
 .qr-kicker {
     margin: 0;
-    color: var(--accent);
+    color: var(--brand-logo);
     font-size: 11px;
     font-weight: 700;
     letter-spacing: 0.12em;
@@ -1321,11 +1324,16 @@ body.agent-running .toolbar-stop-btn {
     color: #000;
     padding: 8px 12px;
     display: none;
+    grid-template-columns: minmax(0, 1fr) auto auto;
     align-items: center;
-    justify-content: center;
     gap: 12px;
     font-size: 12px;
     font-weight: 500;
+}
+
+.ssl-banner>span {
+    min-width: 0;
+    line-height: 1.35;
 }
 
 .ssl-banner button {
@@ -1337,6 +1345,8 @@ body.agent-running .toolbar-stop-btn {
     font-size: 11px;
     font-weight: 600;
     cursor: pointer;
+    min-height: 34px;
+    white-space: nowrap;
 }
 
 .ssl-banner button:hover {
@@ -1344,10 +1354,11 @@ body.agent-running .toolbar-stop-btn {
 }
 
 .ssl-banner .dismiss-btn {
-    background: transparent;
+    background: rgba(0, 0, 0, 0.12);
     color: #000;
-    font-size: 16px;
-    padding: 0 4px;
+    font-size: 12px;
+    font-weight: 600;
+    padding: 4px 10px;
 }
 
 /* History Layer (Full Screen for Phone) */
@@ -1971,4 +1982,100 @@ body.home-screen .fab {
     .qr-loading {
         min-height: 240px;
     }
+
+    .ssl-banner {
+        padding: 8px 10px;
+        gap: 8px;
+        grid-template-columns: minmax(0, 1fr) auto auto;
+        font-size: 11.5px;
+    }
+
+    .ssl-banner button {
+        min-height: 32px;
+        padding: 4px 9px;
+        font-size: 10.5px;
+    }
+}
+
+@media (max-width: 520px) {
+    .ssl-banner {
+        grid-template-columns: 1fr auto;
+    }
+
+    .ssl-banner>span {
+        grid-column: 1 / -1;
+    }
+}
+
+@media (max-width: 900px) {
+    body.aspect-lock {
+        align-items: stretch;
+        justify-content: flex-start;
+    }
+
+    body.aspect-lock .app-shell {
+        width: 100vw;
+        height: var(--viewport-height, 100vh);
+        max-width: 100vw;
+        max-height: var(--viewport-height, 100vh);
+    }
+
+    body.aspect-lock .header {
+        padding: 6px 10px;
+    }
+
+    body.aspect-lock .ssl-banner {
+        padding: 8px 10px;
+    }
+
+    body.aspect-lock .input-section {
+        padding: 6px 10px 10px;
+    }
+}
+
+body.keyboard-open .ssl-banner {
+    display: none !important;
+}
+
+body.keyboard-open .header {
+    padding: 4px 8px;
+}
+
+body.keyboard-open .header-controls {
+    gap: 4px;
+}
+
+body.keyboard-open .header-logo {
+    height: 18px;
+}
+
+body.keyboard-open .chat-content {
+    padding-top: 6px;
+    padding-bottom: 8px;
+}
+
+body.keyboard-open .input-section {
+    padding: 6px 8px calc(8px + env(safe-area-inset-bottom));
+}
+
+body.keyboard-open .input-box textarea {
+    padding: 8px 12px 2px 12px;
+    max-height: 96px;
+}
+
+body.keyboard-open .input-toolbar {
+    padding: 0 6px 6px 6px;
+}
+
+body.keyboard-open .toolbar-chip {
+    font-size: 10px;
+    padding: 2px 4px;
+}
+
+body.keyboard-open #modeText {
+    max-width: 28px;
+}
+
+body.keyboard-open .fab {
+    bottom: calc(6.5rem + env(safe-area-inset-bottom));
 }
