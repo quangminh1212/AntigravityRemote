@@ -6,6 +6,9 @@
     --bg-panel: #1a1b20;
     --bg-input: #27282e;
     --border: rgba(255, 255, 255, 0.08);
+    --input-shell: #090a0c;
+    --input-border-soft: rgba(255, 255, 255, 0.08);
+    --input-shadow-soft: rgba(17, 18, 21, 0.34);
     --text-main: #cccccc;
     --text-muted: #717175;
     --accent: #6366f1;
@@ -81,6 +84,9 @@
     --bg-panel: #f5f5f7;
     --bg-input: #e8e8ed;
     --border: rgba(0, 0, 0, 0.1);
+    --input-shell: rgba(247, 248, 250, 0.94);
+    --input-border-soft: rgba(15, 23, 42, 0.08);
+    --input-shadow-soft: rgba(148, 163, 184, 0.22);
     --text-main: #1d1d1f;
     --text-muted: #6e6e73;
     --accent: #6366f1;
@@ -567,17 +573,26 @@ body {
 }
 
 .input-box {
-    background: #1e2025;
-    border: 1px solid rgba(255, 255, 255, 0.06);
+    background: var(--input-shell);
+    border: 1px solid var(--input-border-soft);
     border-radius: 14px;
     padding: 0;
-    transition: border-color 0.2s;
+    box-shadow: none;
+    -webkit-backdrop-filter: none;
+    backdrop-filter: none;
+    transition: background-color 0.2s;
     overflow: visible;
     position: relative;
 }
 
 .input-box:focus-within {
-    border-color: rgba(255, 255, 255, 0.10);
+    border-color: rgba(255, 255, 255, 0.12);
+    box-shadow: none;
+}
+
+[data-theme="light"] .input-box:focus-within {
+    border-color: rgba(15, 23, 42, 0.14);
+    box-shadow: none;
 }
 
 .input-box textarea {
@@ -1402,7 +1417,7 @@ body.agent-running .toolbar-stop-btn {
 
 .input-section {
     padding: 8px 16px 14px;
-    background: linear-gradient(180deg, rgba(17, 18, 21, 0), rgba(17, 18, 21, 0.96) 22%, #111215 100%);
+    background: #090a0c;
 }
 
 [data-theme="light"] .input-section {
@@ -1434,15 +1449,18 @@ body.agent-running .toolbar-stop-btn {
 }
 
 .input-box {
-    background: #070a0f;
-    border: 1px solid rgba(255, 255, 255, 0.08);
-    box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.02);
+    background: var(--input-shell);
+    border: 1px solid var(--input-border-soft);
+    box-shadow: none;
 }
 
 [data-theme="light"] .input-box {
-    background: #ffffff;
-    border-color: rgba(0, 0, 0, 0.08);
-    box-shadow: 0 1px 0 rgba(255, 255, 255, 0.5);
+    background: var(--input-shell);
+    border-color: var(--input-border-soft);
+    box-shadow:
+        0 0 0 1px rgba(15, 23, 42, 0.03),
+        0 0 20px -12px var(--input-shadow-soft),
+        inset 0 1px 0 rgba(255, 255, 255, 0.65);
 }
 
 .input-box textarea {
