@@ -196,6 +196,7 @@ let autoRefreshEnabled = true;
 let userIsScrolling = false;
 let userScrollLockUntil = 0; // Timestamp until which we respect user scroll
 let lastScrollPosition = 0;
+let suppressScrollHandlingUntil = 0;
 let ws = null;
 let idleTimer = null;
 let lastHash = '';
@@ -383,6 +384,15 @@ function buildSnapshotThemeOverrides() {
 #chatContent [class*="inline-flex"],
 #chatContent [class*="gap-"] {
     flex-wrap: wrap !important;
+}
+
+#chatContent [class*="overflow-y-auto"][class*="max-h-"],
+#chatContent [style*="overflow-y: auto"][style*="max-height"],
+#chatContent [style*="overflow-y:auto"][style*="max-height"],
+#chatContent [style*="overflow: auto"][style*="max-height"],
+#chatContent [style*="overflow:auto"][style*="max-height"] {
+    max-height: none !important;
+    overflow-y: visible !important;
 }
 
 #chatContent [class*="grow"],
@@ -734,7 +744,11 @@ async function fetchWithAuth(url, options = {}) {
         throw e;
     }
 }
-const USER_SCROLL_LOCK_DURATION = 3000; // 3 seconds of scroll protection
+const USER_SCROLL_LOCK_DURATION = 1800;
+const USER_SCROLL_IDLE_RESET = 900;
+const SCROLL_SYNC_IDLE_DELAY = 180;
+const SNAPSHOT_RELOAD_DELAY = 220;
+const PROGRAMMATIC_SCROLL_SUPPRESSION_MS = 220;
 
 // --- Sync State (Desktop is Always Priority) ---
 async function fetchAppState() {
@@ -1015,24 +1029,25 @@ function renderSnapshot(data) {
     if (isUserScrollLocked) {
         // User recently scrolled - try to maintain their approximate position
         if (wasAtTop) {
-            chatContainer.scrollTop = 0;
+            setChatScrollPosition(0);
         } else {
             const previousScrollableHeight = Math.max(scrollHeight - clientHeight, 0);
             const nextScrollableHeight = Math.max(chatContainer.scrollHeight - chatContainer.clientHeight, 0);
             const scrollPercent = previousScrollableHeight > 0 ? scrollPos / previousScrollableHeight : 0;
-            chatContainer.scrollTop = nextScrollableHeight * scrollPercent;
+            setChatScrollPosition(nextScrollableHeight * scrollPercent);
         }
     } else if (isNearBottom && !wasAtTop) {
         // User was near the bottom, so keep the latest messages in view
-        chatContainer.scrollTop = chatContainer.scrollHeight;
+        setChatScrollPosition(chatContainer.scrollHeight);
     } else if (wasAtTop) {
         // Preserve the top position instead of snapping down on refresh
-        chatContainer.scrollTop = 0;
+        setChatScrollPosition(0);
     } else {
         // Preserve exact scroll position
-        chatContainer.scrollTop = scrollPos;
+        setChatScrollPosition(scrollPos);
     }
 
+    updateScrollToBottomVisibility();
     updateWorkspaceChrome({ snapshotReady: true });
 }
 
@@ -1219,10 +1234,32 @@ async function copyToClipboard(text) {
 }
 
 function scrollToBottom() {
-    chatContainer.scrollTo({
-        top: chatContainer.scrollHeight,
-        behavior: 'smooth'
-    });
+    scrollChatTo(chatContainer.scrollHeight, 'smooth');
+}
+
+function updateScrollToBottomVisibility() {
+    const isNearBottom = chatContainer.scrollHeight - chatContainer.scrollTop - chatContainer.clientHeight < 120;
+    scrollToBottomBtn.classList.toggle('show', !isNearBottom);
+
+    if (isNearBottom) {
+        userScrollLockUntil = 0;
+    }
+}
+
+function suppressScrollHandling(duration = PROGRAMMATIC_SCROLL_SUPPRESSION_MS) {
+    suppressScrollHandlingUntil = Math.max(suppressScrollHandlingUntil, Date.now() + duration);
+}
+
+function setChatScrollPosition(top) {
+    suppressScrollHandling();
+    chatContainer.scrollTop = top;
+    updateScrollToBottomVisibility();
+}
+
+function scrollChatTo(top, behavior = 'auto') {
+    suppressScrollHandling(behavior === 'smooth' ? 650 : PROGRAMMATIC_SCROLL_SUPPRESSION_MS);
+    chatContainer.scrollTo({ top, behavior });
+    updateScrollToBottomVisibility();
 }
 
 // --- Inputs ---
@@ -1405,67 +1442,74 @@ function formatFileSize(bytes) {
 
 // --- Scroll Sync to Desktop ---
 let scrollSyncTimeout = null;
-let lastScrollSync = 0;
-const SCROLL_SYNC_DEBOUNCE = 150; // ms between scroll syncs
-let snapshotReloadPending = false;
+let snapshotReloadTimeout = null;
+let lastSyncedScrollPercent = null;
+
+function scheduleScrollSync(delay = SCROLL_SYNC_IDLE_DELAY) {
+    clearTimeout(scrollSyncTimeout);
+    scrollSyncTimeout = setTimeout(syncScrollToDesktop, delay);
+}
+
+function scheduleSnapshotReload(delay = SNAPSHOT_RELOAD_DELAY) {
+    clearTimeout(snapshotReloadTimeout);
+    snapshotReloadTimeout = setTimeout(() => {
+        loadSnapshot();
+    }, delay);
+}
 
 async function syncScrollToDesktop() {
     const scrollableHeight = Math.max(chatContainer.scrollHeight - chatContainer.clientHeight, 0);
     const scrollPercent = scrollableHeight > 0 ? chatContainer.scrollTop / scrollableHeight : 0;
+    const normalizedScrollPercent = Math.min(1, Math.max(0, Number(scrollPercent.toFixed(4))));
+
+    if (lastSyncedScrollPercent !== null && Math.abs(normalizedScrollPercent - lastSyncedScrollPercent) < 0.003) {
+        return;
+    }
+
+    lastSyncedScrollPercent = normalizedScrollPercent;
+
     try {
         await fetchWithAuth('/remote-scroll', {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({ scrollPercent: Math.min(1, Math.max(0, scrollPercent)) })
+            body: JSON.stringify({ scrollPercent: normalizedScrollPercent })
         });
 
-        // After scrolling desktop, reload snapshot to get newly visible content
-        // (Antigravity uses virtualized scrolling - only visible messages are in DOM)
-        if (!snapshotReloadPending) {
-            snapshotReloadPending = true;
-            setTimeout(() => {
-                loadSnapshot();
-                snapshotReloadPending = false;
-            }, 300);
-        }
+        // Antigravity virtualizes long chats, so refresh after the desktop catches up.
+        scheduleSnapshotReload();
     } catch (e) {
         console.log('Scroll sync failed:', e.message);
     }
 }
 
 chatContainer.addEventListener('scroll', () => {
+    lastScrollPosition = chatContainer.scrollTop;
+    updateScrollToBottomVisibility();
+
+    if (Date.now() < suppressScrollHandlingUntil) {
+        return;
+    }
+
     userIsScrolling = true;
+    autoRefreshEnabled = false;
     // Set a lock to prevent auto-scroll jumping for a few seconds
     userScrollLockUntil = Date.now() + USER_SCROLL_LOCK_DURATION;
     clearTimeout(idleTimer);
-
-    const isNearBottom = chatContainer.scrollHeight - chatContainer.scrollTop - chatContainer.clientHeight < 120;
-    if (isNearBottom) {
-        scrollToBottomBtn.classList.remove('show');
-        // If user scrolled to bottom, clear the lock so auto-scroll works
-        userScrollLockUntil = 0;
-    } else {
-        scrollToBottomBtn.classList.add('show');
-    }
-
-    // Debounced scroll sync to desktop
-    const now = Date.now();
-    if (now - lastScrollSync > SCROLL_SYNC_DEBOUNCE) {
-        lastScrollSync = now;
-        clearTimeout(scrollSyncTimeout);
-        scrollSyncTimeout = setTimeout(syncScrollToDesktop, 100);
-    }
+    clearTimeout(snapshotReloadTimeout);
+    scheduleScrollSync();
 
     idleTimer = setTimeout(() => {
         userIsScrolling = false;
         autoRefreshEnabled = true;
-    }, 5000);
+    }, USER_SCROLL_IDLE_RESET);
 });
 
 scrollToBottomBtn.addEventListener('click', () => {
     userIsScrolling = false;
+    autoRefreshEnabled = true;
     userScrollLockUntil = 0; // Clear lock so auto-scroll works again
     scrollToBottom();
+    scheduleScrollSync(700);
 });
 
 // --- Stop Logic ---

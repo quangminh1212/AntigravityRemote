@@ -580,6 +580,10 @@ body {
     overflow-x: hidden;
     position: relative;
     background: var(--bg-app);
+    overscroll-behavior-y: contain;
+    -webkit-overflow-scrolling: touch;
+    touch-action: pan-y;
+    scrollbar-gutter: stable;
 }
 
 .chat-content {
