@@ -220,6 +220,109 @@ function normalizePublicBaseUrl(rawUrl) {
     }
 }
 
+function ensureDirectory(path) {
+    fs.mkdirSync(path, { recursive: true });
+}
+
+function getCloudflaredDownloadUrl() {
+    if (process.platform !== 'win32') {
+        return null;
+    }
+
+    if (process.arch === 'x64') {
+        return 'https://github.com/cloudflare/cloudflared/releases/latest/download/cloudflared-windows-amd64.exe';
+    }
+
+    if (process.arch === 'ia32') {
+        return 'https://github.com/cloudflare/cloudflared/releases/latest/download/cloudflared-windows-386.exe';
+    }
+
+    return null;
+}
+
+function downloadFile(downloadUrl, destinationPath, redirectCount = 0) {
+    return new Promise((resolve, reject) => {
+        if (redirectCount > 5) {
+            reject(new Error('Too many redirects while downloading cloudflared'));
+            return;
+        }
+
+        const client = downloadUrl.startsWith('https:') ? https : http;
+        const request = client.get(downloadUrl, {
+            headers: {
+                'User-Agent': 'AntigravityRemote/1.0'
+            }
+        }, (response) => {
+            const { statusCode = 0, headers } = response;
+
+            if ([301, 302, 303, 307, 308].includes(statusCode) && headers.location) {
+                response.resume();
+                const redirectedUrl = new URL(headers.location, downloadUrl).toString();
+                resolve(downloadFile(redirectedUrl, destinationPath, redirectCount + 1));
+                return;
+            }
+
+            if (statusCode !== 200) {
+                response.resume();
+                reject(new Error(`Failed to download cloudflared (HTTP ${statusCode})`));
+                return;
+            }
+
+            ensureDirectory(dirname(destinationPath));
+            const tempPath = `${destinationPath}.tmp-${process.pid}`;
+            const fileStream = fs.createWriteStream(tempPath);
+
+            response.pipe(fileStream);
+
+            fileStream.on('finish', () => {
+                fileStream.close(() => {
+                    try {
+                        fs.renameSync(tempPath, destinationPath);
+                        if (process.platform !== 'win32') {
+                            fs.chmodSync(destinationPath, 0o755);
+                        }
+                        resolve(destinationPath);
+                    } catch (error) {
+                        try { fs.unlinkSync(tempPath); } catch (unlinkError) { }
+                        reject(error);
+                    }
+                });
+            });
+
+            fileStream.on('error', (error) => {
+                try { fs.unlinkSync(tempPath); } catch (unlinkError) { }
+                reject(error);
+            });
+        });
+
+        request.on('error', reject);
+    });
+}
+
+async function ensureCloudflaredBinary() {
+    const bundledDir = join(RUNTIME_ROOT, 'tools');
+    const bundledPath = join(bundledDir, process.platform === 'win32' ? 'cloudflared.exe' : 'cloudflared');
+
+    if (fs.existsSync(bundledPath)) {
+        return bundledPath;
+    }
+
+    const installedPath = findCommandOnPath('cloudflared');
+    if (installedPath) {
+        return installedPath;
+    }
+
+    const downloadUrl = getCloudflaredDownloadUrl();
+    if (!downloadUrl) {
+        throw new Error(`cloudflared is not installed and automatic project-local download is not supported on ${process.platform}/${process.arch}`);
+    }
+
+    console.log(`[PUBLIC] Downloading cloudflared into ${bundledPath}`);
+    await downloadFile(downloadUrl, bundledPath);
+    console.log('[PUBLIC] cloudflared download completed');
+    return bundledPath;
+}
+
 function buildConnectUrl(baseUrl, password) {
     const url = new URL(baseUrl);
     url.searchParams.set('key', password);
@@ -2862,24 +2965,192 @@ async function createServer() {
     const phoneProtocol = phoneUsesHttps ? 'https' : 'http';
     const phonePort = phoneUsesHttps ? phoneHttpsPort : SERVER_PORT;
     const webProtocol = primaryUsesHttps ? 'https' : 'http';
-    const publicAccessEnabled = Boolean(PUBLIC_BASE_URL);
+    const explicitPublicBaseUrl = PUBLIC_BASE_URL;
+    const autoPublicTunnelEnabled = !explicitPublicBaseUrl && process.env.AG_AUTO_PUBLIC_TUNNEL !== '0';
+    const localTunnelTargetPort = SERVER_PORT;
+    const localTunnelUsesHttps = primaryUsesHttps;
+    let cachedPublicBaseUrl = explicitPublicBaseUrl;
+    let cachedPublicAccessSource = explicitPublicBaseUrl ? 'configured' : null;
+    let publicTunnelProcess = null;
+    let publicTunnelPromise = null;
+    let publicTunnelError = null;
+    let publicTunnelLastFailureAt = 0;
 
-    const resolveAccessInfo = () => {
+    const resetPublicTunnelState = (options = {}) => {
+        if (!explicitPublicBaseUrl) {
+            cachedPublicBaseUrl = null;
+            cachedPublicAccessSource = null;
+        }
+
+        publicTunnelPromise = null;
+        if (options.clearError) {
+            publicTunnelError = null;
+            publicTunnelLastFailureAt = 0;
+        }
+    };
+
+    const stopPublicTunnel = () => {
+        if (!publicTunnelProcess) return;
+        try {
+            publicTunnelProcess.kill();
+        } catch (error) { }
+        publicTunnelProcess = null;
+    };
+
+    const extractPublicUrl = (text) => {
+        const match = text.match(/https?:\/\/[^\s"'`]+/i);
+        return match ? normalizePublicBaseUrl(match[0]) : null;
+    };
+
+    const ensureAutoPublicBaseUrl = async () => {
+        if (!autoPublicTunnelEnabled) {
+            return null;
+        }
+
+        if (cachedPublicBaseUrl && cachedPublicAccessSource === 'localtunnel' && publicTunnelProcess && !publicTunnelProcess.killed && publicTunnelProcess.exitCode == null) {
+            return cachedPublicBaseUrl;
+        }
+
+        if (publicTunnelPromise) {
+            return publicTunnelPromise;
+        }
+
+        if (publicTunnelLastFailureAt && (Date.now() - publicTunnelLastFailureAt) < 15000) {
+            return null;
+        }
+
+        publicTunnelPromise = new Promise((resolve) => {
+            let settled = false;
+            const tunnelArgs = ['--port', String(localTunnelTargetPort), '--local-host', '127.0.0.1'];
+
+            if (localTunnelUsesHttps) {
+                tunnelArgs.push('--local-https', '--allow-invalid-cert');
+            }
+
+            const finish = (url, errorMessage = null) => {
+                if (settled) return;
+                settled = true;
+
+                if (errorMessage) {
+                    publicTunnelError = errorMessage;
+                    publicTunnelLastFailureAt = Date.now();
+                } else {
+                    publicTunnelError = null;
+                    publicTunnelLastFailureAt = 0;
+                }
+
+                publicTunnelPromise = null;
+                resolve(url || null);
+            };
+
+            const tunnelSpawnCommand = process.platform === 'win32' ? 'cmd.exe' : 'lt';
+            const tunnelSpawnArgs = process.platform === 'win32'
+                ? ['/c', 'lt', ...tunnelArgs]
+                : tunnelArgs;
+
+            const child = spawn(tunnelSpawnCommand, tunnelSpawnArgs, {
+                cwd: __dirname,
+                windowsHide: true,
+                stdio: ['ignore', 'pipe', 'pipe']
+            });
+
+            publicTunnelProcess = child;
+
+            const timeout = setTimeout(() => {
+                if (!cachedPublicBaseUrl || cachedPublicAccessSource !== 'localtunnel') {
+                    stopPublicTunnel();
+                    finish(null, 'Automatic localtunnel startup timed out');
+                }
+            }, 20000);
+
+            const handleOutput = (chunk) => {
+                const text = String(chunk || '');
+                if (!text.trim()) return;
+
+                const detectedUrl = extractPublicUrl(text);
+                if (detectedUrl) {
+                    cachedPublicBaseUrl = detectedUrl;
+                    cachedPublicAccessSource = 'localtunnel';
+                    clearTimeout(timeout);
+                    console.log(`[PUBLIC] Auto public URL ready via localtunnel: ${detectedUrl}`);
+                    finish(detectedUrl);
+                    return;
+                }
+
+                if (/error|failed|unable/i.test(text)) {
+                    publicTunnelError = text.trim().split(/\r?\n/).pop();
+                }
+            };
+
+            child.stdout.on('data', handleOutput);
+            child.stderr.on('data', handleOutput);
+
+            child.once('error', (error) => {
+                clearTimeout(timeout);
+                publicTunnelProcess = null;
+                resetPublicTunnelState();
+                finish(null, `Automatic localtunnel failed to start: ${error.message}`);
+            });
+
+            child.once('exit', (code, signal) => {
+                clearTimeout(timeout);
+                if (publicTunnelProcess === child) {
+                    publicTunnelProcess = null;
+                }
+
+                const currentUrl = cachedPublicAccessSource === 'localtunnel' ? cachedPublicBaseUrl : null;
+                resetPublicTunnelState();
+
+                if (!settled) {
+                    finish(currentUrl, currentUrl ? null : `Automatic localtunnel exited before publishing a URL (${signal || code || 'unknown'})`);
+                    return;
+                }
+
+                if (currentUrl) {
+                    publicTunnelError = 'Automatic localtunnel stopped';
+                    publicTunnelLastFailureAt = Date.now();
+                    console.warn('[PUBLIC] Automatic localtunnel stopped. QR will fall back to the local network address until the tunnel is recreated.');
+                }
+            });
+        });
+
+        return publicTunnelPromise;
+    };
+
+    const getEffectivePublicBaseUrl = async ({ startTunnel = false } = {}) => {
+        if (explicitPublicBaseUrl) {
+            return explicitPublicBaseUrl;
+        }
+
+        if (startTunnel) {
+            return await ensureAutoPublicBaseUrl();
+        }
+
+        return cachedPublicBaseUrl;
+    };
+
+    const resolveAccessInfo = async ({ startTunnel = false } = {}) => {
         const localIP = getLocalIP();
+        const activePublicBaseUrl = await getEffectivePublicBaseUrl({ startTunnel });
 
-        if (publicAccessEnabled) {
-            const publicUrl = new URL(PUBLIC_BASE_URL);
+        if (activePublicBaseUrl) {
+            const publicUrl = new URL(activePublicBaseUrl);
             return {
-                connectUrl: buildConnectUrl(PUBLIC_BASE_URL, APP_PASSWORD),
-                baseUrl: PUBLIC_BASE_URL,
+                connectUrl: buildConnectUrl(activePublicBaseUrl, APP_PASSWORD),
+                baseUrl: activePublicBaseUrl,
                 localIP,
                 host: publicUrl.host,
                 port: publicUrl.port ? Number(publicUrl.port) : (publicUrl.protocol === 'https:' ? 443 : 80),
                 protocol: publicUrl.protocol.replace(':', ''),
                 accessMode: 'public',
                 sameNetworkRequired: false,
-                description: 'Your phone will open Antigravity Remote through the configured public URL.',
-                hint: 'This QR uses a public URL, so the phone can connect from outside your local Wi-Fi as long as this machine and the tunnel stay online.'
+                publicAccessSource: cachedPublicAccessSource || 'configured',
+                description: cachedPublicAccessSource === 'localtunnel'
+                    ? 'Your phone will open Antigravity Remote through an automatic secure public tunnel.'
+                    : 'Your phone will open Antigravity Remote through the configured public URL.',
+                hint: cachedPublicAccessSource === 'localtunnel'
+                    ? 'This QR uses a secure public tunnel, so the phone can connect from outside your local Wi-Fi while this machine stays online.'
+                    : 'This QR uses a public URL, so the phone can connect from outside your local Wi-Fi as long as this machine and the tunnel stay online.'
             };
         }
 
@@ -2892,8 +3163,11 @@ async function createServer() {
             protocol: phoneProtocol,
             accessMode: 'local',
             sameNetworkRequired: true,
+            publicAccessSource: null,
             description: 'Your phone will open Antigravity Remote directly on the current local address.',
-            hint: 'Keep the phone on the same Wi-Fi as this machine when using the local connection.'
+            hint: autoPublicTunnelEnabled && publicTunnelError
+                ? `Automatic public tunnel is unavailable right now. ${publicTunnelError}. Keep the phone on the same Wi-Fi as this machine, or configure PUBLIC_BASE_URL for external access.`
+                : 'Keep the phone on the same Wi-Fi as this machine when using the local connection.'
         };
     };
 
@@ -2912,8 +3186,10 @@ async function createServer() {
         console.log(`[EMBEDDED] SSL certificates detected. Keeping local HTTP on port ${SERVER_PORT} for the embedded webview and enabling HTTPS on port ${phoneHttpsPort} for phone access.`);
     }
 
-    if (publicAccessEnabled) {
-        console.log(`[PUBLIC] External access configured. QR links will use ${PUBLIC_BASE_URL}`);
+    if (explicitPublicBaseUrl) {
+        console.log(`[PUBLIC] External access configured. QR links will use ${explicitPublicBaseUrl}`);
+    } else if (autoPublicTunnelEnabled) {
+        console.log(`[PUBLIC] Automatic public tunnel is enabled. Open Phone QR to create a shareable URL through localtunnel.`);
     }
 
     if (primaryUsesHttps) {
@@ -3079,7 +3355,8 @@ async function createServer() {
     });
 
     // Health check endpoint
-    app.get('/health', (req, res) => {
+    app.get('/health', async (req, res) => {
+        const accessInfo = await resolveAccessInfo();
         res.json({
             status: 'ok',
             cdpConnected: cdpConnection?.ws?.readyState === 1, // WebSocket.OPEN = 1
@@ -3087,15 +3364,17 @@ async function createServer() {
             timestamp: new Date().toISOString(),
             https: phoneUsesHttps,
             embedded: IS_EMBEDDED_RUNTIME,
-            publicAccessEnabled,
-            publicBaseUrl: PUBLIC_BASE_URL
+            publicAccessEnabled: accessInfo.accessMode === 'public',
+            publicBaseUrl: accessInfo.accessMode === 'public' ? accessInfo.baseUrl : null,
+            publicAccessSource: accessInfo.publicAccessSource,
+            publicTunnelError
         });
     });
 
     // QR Code endpoint - generates QR for phone connection
     app.get('/qr-info', async (req, res) => {
         try {
-            const accessInfo = resolveAccessInfo();
+            const accessInfo = await resolveAccessInfo({ startTunnel: true });
             const connectUrl = accessInfo.connectUrl;
 
             const qrDataUrl = await QRCode.toDataURL(connectUrl, {
@@ -3117,8 +3396,10 @@ async function createServer() {
     });
 
     // SSL status endpoint
-    app.get('/ssl-status', (req, res) => {
-        const accessInfo = resolveAccessInfo();
+    app.get('/ssl-status', async (req, res) => {
+        const accessInfo = await resolveAccessInfo();
+        const publicAccessEnabled = accessInfo.accessMode === 'public';
+        const publicStatusUrl = publicAccessEnabled ? accessInfo.baseUrl : null;
         res.json({
             enabled: phoneUsesHttps,
             certsExist: certsExist,
@@ -3126,10 +3407,14 @@ async function createServer() {
             port: accessInfo.port,
             protocol: accessInfo.protocol,
             publicAccessEnabled,
-            publicBaseUrl: PUBLIC_BASE_URL,
+            publicBaseUrl: publicStatusUrl,
+            publicAccessSource: accessInfo.publicAccessSource,
+            publicTunnelError,
             accessMode: accessInfo.accessMode,
             sameNetworkRequired: accessInfo.sameNetworkRequired,
-            message: publicAccessEnabled ? `Public access is enabled via ${PUBLIC_BASE_URL}. QR links will use this public URL.` :
+            message: publicAccessEnabled ? `Public access is enabled via ${publicStatusUrl}. QR links will use this public URL.` :
+                autoPublicTunnelEnabled && !publicTunnelError ? 'Automatic public tunnel is ready on demand. Open Phone QR to create a shareable outside-network URL.' :
+                    autoPublicTunnelEnabled && publicTunnelError ? `Automatic public tunnel is unavailable right now: ${publicTunnelError}` :
                 phoneUsesHttps && IS_EMBEDDED_RUNTIME ? `HTTPS is active for phone access on port ${phonePort}. Embedded webview stays on local HTTP.` :
                 phoneUsesHttps ? 'HTTPS is active' :
                     'No certificates found'
@@ -3671,6 +3956,8 @@ async function main() {
 
             if (PUBLIC_BASE_URL) {
                 console.log(`[PUBLIC] Share ${PUBLIC_BASE_URL} to access this machine from outside the local network.`);
+            } else if (process.env.AG_AUTO_PUBLIC_TUNNEL !== '0') {
+                console.log(`[PUBLIC] Phone QR will create a public localtunnel URL for outside-network access when needed.`);
             }
 
             if (httpsServer && httpsServer !== server) {
@@ -3713,6 +4000,9 @@ async function main() {
                     console.log('   HTTPS phone server closed');
                 });
             }
+
+            stopPublicTunnel();
+            console.log('   Public tunnel closed');
 
             if (cdpConnection?.ws) {
                 cdpConnection.ws.close();
