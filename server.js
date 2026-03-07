@@ -2967,8 +2967,8 @@ async function createServer() {
     const webProtocol = primaryUsesHttps ? 'https' : 'http';
     const explicitPublicBaseUrl = PUBLIC_BASE_URL;
     const autoPublicTunnelEnabled = !explicitPublicBaseUrl && process.env.AG_AUTO_PUBLIC_TUNNEL !== '0';
-    const localTunnelTargetPort = SERVER_PORT;
-    const localTunnelUsesHttps = primaryUsesHttps;
+    const quickTunnelOriginUrl = `${primaryUsesHttps ? 'https' : 'http'}://127.0.0.1:${SERVER_PORT}`;
+    const cloudflaredHome = join(RUNTIME_ROOT, '.cloudflared-quick-tunnel-home');
     let cachedPublicBaseUrl = explicitPublicBaseUrl;
     let cachedPublicAccessSource = explicitPublicBaseUrl ? 'configured' : null;
     let publicTunnelProcess = null;
@@ -2998,8 +2998,20 @@ async function createServer() {
     };
 
     const extractPublicUrl = (text) => {
-        const match = text.match(/https?:\/\/[^\s"'`]+/i);
-        return match ? normalizePublicBaseUrl(match[0]) : null;
+        const sanitizedText = String(text || '').replace(/\u001b\[[0-9;]*m/g, ' ');
+        const matches = sanitizedText.match(/https?:\/\/[^\s"'`]+/gi) || [];
+
+        for (const rawMatch of matches) {
+            const candidate = rawMatch.replace(/[),.;]+$/g, '');
+            try {
+                const url = new URL(candidate);
+                if (['http:', 'https:'].includes(url.protocol)) {
+                    return url.origin;
+                }
+            } catch (error) { }
+        }
+
+        return null;
     };
 
     const ensureAutoPublicBaseUrl = async () => {
@@ -3007,7 +3019,7 @@ async function createServer() {
             return null;
         }
 
-        if (cachedPublicBaseUrl && cachedPublicAccessSource === 'localtunnel' && publicTunnelProcess && !publicTunnelProcess.killed && publicTunnelProcess.exitCode == null) {
+        if (cachedPublicBaseUrl && cachedPublicAccessSource === 'cloudflare-quick-tunnel' && publicTunnelProcess && !publicTunnelProcess.killed && publicTunnelProcess.exitCode == null) {
             return cachedPublicBaseUrl;
         }
 
@@ -3021,12 +3033,6 @@ async function createServer() {
 
         publicTunnelPromise = new Promise((resolve) => {
             let settled = false;
-            const tunnelArgs = ['--port', String(localTunnelTargetPort), '--local-host', '127.0.0.1'];
-
-            if (localTunnelUsesHttps) {
-                tunnelArgs.push('--local-https', '--allow-invalid-cert');
-            }
-
             const finish = (url, errorMessage = null) => {
                 if (settled) return;
                 settled = true;
@@ -3043,75 +3049,92 @@ async function createServer() {
                 resolve(url || null);
             };
 
-            const tunnelSpawnCommand = process.platform === 'win32' ? 'cmd.exe' : 'lt';
-            const tunnelSpawnArgs = process.platform === 'win32'
-                ? ['/c', 'lt', ...tunnelArgs]
-                : tunnelArgs;
+            (async () => {
+                try {
+                    const cloudflaredBinary = await ensureCloudflaredBinary();
+                    ensureDirectory(cloudflaredHome);
+                    ensureDirectory(join(cloudflaredHome, '.cloudflared'));
 
-            const child = spawn(tunnelSpawnCommand, tunnelSpawnArgs, {
-                cwd: __dirname,
-                windowsHide: true,
-                stdio: ['ignore', 'pipe', 'pipe']
-            });
+                    const tunnelArgs = ['tunnel', '--url', quickTunnelOriginUrl];
+                    if (primaryUsesHttps) {
+                        tunnelArgs.push('--no-tls-verify');
+                    }
 
-            publicTunnelProcess = child;
+                    const child = spawn(cloudflaredBinary, tunnelArgs, {
+                        cwd: __dirname,
+                        windowsHide: true,
+                        env: {
+                            ...process.env,
+                            HOME: cloudflaredHome,
+                            USERPROFILE: cloudflaredHome
+                        },
+                        stdio: ['ignore', 'pipe', 'pipe']
+                    });
 
-            const timeout = setTimeout(() => {
-                if (!cachedPublicBaseUrl || cachedPublicAccessSource !== 'localtunnel') {
-                    stopPublicTunnel();
-                    finish(null, 'Automatic localtunnel startup timed out');
-                }
-            }, 20000);
+                    publicTunnelProcess = child;
 
-            const handleOutput = (chunk) => {
-                const text = String(chunk || '');
-                if (!text.trim()) return;
+                    const timeout = setTimeout(() => {
+                        if (!cachedPublicBaseUrl || cachedPublicAccessSource !== 'cloudflare-quick-tunnel') {
+                            stopPublicTunnel();
+                            finish(null, 'Cloudflare Quick Tunnel startup timed out');
+                        }
+                    }, 25000);
 
-                const detectedUrl = extractPublicUrl(text);
-                if (detectedUrl) {
-                    cachedPublicBaseUrl = detectedUrl;
-                    cachedPublicAccessSource = 'localtunnel';
-                    clearTimeout(timeout);
-                    console.log(`[PUBLIC] Auto public URL ready via localtunnel: ${detectedUrl}`);
-                    finish(detectedUrl);
-                    return;
-                }
+                    const handleOutput = (chunk) => {
+                        const text = String(chunk || '');
+                        if (!text.trim()) return;
 
-                if (/error|failed|unable/i.test(text)) {
-                    publicTunnelError = text.trim().split(/\r?\n/).pop();
-                }
-            };
+                        const detectedUrl = extractPublicUrl(text);
+                        if (detectedUrl && detectedUrl.includes('trycloudflare.com')) {
+                            cachedPublicBaseUrl = detectedUrl;
+                            cachedPublicAccessSource = 'cloudflare-quick-tunnel';
+                            clearTimeout(timeout);
+                            console.log(`[PUBLIC] Cloudflare Quick Tunnel ready: ${detectedUrl}`);
+                            finish(detectedUrl);
+                            return;
+                        }
 
-            child.stdout.on('data', handleOutput);
-            child.stderr.on('data', handleOutput);
+                        if (/error|failed|unable|unreachable|timed out/i.test(text)) {
+                            publicTunnelError = text.trim().split(/\r?\n/).pop();
+                        }
+                    };
 
-            child.once('error', (error) => {
-                clearTimeout(timeout);
-                publicTunnelProcess = null;
-                resetPublicTunnelState();
-                finish(null, `Automatic localtunnel failed to start: ${error.message}`);
-            });
+                    child.stdout.on('data', handleOutput);
+                    child.stderr.on('data', handleOutput);
 
-            child.once('exit', (code, signal) => {
-                clearTimeout(timeout);
-                if (publicTunnelProcess === child) {
+                    child.once('error', (error) => {
+                        clearTimeout(timeout);
+                        publicTunnelProcess = null;
+                        resetPublicTunnelState();
+                        finish(null, `Cloudflare Quick Tunnel failed to start: ${error.message}`);
+                    });
+
+                    child.once('exit', (code, signal) => {
+                        clearTimeout(timeout);
+                        if (publicTunnelProcess === child) {
+                            publicTunnelProcess = null;
+                        }
+
+                        const currentUrl = cachedPublicAccessSource === 'cloudflare-quick-tunnel' ? cachedPublicBaseUrl : null;
+                        resetPublicTunnelState();
+
+                        if (!settled) {
+                            finish(currentUrl, currentUrl ? null : `Cloudflare Quick Tunnel exited before publishing a URL (${signal || code || 'unknown'})`);
+                            return;
+                        }
+
+                        if (currentUrl) {
+                            publicTunnelError = 'Cloudflare Quick Tunnel stopped';
+                            publicTunnelLastFailureAt = Date.now();
+                            console.warn('[PUBLIC] Cloudflare Quick Tunnel stopped. QR will fall back to the local network address until the tunnel is recreated.');
+                        }
+                    });
+                } catch (error) {
                     publicTunnelProcess = null;
+                    resetPublicTunnelState();
+                    finish(null, error.message);
                 }
-
-                const currentUrl = cachedPublicAccessSource === 'localtunnel' ? cachedPublicBaseUrl : null;
-                resetPublicTunnelState();
-
-                if (!settled) {
-                    finish(currentUrl, currentUrl ? null : `Automatic localtunnel exited before publishing a URL (${signal || code || 'unknown'})`);
-                    return;
-                }
-
-                if (currentUrl) {
-                    publicTunnelError = 'Automatic localtunnel stopped';
-                    publicTunnelLastFailureAt = Date.now();
-                    console.warn('[PUBLIC] Automatic localtunnel stopped. QR will fall back to the local network address until the tunnel is recreated.');
-                }
-            });
+            })();
         });
 
         return publicTunnelPromise;
@@ -3145,11 +3168,11 @@ async function createServer() {
                 accessMode: 'public',
                 sameNetworkRequired: false,
                 publicAccessSource: cachedPublicAccessSource || 'configured',
-                description: cachedPublicAccessSource === 'localtunnel'
-                    ? 'Your phone will open Antigravity Remote through an automatic secure public tunnel.'
+                description: cachedPublicAccessSource === 'cloudflare-quick-tunnel'
+                    ? 'Your phone will open Antigravity Remote through a Cloudflare Quick Tunnel.'
                     : 'Your phone will open Antigravity Remote through the configured public URL.',
-                hint: cachedPublicAccessSource === 'localtunnel'
-                    ? 'This QR uses a secure public tunnel, so the phone can connect from outside your local Wi-Fi while this machine stays online.'
+                hint: cachedPublicAccessSource === 'cloudflare-quick-tunnel'
+                    ? 'This QR uses Cloudflare Quick Tunnel, so the phone can connect from outside your local Wi-Fi while this machine stays online.'
                     : 'This QR uses a public URL, so the phone can connect from outside your local Wi-Fi as long as this machine and the tunnel stay online.'
             };
         }
@@ -3166,7 +3189,7 @@ async function createServer() {
             publicAccessSource: null,
             description: 'Your phone will open Antigravity Remote directly on the current local address.',
             hint: autoPublicTunnelEnabled && publicTunnelError
-                ? `Automatic public tunnel is unavailable right now. ${publicTunnelError}. Keep the phone on the same Wi-Fi as this machine, or configure PUBLIC_BASE_URL for external access.`
+                ? `Cloudflare Quick Tunnel is unavailable right now. ${publicTunnelError}. Keep the phone on the same Wi-Fi as this machine, or configure PUBLIC_BASE_URL for external access.`
                 : 'Keep the phone on the same Wi-Fi as this machine when using the local connection.'
         };
     };
@@ -3189,7 +3212,7 @@ async function createServer() {
     if (explicitPublicBaseUrl) {
         console.log(`[PUBLIC] External access configured. QR links will use ${explicitPublicBaseUrl}`);
     } else if (autoPublicTunnelEnabled) {
-        console.log(`[PUBLIC] Automatic public tunnel is enabled. Open Phone QR to create a shareable URL through localtunnel.`);
+        console.log('[PUBLIC] Automatic public tunnel is enabled. Open Phone QR to create a Cloudflare Quick Tunnel URL.');
     }
 
     if (primaryUsesHttps) {
@@ -3413,10 +3436,10 @@ async function createServer() {
             accessMode: accessInfo.accessMode,
             sameNetworkRequired: accessInfo.sameNetworkRequired,
             message: publicAccessEnabled ? `Public access is enabled via ${publicStatusUrl}. QR links will use this public URL.` :
-                autoPublicTunnelEnabled && !publicTunnelError ? 'Automatic public tunnel is ready on demand. Open Phone QR to create a shareable outside-network URL.' :
-                    autoPublicTunnelEnabled && publicTunnelError ? `Automatic public tunnel is unavailable right now: ${publicTunnelError}` :
+                autoPublicTunnelEnabled && !publicTunnelError ? 'Cloudflare Quick Tunnel is ready on demand. Open Phone QR to create a shareable outside-network URL.' :
+                    autoPublicTunnelEnabled && publicTunnelError ? `Cloudflare Quick Tunnel is unavailable right now: ${publicTunnelError}` :
                 phoneUsesHttps && IS_EMBEDDED_RUNTIME ? `HTTPS is active for phone access on port ${phonePort}. Embedded webview stays on local HTTP.` :
-                phoneUsesHttps ? 'HTTPS is active' :
+                    phoneUsesHttps ? 'HTTPS is active' :
                     'No certificates found'
         });
     });
@@ -3957,7 +3980,7 @@ async function main() {
             if (PUBLIC_BASE_URL) {
                 console.log(`[PUBLIC] Share ${PUBLIC_BASE_URL} to access this machine from outside the local network.`);
             } else if (process.env.AG_AUTO_PUBLIC_TUNNEL !== '0') {
-                console.log(`[PUBLIC] Phone QR will create a public localtunnel URL for outside-network access when needed.`);
+                console.log('[PUBLIC] Phone QR will create a Cloudflare Quick Tunnel URL for outside-network access when needed.');
             }
 
             if (httpsServer && httpsServer !== server) {
