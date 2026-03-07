@@ -52,6 +52,7 @@ const settingsBtn = document.getElementById('settingsBtn');
 const settingsDropdown = document.getElementById('settingsDropdown');
 const fullscreenBtn = document.getElementById('fullscreenBtn');
 const fullscreenIcon = document.getElementById('fullscreenIcon');
+const inputSection = document.querySelector('.input-section');
 const homeContext = document.getElementById('homeContext');
 const homeContextAgent = document.getElementById('homeContextAgent');
 const homeRecents = document.getElementById('homeRecents');
@@ -918,9 +919,7 @@ async function fetchAppState() {
 
         // Mode Sync (Fast/Planning) - Desktop is source of truth
         if (data.mode && data.mode !== 'Unknown') {
-            modeText.textContent = data.mode;
-            modeBtn.classList.toggle('active', data.mode === 'Planning');
-            currentMode = data.mode;
+            syncModeSelection(data.mode);
         }
 
         // Model Sync - Desktop is source of truth
@@ -1007,6 +1006,17 @@ function timeAgo(dateStr) {
     if (hrs < 24) return `${hrs}h`;
     const days = Math.floor(hrs / 24);
     return `${days}d`;
+}
+
+function syncModeSelection(mode) {
+    const resolvedMode = mode === 'Planning' ? 'Planning' : 'Fast';
+    currentMode = resolvedMode;
+    modeText.textContent = resolvedMode;
+    modeBtn.classList.toggle('active', resolvedMode === 'Planning');
+    modeBtn.dataset.mode = resolvedMode;
+    modeMenu.querySelectorAll('.dropdown-option').forEach((option) => {
+        option.classList.toggle('active', option.dataset.value === resolvedMode);
+    });
 }
 
 function setHomeScreen(enabled) {
@@ -2112,6 +2122,7 @@ function closeAllDropdowns() {
     document.querySelectorAll('.dropdown-menu.show').forEach(m => m.classList.remove('show'));
     document.querySelectorAll('.toolbar-chip.open').forEach(c => c.classList.remove('open'));
     dropdownBackdrop.classList.remove('show');
+    inputSection?.classList.remove('dropdown-active');
 }
 
 function toggleDropdown(menu, chip) {
@@ -2121,6 +2132,7 @@ function toggleDropdown(menu, chip) {
         menu.classList.add('show');
         chip.classList.add('open');
         dropdownBackdrop.classList.add('show');
+        inputSection?.classList.add('dropdown-active');
     }
 }
 
@@ -2128,6 +2140,7 @@ dropdownBackdrop.addEventListener('click', closeAllDropdowns);
 
 // --- Mode dropdown ---
 modeBtn.addEventListener('click', () => {
+    syncModeSelection(currentMode);
     toggleDropdown(modeMenu, modeBtn);
 });
 
@@ -2146,19 +2159,14 @@ modeMenu.addEventListener('click', async (e) => {
         });
         const data = await res.json();
         if (data.success) {
-            currentMode = mode;
-            modeText.textContent = mode;
+            syncModeSelection(mode);
             updateWorkspaceChrome({ mode });
-            // Update active state
-            modeMenu.querySelectorAll('.dropdown-option').forEach(o => {
-                o.classList.toggle('active', o.dataset.value === mode);
-            });
         } else {
             alert('Error: ' + (data.error || 'Unknown'));
-            modeText.textContent = currentMode;
+            syncModeSelection(currentMode);
         }
     } catch (e) {
-        modeText.textContent = currentMode;
+        syncModeSelection(currentMode);
     }
 });
 
@@ -2318,6 +2326,7 @@ chatContainer.addEventListener('click', async (e) => {
 });
 
 // --- Init ---
+syncModeSelection(currentMode);
 updateWorkspaceChrome();
 connectWebSocket();
 // Sync state initially and every 5 seconds to keep phone in sync with desktop changes
@@ -2335,7 +2344,11 @@ const qrCloseBtn = document.getElementById('qrCloseBtn');
 const qrImage = document.getElementById('qrImage');
 const qrUrl = document.getElementById('qrUrl');
 const qrLoading = document.getElementById('qrLoading');
+const qrDescription = document.getElementById('qrDescription');
+const qrHint = document.getElementById('qrHint');
 const qrLoadingMarkup = '<div class="loading-spinner"></div><p>Generating phone QR...</p>';
+const defaultQrDescription = qrDescription?.textContent || '';
+const defaultQrHint = qrHint?.textContent || '';
 
 function setQrModalOpen(isOpen) {
     if (!qrOverlay) return;
@@ -2350,6 +2363,8 @@ function resetQrModalState() {
     qrUrl.textContent = '';
     qrLoading.innerHTML = qrLoadingMarkup;
     qrLoading.style.display = 'flex';
+    if (qrDescription) qrDescription.textContent = defaultQrDescription;
+    if (qrHint) qrHint.textContent = defaultQrHint;
 }
 
 if (qrBtn && qrOverlay && qrCloseBtn && qrImage && qrUrl && qrLoading) {
@@ -2366,6 +2381,8 @@ if (qrBtn && qrOverlay && qrCloseBtn && qrImage && qrUrl && qrLoading) {
             qrImage.src = data.qrDataUrl;
             qrImage.style.display = 'block';
             qrUrl.textContent = data.connectUrl;
+            if (qrDescription) qrDescription.textContent = data.description || defaultQrDescription;
+            if (qrHint) qrHint.textContent = data.hint || defaultQrHint;
             qrLoading.style.display = 'none';
         } catch (e) {
             qrLoading.innerHTML = '<p style="color: var(--error)">Failed to generate phone QR</p>';

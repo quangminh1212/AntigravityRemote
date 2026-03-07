@@ -33,11 +33,22 @@
     --chip-border: transparent;
     --chip-border-hover: transparent;
     --chip-bg-open: rgba(255, 255, 255, 0.06);
+    --mode-chip-bg: rgba(255, 255, 255, 0.055);
+    --mode-chip-border: rgba(255, 255, 255, 0.06);
+    --mode-chip-bg-open: rgba(255, 255, 255, 0.09);
+    --mode-chip-planning-bg: rgba(70, 85, 122, 0.34);
+    --mode-chip-planning-border: rgba(129, 140, 248, 0.18);
+    --mode-menu-bg: rgba(14, 16, 20, 0.98);
+    --mode-menu-border: rgba(255, 255, 255, 0.08);
+    --mode-menu-hover-bg: rgba(255, 255, 255, 0.035);
+    --mode-menu-active-bg: rgba(255, 255, 255, 0.065);
+    --mode-menu-active-fg: #f3f4f6;
+    --mode-menu-active-desc: rgba(226, 232, 240, 0.74);
     --send-bg: #3a3a3f;
     --send-bg-hover: #4a4a50;
     --send-fg: #f8fafc;
-    --dropdown-active-bg: rgba(99, 102, 241, 0.18);
-    --dropdown-active-fg: #ffffff;
+    --dropdown-active-bg: rgba(255, 255, 255, 0.065);
+    --dropdown-active-fg: #f3f4f6;
     --overlay-shadow: 0 18px 48px rgba(0, 0, 0, 0.32);
     --fab-shadow: 0 12px 28px rgba(0, 0, 0, 0.24);
     --spinner-track: rgba(255, 255, 255, 0.05);
@@ -138,11 +149,22 @@
     --chip-border: rgba(148, 163, 184, 0.26);
     --chip-border-hover: rgba(148, 163, 184, 0.4);
     --chip-bg-open: #ffffff;
+    --mode-chip-bg: rgba(226, 232, 240, 0.82);
+    --mode-chip-border: rgba(148, 163, 184, 0.22);
+    --mode-chip-bg-open: #ffffff;
+    --mode-chip-planning-bg: rgba(191, 219, 254, 0.8);
+    --mode-chip-planning-border: rgba(96, 165, 250, 0.24);
+    --mode-menu-bg: rgba(255, 255, 255, 0.98);
+    --mode-menu-border: rgba(148, 163, 184, 0.2);
+    --mode-menu-hover-bg: rgba(148, 163, 184, 0.1);
+    --mode-menu-active-bg: rgba(148, 163, 184, 0.14);
+    --mode-menu-active-fg: #0f172a;
+    --mode-menu-active-desc: rgba(51, 65, 85, 0.82);
     --send-bg: #0f172a;
     --send-bg-hover: #1e293b;
     --send-fg: #ffffff;
-    --dropdown-active-bg: rgba(37, 99, 235, 0.12);
-    --dropdown-active-fg: #1d4ed8;
+    --dropdown-active-bg: rgba(148, 163, 184, 0.14);
+    --dropdown-active-fg: #0f172a;
     --overlay-shadow: 0 18px 48px rgba(15, 23, 42, 0.12);
     --fab-shadow: 0 14px 32px rgba(15, 23, 42, 0.14);
     --spinner-track: rgba(15, 23, 42, 0.08);
@@ -358,7 +380,7 @@ body.aspect-lock .fab {
 .qr-btn {
     background: transparent;
     border: none;
-    color: var(--text-main);
+    color: var(--text-muted);
     cursor: pointer;
     height: 32px;
     padding: 0 10px 0 8px;
@@ -376,6 +398,7 @@ body.aspect-lock .fab {
 }
 
 .qr-btn:hover {
+    color: var(--text-main);
     background: var(--surface-hover-strong);
 }
 
@@ -745,6 +768,10 @@ body.aspect-lock .fab {
     z-index: 100;
 }
 
+.input-section.dropdown-active {
+    z-index: 2001;
+}
+
 .input-box {
     background: var(--input-shell);
     border: 1px solid var(--input-border-soft);
@@ -872,6 +899,23 @@ body.aspect-lock .fab {
     box-shadow: none;
 }
 
+#modeBtn {
+    background: var(--mode-chip-bg);
+    border: 1px solid var(--mode-chip-border);
+}
+
+#modeBtn:hover,
+#modeBtn.open {
+    background: var(--mode-chip-bg-open);
+    border-color: var(--mode-chip-border);
+}
+
+#modeBtn.active {
+    background: var(--mode-chip-planning-bg);
+    border-color: var(--mode-chip-planning-border);
+    color: var(--text-main);
+}
+
 .toolbar-chip:hover {
     color: var(--text-main);
     background: var(--chip-bg-open);
@@ -896,6 +940,12 @@ body.aspect-lock .fab {
     color: var(--text-main);
     background: var(--chip-bg-open);
     border-color: var(--chip-border-hover);
+}
+
+#modeBtn.active:hover,
+#modeBtn.active.open {
+    background: var(--mode-chip-planning-bg);
+    border-color: var(--mode-chip-planning-border);
 }
 
 /* Dropdown container */
@@ -988,6 +1038,31 @@ body.aspect-lock .fab {
     font-size: 12px;
     color: var(--text-muted);
     line-height: 1.4;
+}
+
+#modeMenu {
+    background: var(--mode-menu-bg);
+    border-color: var(--mode-menu-border);
+}
+
+#modeMenu .dropdown-title {
+    color: color-mix(in srgb, var(--text-main) 72%, transparent);
+}
+
+#modeMenu .dropdown-option:hover {
+    background: var(--mode-menu-hover-bg);
+}
+
+#modeMenu .dropdown-option.active {
+    background: var(--mode-menu-active-bg);
+}
+
+#modeMenu .dropdown-option.active .dropdown-option-name {
+    color: var(--mode-menu-active-fg);
+}
+
+#modeMenu .dropdown-option.active .dropdown-option-desc {
+    color: var(--mode-menu-active-desc);
 }
 
 /* Model dropdown option - compact single-line layout */
@@ -1812,7 +1887,7 @@ body.agent-running .toolbar-stop-btn {
 }
 
 #modeText {
-    max-width: 38px;
+    max-width: 8ch;
 }
 
 #modelText {
@@ -1913,7 +1988,7 @@ body.home-screen .fab {
     }
 
     #modeText {
-        max-width: 34px;
+        max-width: 8ch;
     }
 }
 
@@ -1967,7 +2042,7 @@ body.home-screen .fab {
     }
 
     #modeText {
-        max-width: 30px;
+        max-width: 8ch;
     }
 
     .qr-modal {
@@ -2073,7 +2148,7 @@ body.keyboard-open .toolbar-chip {
 }
 
 body.keyboard-open #modeText {
-    max-width: 28px;
+    max-width: 7.4ch;
 }
 
 body.keyboard-open .fab {
